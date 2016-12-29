@@ -1,0 +1,38 @@
+{
+
+  "manifest_version": 2,
+  "name": "Canvas Capture",
+  "version": "1.0",
+  "description": "Capture video from canvas elements",
+  "icons": {
+    "16": "/img/png/icon_16.png",
+    "32": "/img/png/icon_32.png",
+    "48": "/img/png/icon_48.png",
+    "64": "/img/png/icon_64.png",
+    "128": "/img/png/icon_128.png"
+  },
+
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+
+  "background": {
+    "scripts": ["background.js"]
+  },
+
+  "options_ui": {
+    "page": "/options/options.html"
+  },
+
+  "browser_action": {
+    "default_title": "Canvas Capture",
+    "browser_style": false
+  },
+
+  "web_accessible_resources": [
+    "/capture/capture.html",
+    "/capture/capture.css"
+  ]
+
+}

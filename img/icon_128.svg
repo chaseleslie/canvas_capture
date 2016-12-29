@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="128" height="128" xmlns="http://www.w3.org/2000/svg">
+
+	<defs>
+		<radialGradient id="gradient">
+			<stop offset="4%" stop-color="#88F" />
+			<stop offset="35%" stop-color="#99F" />
+			<stop offset="90%" stop-color="#BCE" />
+		</radialGradient>
+	</defs>
+
+	<path
+		d="M8,0 L40,32 L64,16 L88,32 L120,0 L112,32 L104,64 L120,104 L112,128 L88,96 L64,112 L40,96 L16,128 L8,104 L24,64 L16,32 Z"
+		stroke-width="8" stroke="#002" fill="url(#gradient)" />
+
+</svg>
