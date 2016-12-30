@@ -31,6 +31,7 @@ var capturing = false;
 var capturingActiveCanvas = null;
 var activeButton = null;
 var chunks = null;
+var allCanvases = null;
 var numBytes = 0;
 var mimeTypeMap = {
   "mp4": "video/mp4",
@@ -154,6 +155,7 @@ function listCanvases(html) {
   var tr = null;
 
   var canvases = Array.prototype.slice.call(document.body.querySelectorAll("canvas"));
+  allCanvases = canvases;
   for (let k = 0; k < canvases.length; k += 1) {
     tr = document.createElement("tr");
     let canvas = canvases[k];
@@ -205,72 +207,75 @@ function listCanvases(html) {
 }
 
 function onToggleCapture(evt) {
-  var button = evt.target;
-  var wrapper = document.getElementById(wrapperId);
+  activeButton = evt.target;
+
+  if (capturing) {
+    preStopCapture();
+  } else {
+    preStartCapture();
+  }
+}
+
+function preStartCapture() {
   var table = document.getElementById("list_canvases");
   var buttons = Array.prototype.slice.call(table.querySelectorAll("button"));
   var rows = Array.prototype.slice.call(table.querySelectorAll("tr"), 1);
-  var h3 = wrapper.querySelector("h3");
+  var button = activeButton;
+  var h3 = document.getElementById(wrapperId).querySelector("h3");
 
-  if (capturing) {
-    for (let k = 0; k < rows.length; k += 1) {
-      let row = rows[k];
-      row.classList.remove("canvas_capture_inactive", "canvas_capture_selected");
+  var buttonIndex = button.dataset.index;
+  var row = null;
+  var linkCol = rows[buttonIndex].querySelector("td.canvas_capture_link_container");
+  linkCol.textContent = "";
+
+  for (let k = 0; k < rows.length; k += 1) {
+    let ro = rows[k];
+
+    if (ro.dataset.index === buttonIndex) {
+      ro.classList.add("canvas_capture_selected");
+      row = ro;
+    } else {
+      ro.classList.add("canvas_capture_inactive");
     }
-    for (let k = 0; k < buttons.length; k += 1) {
-      let but = buttons[k];
-      but.addEventListener("click", onToggleCapture, false);
-      but.textContent = "Capture";
-    }
-
-    mediaRecorder.stop();
-    numBytes = 0;
-    h3.classList.remove("capturing");
-    activeButton = null;
-  } else {
-    let buttonIndex = button.dataset.index;
-    let row = null;
-    let linkCol = rows[buttonIndex].querySelector("td.canvas_capture_link_container");
-    linkCol.textContent = "";
-
-    for (let k = 0; k < rows.length; k += 1) {
-      let ro = rows[k];
-
-      if (ro.dataset.index === buttonIndex) {
-        ro.classList.add("canvas_capture_selected");
-        row = ro;
-      } else {
-        ro.classList.add("canvas_capture_inactive");
-      }
-    }
-    for (let k = 0; k < buttons.length; k += 1) {
-      let but = buttons[k];
-
-      if (but === button) {
-        but.textContent = "Stop";
-      } else {
-        but.removeEventListener("click", onToggleCapture);
-      }
-    }
-    let canvasIndex = row.dataset.index;
-    let canvasId = button.dataset.canvasId;
-    let fpsInput = document.getElementById(button.dataset.fpsInput);
-    let fps = parseFloat(fpsInput.value);
-    fps = (isFinite(fps) && !isNaN(fps) && fps >= 0) ? fps : 0;
-    let bpsInput = document.getElementById(button.dataset.bpsInput);
-    let bps = parseFloat(bpsInput.value);
-    bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : defaultBPS;
-    startCapture(canvasIndex, canvasId, fps, bps);
-
-    h3.classList.add("capturing");
-    activeButton = button;
   }
+  for (let k = 0; k < buttons.length; k += 1) {
+    let but = buttons[k];
+
+    if (but === button) {
+      but.textContent = "Stop";
+    } else {
+      but.removeEventListener("click", onToggleCapture);
+    }
+  }
+
+  var canvasIndex = row.dataset.index;
+  var canvasId = button.dataset.canvasId;
+  var fpsInput = document.getElementById(button.dataset.fpsInput);
+  var fps = parseFloat(fpsInput.value);
+  fps = (isFinite(fps) && !isNaN(fps) && fps >= 0) ? fps : 0;
+  var bpsInput = document.getElementById(button.dataset.bpsInput);
+  var bps = parseFloat(bpsInput.value);
+  bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : defaultBPS;
+  startCapture(canvasIndex, canvasId, fps, bps);
+
+  h3.classList.add("capturing");
+  activeButton = button;
 }
 
 function startCapture(canvasIndex, id, fps, bps) {
   capturingActiveCanvas = canvasIndex;
   chunks = [];
-  var canvas = document.getElementById(id);
+  var canvas = null;
+  if (id) {
+    canvas = document.getElementById(id);
+  } else {
+    canvas = allCanvases[canvasIndex];
+  }
+
+  if (!canvas) {
+    return;
+  }
+
   var stream = canvas.captureStream(fps);
   try {
     mediaRecorder = new window.MediaRecorder(
@@ -284,6 +289,28 @@ function startCapture(canvasIndex, id, fps, bps) {
   mediaRecorder.addEventListener("stop", stopCapture, false);
   mediaRecorder.start(captureInterval);
   capturing = true;
+}
+
+function preStopCapture() {
+  var table = document.getElementById("list_canvases");
+  var buttons = Array.prototype.slice.call(table.querySelectorAll("button"));
+  var rows = Array.prototype.slice.call(table.querySelectorAll("tr"), 1);
+  var h3 = document.getElementById(wrapperId).querySelector("h3");
+
+  for (let k = 0; k < rows.length; k += 1) {
+    let row = rows[k];
+    row.classList.remove("canvas_capture_inactive", "canvas_capture_selected");
+  }
+  for (let k = 0; k < buttons.length; k += 1) {
+    let but = buttons[k];
+    but.addEventListener("click", onToggleCapture, false);
+    but.textContent = "Capture";
+  }
+
+  mediaRecorder.stop();
+  numBytes = 0;
+  h3.classList.remove("capturing");
+  activeButton = null;
 }
 
 function createVideoURL(blob) {
