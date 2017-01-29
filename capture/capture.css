@@ -1,4 +1,4 @@
-/* Copyright (C) 2016 Chase
+/* Copyright (C) 2016-2017 Chase
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,8 +21,12 @@
   position: fixed;
   z-index: 1000;
   border-radius: 10px;
-  text-align: center;
   background-color: #AAA;
+  box-shadow: 5px 5px #555;
+  text-align: center;
+  font-family: sans-serif;
+  font-size: 16px;
+  color: #000;
 }
 
 #list_canvases {
@@ -31,7 +35,7 @@
   border-collapse: collapse;
 }
 
-#list_canvases tr {
+#list_canvases tr, #list_canvases th, #list_canvases td {
   border: 1px solid #000;
 }
 
@@ -48,7 +52,7 @@
   opacity: 0.5;
 }
 
-@keyframes spinner {
+@keyframes cc_spinner {
   to {
     transform: rotate(360deg);
   }
@@ -59,12 +63,12 @@
   position: absolute;
   top: 20%;
   left: 50%;
-  width: 30px;
-  height: 30px;
-  margin-top: -15px;
-  margin-left: -15px;
+  width: 40px;
+  height: 40px;
+  margin-top: -20px;
+  margin-left: -20px;
   border-radius: 50%;
   border: 1px solid #EEE;
   border-top-color: #CCC;
-  animation: spinner 0.8s linear infinite;
+  animation: cc_spinner 0.8s linear infinite;
 }
