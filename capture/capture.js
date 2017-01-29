@@ -183,7 +183,6 @@ function listCanvases(html) {
 
     td = document.createElement("td");
     let button = document.createElement("button");
-    button.id = `toggle${k}`;
     button.dataset.index = k;
     button.textContent = "Capture";
     button.dataset.canvasId = canvas.id;
@@ -197,7 +196,6 @@ function listCanvases(html) {
     td.classList.add("canvas_capture_link_container");
     tr.appendChild(td);
 
-    tr.dataset.canvasId = canvas.id;
     tr.dataset.index = k;
     docFrag.appendChild(tr);
   }
