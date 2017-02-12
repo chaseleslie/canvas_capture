@@ -13,7 +13,7 @@ of codec (typically VPX).
 To use, simply navigate to a page with an animated canvas element and click
 the extension's browser action (toolbar button). A list of canvases present
 on the page will be displayed with some details about each one. Click the
-capture butten next to the canvas that should be captured. When finished,
+capture button next to the canvas that should be captured. When finished,
 click the stop button and a link will be generated to download the
 resulting video file (the file is constructed using Blobs; no network
 access is required).
