@@ -54,16 +54,6 @@ function freeObjectURLs() {
   }
 }
 
-function beforeWindowUnload() {
-  freeObjectURLs();
-
-  port.postMessage({
-    "command": "disconnect",
-    "subcommand": tabId
-  });
-}
-window.addEventListener("beforeunload", beforeWindowUnload, false);
-
 function onMessage(msg) {
   if (msg.command === "display") {
     tabId = msg.subcommand;
