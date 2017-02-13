@@ -74,7 +74,7 @@ function connected(port) {
   port.onMessage.addListener(onMessage);
 
   var queryTab = browser.tabs.query({"active": true}, getTabInfo);
-  if (typeof queryTab === "function") {
+  if (queryTab) {
     queryTab.then(getTabInfo);
   }
   function getTabInfo(tabs) {
