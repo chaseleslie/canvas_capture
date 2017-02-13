@@ -53,7 +53,6 @@ function handleInstall(details) {
   }
 }
 function getFirstInstallSetting(setting) {
-
   if (Array.isArray(setting)) {
     setting = setting[0];
   }
@@ -66,7 +65,7 @@ if ("onInstalled" in browser.runtime) {
   browser.runtime.onInstalled.addListener(handleInstall);
 } else {
   let firstInstallSetting = browser.storage.local.get("firstInstall", getFirstInstallSetting);
-  if (typeof firstInstallSetting === "function") {
+  if (firstInstallSetting) {
     firstInstallSetting.then(getFirstInstallSetting);
   }
 }
