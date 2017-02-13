@@ -26,7 +26,7 @@ function initOptions() {
   inputMaxSize.addEventListener("blur", updateMaxVideoSize, false);
 
   var inputMaxSizeSetting = browser.storage.local.get(maxVideoSizeKey, getMaxVideoSize);
-  if (typeof inputMaxSizeSetting === "function") {
+  if (inputMaxSizeSetting) {
     inputMaxSizeSetting.then(getMaxVideoSize);
   }
 }
