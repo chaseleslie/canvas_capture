@@ -109,7 +109,7 @@ function setMaxVideoSize(setting) {
 
 function handleDisplay() {
   var inputMaxSizeSetting = browser.storage.local.get("maxVideoSize", setMaxVideoSize);
-  if (typeof inputMaxSizeSetting === "function") {
+  if (inputMaxSizeSetting) {
     inputMaxSizeSetting.then(setMaxVideoSize);
   }
 
