@@ -15,41 +15,74 @@
 
 
 #capture_list_container {
-  min-width: 40%;
-  min-height: 20hv;
-  max-height: 40hv;
+  min-width: 40vw;
+  min-height: 20vh;
+  max-height: 25vh;
   position: fixed;
+  bottom: 0px;
+  display: grid;
   z-index: 1000;
+  overflow-y: hidden;
   border-radius: 10px;
-  background-color: #AAA;
-  box-shadow: 5px 5px #555;
+  background-color: #282C34;
   text-align: center;
   font-family: sans-serif;
   font-size: 16px;
-  color: #000;
+  color: #D8D8FF;
 }
 
 #list_canvases {
   margin: 20px auto;
-  border: 2px solid #000;
-  border-collapse: collapse;
+  display: grid;
+  overflow-y: auto;
+  max-height: 20vh;
 }
 
-#list_canvases tr, #list_canvases th, #list_canvases td {
-  border: 1px solid #000;
+#list_canvases .list_canvases_row:hover {
+  background-color: #383C44;
 }
 
-#list_canvases tbody tr:hover {
-  background-color: #CCC;
+.list_canvases_row_heading {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+  background-color: #222230;
+  font-weight: 600;
+}
+
+.list_canvases_row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+}
+
+.list_canvases_canvas_id {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .canvas_capture_selected {
-  background-color: #CCC;
-  border: 2px inset #000 !important;
+  background-color: #383C44;
 }
 
 .canvas_capture_inactive {
   opacity: 0.5;
+}
+
+.canvas_capture_link_container {
+  position: relative;
+}
+
+.anchored {
+  position: sticky;
+  top: 0px;
+}
+
+.middle_centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @keyframes cc_spinner {
@@ -61,14 +94,14 @@
   content: '';
   box-sizing: border-box;
   position: absolute;
-  top: 20%;
+  top: 50%;
   left: 50%;
-  width: 40px;
-  height: 40px;
-  margin-top: -20px;
-  margin-left: -20px;
+  width: 1.5em;
+  height: 1.5em;
+  margin-top: -0.75em;
+  margin-left: -0.75em;
   border-radius: 50%;
-  border: 1px solid #EEE;
-  border-top-color: #CCC;
+  border: 2px solid #EEE;
+  border-top-color: #AAA;
   animation: cc_spinner 0.8s linear infinite;
 }
