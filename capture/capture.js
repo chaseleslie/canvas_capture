@@ -50,29 +50,43 @@ var listCanvasesId = "list_canvases";
 var cssFile = "/capture/capture.css";
 var htmlFile = "/capture/capture.html";
 var bodyMutObs = new MutationObserver(observeBodyMutations);
+var canvasMutObs = new MutationObserver(observeCanvasMutations);
 
 bodyMutObs.observe(document.body, {
   "childList": true,
   "subtree": true
 });
 function observeBodyMutations(mutations) {
+  var canvasesChanged = false;
   mutations = mutations.filter((el) => el.type === "childList");
+
   for (let k = 0, n = mutations.length; k < n; k += 1) {
     let mutation = mutations[k];
+
     let addedNodes = Array.from(mutation.addedNodes);
     for (let iK = 0, iN = addedNodes.length; iK < iN; iK += 1) {
       let node = addedNodes[iK];
       if (node.nodeName.toLowerCase() === "canvas") {
-        // canvas added
+        canvasesChanged = true;
+        break;
       }
     }
+
     let removedNodes = Array.from(mutation.removedNodes);
     for (let iK = 0, iN = removedNodes.length; iK < iN; iK += 1) {
-      let node = addedNodes[iK];
+      let node = removedNodes[iK];
       if (node.nodeName.toLowerCase() === "canvas") {
-        // canvas removed
+        canvasesChanged = true;
+        break;
       }
     }
+  }
+
+  var canvases = Array.from(document.body.querySelectorAll("canvas"));
+  allCanvases = canvases;
+
+  if (canvasesChanged) {
+    updateCanvases(document.getElementById(listCanvasesId), canvases);
   }
 }
 
@@ -156,7 +170,7 @@ function handleDisplay() {
       xhrHTML.open("GET", htmlUrl, true);
       xhrHTML.onreadystatechange = function() {
         if (xhrHTML.status === 200 && xhrHTML.readyState === 4) {
-          listCanvases(xhrHTML.responseText);
+          setupDisplay(xhrHTML.responseText);
         }
       };
       xhrHTML.send();
@@ -191,30 +205,42 @@ function setupWrapperEvents() {
   }, true);
 }
 
-function listCanvases(html) {
+function setupDisplay(html) {
   var wrapper = document.createElement("div");
   document.body.appendChild(wrapper);
   wrapper.outerHTML = html;
   wrapper = document.getElementById(wrapperId);
-  var docFrag = document.createDocumentFragment();
-  var grid = document.getElementById(listCanvasesId);
-  var headerKeys = ["id", "width", "height"];
-  var row = null;
+  var parent = document.getElementById(listCanvasesId);
 
   positionWrapper();
   setupWrapperEvents();
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
   allCanvases = canvases;
+  updateCanvases(parent, canvases);
+}
+
+function updateCanvases(parent, canvases) {
+  var docFrag = document.createDocumentFragment();
+  var headerKeys = ["id", "width", "height"];
+  var oldRows = Array.from(parent.querySelectorAll(".list_canvases_row"));
+  var canvasObsOps = {
+    "attributes": true,
+    "attributeFilter": ["id", "width", "height"]
+  };
+
+  oldRows.forEach((row) => row.parentElement.removeChild(row));
+  canvases.forEach((canvas) => canvasMutObs.observe(canvas, canvasObsOps));
+
   for (let k = 0; k < canvases.length; k += 1) {
-    row = document.createElement("span");
+    var row = document.createElement("span");
     let canvas = canvases[k];
     for (let iK = 0; iK < headerKeys.length; iK += 1) {
       let col = document.createElement("span");
       col.textContent = canvas[headerKeys[iK]];
       col.classList.add("middle_centered");
+      col.classList.add(`list_canvases_canvas_${headerKeys[iK]}`);
       if (headerKeys[iK] === "id") {
-        col.classList.add("list_canvases_canvas_id");
         col.title = canvas[headerKeys[iK]];
       }
       row.appendChild(col);
@@ -261,7 +287,29 @@ function listCanvases(html) {
     docFrag.appendChild(row);
   }
 
-  grid.appendChild(docFrag);
+  parent.appendChild(docFrag);
+}
+
+function observeCanvasMutations(mutations) {
+  var canvases = Array.from(document.body.querySelectorAll("canvas"));
+  var rows = Array.from(document.getElementById(listCanvasesId).querySelectorAll(".list_canvases_row"));
+  mutations = mutations.filter((el) => el.type === "attributes");
+
+  for (let k = 0, n = mutations.length; k < n; k += 1) {
+    let mutation = mutations[k];
+    let canvas = mutation.target;
+    let canvasIndex = -1;
+    canvases.forEach((el, index) => el === canvas && (canvasIndex = index));
+    if (canvasIndex >= 0) {
+      let row = rows[canvasIndex];
+      let colId = row.querySelector(".list_canvases_canvas_id");
+      let colWidth = row.querySelector(".list_canvases_canvas_width");
+      let colHeight = row.querySelector(".list_canvases_canvas_height");
+      colId.textContent = canvas.id;
+      colWidth.textContent = canvas.width;
+      colHeight.textContent = canvas.height;
+    }
+  }
 }
 
 function onToggleCapture(evt) {
