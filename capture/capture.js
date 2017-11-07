@@ -33,7 +33,7 @@ var activeButton = null;
 var chunks = null;
 var allCanvases = null;
 var numBytes = 0;
-var mimeTypeMap = {
+const mimeTypeMap = {
   "mp4": "video/mp4",
   "webm": "video/webm"
 };
@@ -43,8 +43,10 @@ var captureInterval = 1000;
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
 const defaultFPS = 30;
 const defaultBPS = 2500000;
+var wrapperMouseHover = false;
 var cssStyleId = "capture_list_container_css";
 var wrapperId = "capture_list_container";
+var listCanvasesId = "list_canvases";
 var cssFile = "/capture/capture.css";
 var htmlFile = "/capture/capture.html";
 
@@ -62,12 +64,12 @@ function onMessage(msg) {
       displayed = true;
     }
   } else if (msg.command === "disable") {
-    handleDisable(msg);
+    handleDisable();
   }
 }
 port.onMessage.addListener(onMessage);
 
-function handleDisable() {
+function handleDisable(notify) {
   if (!displayed) {
     return;
   }
@@ -82,11 +84,14 @@ function handleDisable() {
     style.parentElement.removeChild(style);
   }
 
+  var cmd = (notify) ? "disconnect-notify" : "disconnect";
+
   freeObjectURLs();
   displayed = false;
   port.postMessage({
-    "command": "disconnect",
-    "subcommand": tabId
+    "command": cmd,
+    "subcommand": tabId,
+    "notification": notify
   });
 }
 
@@ -98,6 +103,12 @@ function setMaxVideoSize(setting) {
 }
 
 function handleDisplay() {
+  if (!document.querySelectorAll("canvas").length) {
+    displayed = true;
+    handleDisable("No canvases found");
+    return;
+  }
+
   var inputMaxSizeSetting = browser.storage.local.get("maxVideoSize", setMaxVideoSize);
   if (inputMaxSizeSetting) {
     inputMaxSizeSetting.then(setMaxVideoSize);
@@ -128,73 +139,109 @@ function handleDisplay() {
   xhrCSS.send();
 }
 
+function positionWrapper() {
+  var wrapper = document.getElementById(wrapperId);
+  var bodyRect = document.body.getBoundingClientRect();
+  var wrapperRect = wrapper.getBoundingClientRect();
+  wrapper.style.left = `${(bodyRect.width / 2) - (wrapperRect.width / 2)}px`;
+}
+
+function setupWrapperEvents() {
+  var wrapper = document.getElementById(wrapperId);
+  wrapper.addEventListener("mouseenter", () => {
+    wrapperMouseHover = true;
+  }, false);
+  wrapper.addEventListener("mouseleave", () => {
+    wrapperMouseHover = false;
+  }, false);
+  window.addEventListener("wheel", (evt) => {
+    if (wrapperMouseHover) {
+      evt.stopPropagation();
+
+      return false;
+    }
+
+    return true;
+  }, true);
+}
+
 function listCanvases(html) {
   var wrapper = document.createElement("div");
   document.body.appendChild(wrapper);
   wrapper.outerHTML = html;
   wrapper = document.getElementById(wrapperId);
-  var bodyRect = document.body.getBoundingClientRect();
-  var wrapperRect = wrapper.getBoundingClientRect();
-  wrapper.style.bottom = "0px";
-  wrapper.style.left = `${(bodyRect.width / 2) - (wrapperRect.width / 2)}px`;
   var docFrag = document.createDocumentFragment();
-  var table = document.getElementById("list_canvases");
-  var tableBody = table.querySelector("tbody");
+  var grid = document.getElementById(listCanvasesId);
   var headerKeys = ["id", "width", "height"];
-  var tr = null;
+  var row = null;
 
-  var canvases = Array.prototype.slice.call(document.body.querySelectorAll("canvas"));
+  positionWrapper();
+  setupWrapperEvents();
+
+  var canvases = Array.from(document.body.querySelectorAll("canvas"));
   allCanvases = canvases;
   for (let k = 0; k < canvases.length; k += 1) {
-    tr = document.createElement("tr");
+    row = document.createElement("span");
     let canvas = canvases[k];
     for (let iK = 0; iK < headerKeys.length; iK += 1) {
-      let td = document.createElement("td");
-      td.textContent = canvas[headerKeys[iK]];
-      tr.appendChild(td);
+      let col = document.createElement("span");
+      col.textContent = canvas[headerKeys[iK]];
+      col.classList.add("middle_centered");
+      if (headerKeys[iK] === "id") {
+        col.classList.add("list_canvases_canvas_id");
+        col.title = canvas[headerKeys[iK]];
+      }
+      row.appendChild(col);
     }
-    let td = document.createElement("td");
+    let col = document.createElement("span");
     let fpsInput = document.createElement("input");
     fpsInput.id = `fps${k}`;
     fpsInput.type = "text";
     fpsInput.value = defaultFPS;
     fpsInput.size = 5;
-    td.appendChild(fpsInput);
-    tr.appendChild(td);
+    col.appendChild(fpsInput);
+    col.classList.add("middle_centered");
+    row.appendChild(col);
 
-    td = document.createElement("td");
+    col = document.createElement("span");
     let bpsInput = document.createElement("input");
     bpsInput.id = `bps${k}`;
     bpsInput.type = "text";
     bpsInput.value = defaultBPS;
     bpsInput.size = 5;
-    td.appendChild(bpsInput);
-    tr.appendChild(td);
+    col.appendChild(bpsInput);
+    col.classList.add("middle_centered");
+    row.appendChild(col);
 
-    td = document.createElement("td");
+    col = document.createElement("span");
     let button = document.createElement("button");
     button.dataset.index = k;
     button.textContent = "Capture";
-    button.dataset.canvasId = canvas.id;
     button.dataset.fpsInput = fpsInput.id;
     button.dataset.bpsInput = bpsInput.id;
     button.addEventListener("click", onToggleCapture, false);
-    td.appendChild(button);
-    tr.appendChild(td);
+    button.classList.add("canvas_capture_button");
+    col.appendChild(button);
+    col.classList.add("middle_centered");
+    row.appendChild(col);
 
-    td = document.createElement("td");
-    td.classList.add("canvas_capture_link_container");
-    tr.appendChild(td);
+    col = document.createElement("span");
+    col.classList.add("canvas_capture_link_container");
+    col.classList.add("middle_centered");
+    row.appendChild(col);
 
-    tr.dataset.index = k;
-    docFrag.appendChild(tr);
+    row.classList.add("list_canvases_row");
+    row.dataset.index = k;
+    docFrag.appendChild(row);
   }
 
-  tableBody.appendChild(docFrag);
+  grid.appendChild(docFrag);
 }
 
 function onToggleCapture(evt) {
   activeButton = evt.target;
+
+  activeButton.blur();
 
   if (capturing) {
     preStopCapture();
@@ -203,28 +250,41 @@ function onToggleCapture(evt) {
   }
 }
 
-function preStartCapture() {
-  var table = document.getElementById("list_canvases");
-  var buttons = Array.prototype.slice.call(table.querySelectorAll("button"));
-  var rows = Array.prototype.slice.call(table.querySelectorAll("tr"), 1);
-  var button = activeButton;
-  var h3 = document.getElementById(wrapperId).querySelector("h3");
+function canCaptureStream(canvas) {
+  try {
+    if (canvas.captureStream(0)) {
+      return true;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
 
-  var buttonIndex = button.dataset.index;
-  var row = null;
-  var linkCol = rows[buttonIndex].querySelector("td.canvas_capture_link_container");
+function preStartCapture() {
+  var grid = document.getElementById(listCanvasesId);
+  var buttons = Array.from(grid.querySelectorAll("button.canvas_capture_button"));
+  var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
+  var button = activeButton;
+  var index = button.dataset.index;
+  var canvas = allCanvases[index];
+  var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
   linkCol.textContent = "";
+
+  if (!canCaptureStream(canvas)) {
+    return;
+  }
 
   for (let k = 0; k < rows.length; k += 1) {
     let ro = rows[k];
 
-    if (ro.dataset.index === buttonIndex) {
+    if (ro.dataset.index === index) {
       ro.classList.add("canvas_capture_selected");
-      row = ro;
     } else {
       ro.classList.add("canvas_capture_inactive");
     }
   }
+
   for (let k = 0; k < buttons.length; k += 1) {
     let but = buttons[k];
 
@@ -235,35 +295,36 @@ function preStartCapture() {
     }
   }
 
-  var canvasIndex = row.dataset.index;
-  var canvasId = button.dataset.canvasId;
   var fpsInput = document.getElementById(button.dataset.fpsInput);
   var fps = parseFloat(fpsInput.value);
   fps = (isFinite(fps) && !isNaN(fps) && fps >= 0) ? fps : 0;
   var bpsInput = document.getElementById(button.dataset.bpsInput);
   var bps = parseFloat(bpsInput.value);
   bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : defaultBPS;
-  startCapture(canvasIndex, canvasId, fps, bps);
+  capturingActiveCanvas = index;
 
-  h3.classList.add("capturing");
-  activeButton = button;
+  var ret = startCapture(canvas, fps, bps);
+  if (ret) {
+    linkCol.classList.add("capturing");
+    activeButton = button;
+  }
 }
 
-function startCapture(canvasIndex, id, fps, bps) {
-  capturingActiveCanvas = canvasIndex;
+function startCapture(canvas, fps, bps) {
   chunks = [];
-  var canvas = null;
-  if (id) {
-    canvas = document.getElementById(id);
-  } else {
-    canvas = allCanvases[canvasIndex];
-  }
+  var stream = null;
 
   if (!canvas) {
-    return;
+    return false;
   }
 
-  var stream = canvas.captureStream(fps);
+  try {
+    stream = canvas.captureStream(fps);
+  } catch (e) {
+    capturingActiveCanvas = null;
+    return false;
+  }
+
   try {
     mediaRecorder = new window.MediaRecorder(
       stream,
@@ -276,18 +337,21 @@ function startCapture(canvasIndex, id, fps, bps) {
   mediaRecorder.addEventListener("stop", stopCapture, false);
   mediaRecorder.start(captureInterval);
   capturing = true;
+
+  return true;
 }
 
 function preStopCapture() {
-  var table = document.getElementById("list_canvases");
-  var buttons = Array.prototype.slice.call(table.querySelectorAll("button"));
-  var rows = Array.prototype.slice.call(table.querySelectorAll("tr"), 1);
-  var h3 = document.getElementById(wrapperId).querySelector("h3");
+  var grid = document.getElementById(listCanvasesId);
+  var buttons = Array.from(grid.querySelectorAll("button.canvas_capture_button"));
+  var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
+  var linkCol = rows[activeButton.dataset.index].querySelector("span.canvas_capture_link_container");
 
   for (let k = 0; k < rows.length; k += 1) {
     let row = rows[k];
     row.classList.remove("canvas_capture_inactive", "canvas_capture_selected");
   }
+
   for (let k = 0; k < buttons.length; k += 1) {
     let but = buttons[k];
     but.addEventListener("click", onToggleCapture, false);
@@ -296,15 +360,15 @@ function preStopCapture() {
 
   mediaRecorder.stop();
   numBytes = 0;
-  h3.classList.remove("capturing");
+  linkCol.classList.remove("capturing");
   activeButton = null;
 }
 
 function createVideoURL(blob) {
-  var table = document.getElementById("list_canvases");
-  var rows = Array.prototype.slice.call(table.querySelectorAll("tr"), 1);
+  var grid = document.getElementById(listCanvasesId);
+  var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
   var row = rows[capturingActiveCanvas];
-  var col = row.querySelector("td.canvas_capture_link_container");
+  var col = row.querySelector("span.canvas_capture_link_container");
   var videoURL = window.URL.createObjectURL(blob);
   var link = document.createElement("a");
   link.textContent = "Download";

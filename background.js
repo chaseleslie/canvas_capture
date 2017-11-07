@@ -20,14 +20,14 @@
 var browser = chrome;
 
 var activeTabs = {};
-var iconPathMap = {
+const ICON_PATH_MAP = {
   "16": "/img/icon_16.svg",
   "32": "/img/icon_32.svg",
   "48": "/img/icon_48.svg",
   "64": "/img/icon_64.svg",
   "128": "/img/icon_128.svg"
 };
-var iconActivePathMap = {
+const ICON_ACTIVE_PATH_MAP = {
   "16": "/img/icon_active_16.svg",
   "32": "/img/icon_active_32.svg",
   "48": "/img/icon_active_48.svg",
@@ -35,14 +35,18 @@ var iconActivePathMap = {
   "128": "/img/icon_active_128.svg"
 };
 
+const NOTIFICATION_DURATION = 10000;
+var notifications = [];
+
 function nullifyError() {
   if (browser.runtime.lastError) {
     // eslint-disable-line no-empty
   }
 }
 
-browser.browserAction.setIcon({"path": iconPathMap}, nullifyError);
+browser.browserAction.setIcon({"path": ICON_PATH_MAP}, nullifyError);
 
+/* New browser version support runtime.onInstalled */
 function handleInstall(details) {
   var reason = details.reason;
   switch (reason) {
@@ -52,6 +56,8 @@ function handleInstall(details) {
     break;
   }
 }
+
+/* Fallback for older browser versions first install */
 function getFirstInstallSetting(setting) {
   if (Array.isArray(setting)) {
     setting = setting[0];
@@ -92,9 +98,39 @@ function connected(port) {
 browser.runtime.onConnect.addListener(connected);
 
 function onMessage(msg) {
-  if (msg.command === "disconnect") {
+  if (msg.command === "notify") {
+    onTabNotify(msg);
+  } else if (msg.command === "disconnect" || msg.command === "disconnect-notify") {
     onDisconnectTab(msg);
   }
+}
+
+function onTabNotify(msg) {
+  var notifyId = msg.notification;
+  var notifyOpts = {
+    "type": "basic",
+    "message": msg.notification,
+    "title": "Capture Canvas"
+  };
+
+  for (let k = 0, n = notifications.length; k < n; k += 1) {
+    let notify = notifications[k];
+    if (notify.message === notifyOpts.message) {
+      return;
+    }
+  }
+  notifications.push(notifyOpts);
+
+  browser.notifications.create(notifyId, notifyOpts);
+  setTimeout(() => {
+    browser.notifications.clear(notifyId);
+    for (let k = 0, n = notifications.length; k < n; k += 1) {
+      let notify = notifications[k];
+      if (notify.message === notifyOpts.message) {
+        notifications.splice(k, 1);
+      }
+    }
+  }, NOTIFICATION_DURATION);
 }
 
 function onDisconnectTab(msg) {
@@ -102,7 +138,10 @@ function onDisconnectTab(msg) {
   if (tabId in activeTabs) {
     delete activeTabs[tabId];
   }
-  browser.browserAction.setIcon({"path": iconPathMap, "tabId": tabId}, nullifyError);
+  browser.browserAction.setIcon({"path": ICON_PATH_MAP, "tabId": tabId}, nullifyError);
+  if (msg.command === "disconnect-notify") {
+    onTabNotify(msg);
+  }
 }
 
 function onBrowserAction(tab) {
@@ -114,13 +153,14 @@ function onBrowserAction(tab) {
       "subcommand": tabId
     });
     delete activeTabs[tabId];
-    browser.browserAction.setIcon({"path": iconPathMap, "tabId": tabId}, nullifyError);
+    browser.browserAction.setIcon({"path": ICON_PATH_MAP, "tabId": tabId}, nullifyError);
   } else {
     browser.tabs.executeScript({
-      "file": "/capture/capture.js"
+      "file": "/capture/capture.js",
+      "allFrames": true
     });
     activeTabs[tabId] = {"port": null};
-    browser.browserAction.setIcon({"path": iconActivePathMap, "tabId": tabId}, nullifyError);
+    browser.browserAction.setIcon({"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}, nullifyError);
   }
 }
 browser.browserAction.onClicked.addListener(onBrowserAction);

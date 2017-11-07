@@ -14,7 +14,8 @@
 
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "notifications"
   ],
 
   "background": {
