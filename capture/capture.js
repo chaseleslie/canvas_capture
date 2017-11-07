@@ -22,7 +22,7 @@
 var browser = chrome;
 
 var tabId = null;
-var port = port = browser.runtime.connect({
+var port = browser.runtime.connect({
   "name": "content-script-"
 });
 var displayed = false;
