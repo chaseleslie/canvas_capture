@@ -100,6 +100,11 @@ function setMaxVideoSize(setting) {
 }
 
 function handleDisplay() {
+  if (!document.querySelectorAll("canvas").length) {
+    handleDisable();
+    return;
+  }
+
   var inputMaxSizeSetting = browser.storage.local.get("maxVideoSize", setMaxVideoSize);
   if (inputMaxSizeSetting) {
     inputMaxSizeSetting.then(setMaxVideoSize);

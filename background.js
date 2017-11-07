@@ -117,7 +117,8 @@ function onBrowserAction(tab) {
     browser.browserAction.setIcon({"path": iconPathMap, "tabId": tabId}, nullifyError);
   } else {
     browser.tabs.executeScript({
-      "file": "/capture/capture.js"
+      "file": "/capture/capture.js",
+      "allFrames": true
     });
     activeTabs[tabId] = {"port": null};
     browser.browserAction.setIcon({"path": iconActivePathMap, "tabId": tabId}, nullifyError);
