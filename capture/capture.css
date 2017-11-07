@@ -21,21 +21,29 @@
   position: fixed;
   bottom: 0px;
   display: grid;
+  grid-template-rows: 1fr 4fr;
   z-index: 1000;
   overflow-y: hidden;
   border-radius: 10px;
-  background-color: #282C34;
+  background-color: #20202E;
   text-align: center;
   font-family: sans-serif;
   font-size: 16px;
   color: #D8D8FF;
 }
 
+.capture_list_container_heading {
+  margin: 0px auto;
+  width: 100%;
+  height: 100%;
+  font-size: 1.5em;
+  line-height: 1.1875em;
+  background-color: #2C3044;
+}
+
 #list_canvases {
-  margin: 20px auto;
-  display: grid;
-  overflow-y: auto;
-  max-height: 20vh;
+  margin: 0px;
+  overflow-y: scroll;
 }
 
 #list_canvases .list_canvases_row:hover {
@@ -46,14 +54,16 @@
   width: 100%;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
-  background-color: #222230;
+  background-color: #402230;
   font-weight: 600;
+  cursor: default;
 }
 
 .list_canvases_row {
   width: 100%;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+  height: 1.75em;
 }
 
 .list_canvases_canvas_id {
@@ -72,6 +82,10 @@
 
 .canvas_capture_link_container {
   position: relative;
+}
+
+.canvas_capture_link_container a {
+  color: #77F;
 }
 
 .anchored {

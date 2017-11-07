@@ -208,7 +208,6 @@ function listCanvases(html) {
     let button = document.createElement("button");
     button.dataset.index = k;
     button.textContent = "Capture";
-    button.dataset.canvasId = canvas.id;
     button.dataset.fpsInput = fpsInput.id;
     button.dataset.bpsInput = bpsInput.id;
     button.addEventListener("click", onToggleCapture, false);
@@ -242,23 +241,36 @@ function onToggleCapture(evt) {
   }
 }
 
+function canCaptureStream(canvas) {
+  try {
+    if (canvas.captureStream(0)) {
+      return true;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
 function preStartCapture() {
   var grid = document.getElementById(listCanvasesId);
   var buttons = Array.from(grid.querySelectorAll("button.canvas_capture_button"));
   var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
   var button = activeButton;
-
-  var buttonIndex = button.dataset.index;
-  var row = null;
-  var linkCol = rows[buttonIndex].querySelector("span.canvas_capture_link_container");
+  var index = button.dataset.index;
+  var canvas = allCanvases[index];
+  var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
   linkCol.textContent = "";
+
+  if (!canCaptureStream(canvas)) {
+    return;
+  }
 
   for (let k = 0; k < rows.length; k += 1) {
     let ro = rows[k];
 
-    if (ro.dataset.index === buttonIndex) {
+    if (ro.dataset.index === index) {
       ro.classList.add("canvas_capture_selected");
-      row = ro;
     } else {
       ro.classList.add("canvas_capture_inactive");
     }
@@ -274,35 +286,36 @@ function preStartCapture() {
     }
   }
 
-  var canvasIndex = row.dataset.index;
-  var canvasId = button.dataset.canvasId;
   var fpsInput = document.getElementById(button.dataset.fpsInput);
   var fps = parseFloat(fpsInput.value);
   fps = (isFinite(fps) && !isNaN(fps) && fps >= 0) ? fps : 0;
   var bpsInput = document.getElementById(button.dataset.bpsInput);
   var bps = parseFloat(bpsInput.value);
   bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : defaultBPS;
-  startCapture(canvasIndex, canvasId, fps, bps);
+  capturingActiveCanvas = index;
 
-  linkCol.classList.add("capturing");
-  activeButton = button;
+  var ret = startCapture(canvas, fps, bps);
+  if (ret) {
+    linkCol.classList.add("capturing");
+    activeButton = button;
+  }
 }
 
-function startCapture(canvasIndex, id, fps, bps) {
-  capturingActiveCanvas = canvasIndex;
+function startCapture(canvas, fps, bps) {
   chunks = [];
-  var canvas = null;
-  if (id) {
-    canvas = document.getElementById(id);
-  } else {
-    canvas = allCanvases[canvasIndex];
-  }
+  var stream = null;
 
   if (!canvas) {
-    return;
+    return false;
   }
 
-  var stream = canvas.captureStream(fps);
+  try {
+    stream = canvas.captureStream(fps);
+  } catch (e) {
+    capturingActiveCanvas = null;
+    return false;
+  }
+
   try {
     mediaRecorder = new window.MediaRecorder(
       stream,
@@ -315,6 +328,8 @@ function startCapture(canvasIndex, id, fps, bps) {
   mediaRecorder.addEventListener("stop", stopCapture, false);
   mediaRecorder.start(captureInterval);
   capturing = true;
+
+  return true;
 }
 
 function preStopCapture() {
