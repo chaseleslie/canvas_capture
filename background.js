@@ -36,7 +36,7 @@ const ICON_ACTIVE_PATH_MAP = {
 };
 
 const NOTIFICATION_DURATION = 10000;
-var notificationNum = 0;
+var notifications = [];
 
 function nullifyError() {
   if (browser.runtime.lastError) {
@@ -106,15 +106,30 @@ function onMessage(msg) {
 }
 
 function onTabNotify(msg) {
-  var notifyId = `ino-${notificationNum}`;
-  notificationNum += 1;
-  browser.notifications.create(notifyId, {
+  var notifyId = msg.notification;
+  var notifyOpts = {
     "type": "basic",
     "message": msg.notification,
     "title": "Capture Canvas"
-  });
+  };
+
+  for (let k = 0, n = notifications.length; k < n; k += 1) {
+    let notify = notifications[k];
+    if (notify.message === notifyOpts.message) {
+      return;
+    }
+  }
+  notifications.push(notifyOpts);
+
+  browser.notifications.create(notifyId, notifyOpts);
   setTimeout(() => {
     browser.notifications.clear(notifyId);
+    for (let k = 0, n = notifications.length; k < n; k += 1) {
+      let notify = notifications[k];
+      if (notify.message === notifyOpts.message) {
+        notifications.splice(k, 1);
+      }
+    }
   }, NOTIFICATION_DURATION);
 }
 
