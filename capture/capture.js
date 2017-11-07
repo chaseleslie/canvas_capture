@@ -49,6 +49,32 @@ var wrapperId = "capture_list_container";
 var listCanvasesId = "list_canvases";
 var cssFile = "/capture/capture.css";
 var htmlFile = "/capture/capture.html";
+var bodyMutObs = new MutationObserver(observeBodyMutations);
+
+bodyMutObs.observe(document.body, {
+  "childList": true,
+  "subtree": true
+});
+function observeBodyMutations(mutations) {
+  mutations = mutations.filter((el) => el.type === "childList");
+  for (let k = 0, n = mutations.length; k < n; k += 1) {
+    let mutation = mutations[k];
+    let addedNodes = Array.from(mutation.addedNodes);
+    for (let iK = 0, iN = addedNodes.length; iK < iN; iK += 1) {
+      let node = addedNodes[iK];
+      if (node.nodeName.toLowerCase() === "canvas") {
+        // canvas added
+      }
+    }
+    let removedNodes = Array.from(mutation.removedNodes);
+    for (let iK = 0, iN = removedNodes.length; iK < iN; iK += 1) {
+      let node = addedNodes[iK];
+      if (node.nodeName.toLowerCase() === "canvas") {
+        // canvas removed
+      }
+    }
+  }
+}
 
 function freeObjectURLs() {
   for (let k = 0; k < objectURLs.length; k += 1) {
