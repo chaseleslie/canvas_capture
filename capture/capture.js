@@ -64,12 +64,12 @@ function onMessage(msg) {
       displayed = true;
     }
   } else if (msg.command === "disable") {
-    handleDisable(msg);
+    handleDisable();
   }
 }
 port.onMessage.addListener(onMessage);
 
-function handleDisable() {
+function handleDisable(notify) {
   if (!displayed) {
     return;
   }
@@ -84,11 +84,14 @@ function handleDisable() {
     style.parentElement.removeChild(style);
   }
 
+  var cmd = (notify) ? "disconnect-notify" : "disconnect";
+
   freeObjectURLs();
   displayed = false;
   port.postMessage({
-    "command": "disconnect",
-    "subcommand": tabId
+    "command": cmd,
+    "subcommand": tabId,
+    "notification": notify
   });
 }
 
@@ -101,7 +104,8 @@ function setMaxVideoSize(setting) {
 
 function handleDisplay() {
   if (!document.querySelectorAll("canvas").length) {
-    handleDisable();
+    displayed = true;
+    handleDisable("No canvases found");
     return;
   }
 
