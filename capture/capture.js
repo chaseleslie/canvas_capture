@@ -154,29 +154,36 @@ function handleDisplay() {
     inputMaxSizeSetting.then(setMaxVideoSize);
   }
 
-  var xhrCSS = new XMLHttpRequest();
-  var cssUrl = browser.runtime.getURL(cssFile);
-  xhrCSS.open("GET", cssUrl, true);
-  xhrCSS.onreadystatechange = function() {
-    if (xhrCSS.status === 200 && xhrCSS.readyState === 4) {
+  try {
+    var cssUrl = browser.runtime.getURL(cssFile);
+    var htmlUrl = browser.runtime.getURL(htmlFile);
+    fetch(cssUrl).then(function(response) {
+      if (response.ok) {
+        return response.text();
+      }
+      throw new Error(`Received ${response.status} ${response.statusText} fetching ${response.url}`);
+    }).then(function(text) {
       var css = document.createElement("style");
       css.type = "text/css";
-      css.textContent = xhrCSS.responseText;
+      css.textContent = text;
       css.id = cssStyleId;
       document.head.appendChild(css);
 
-      var xhrHTML = new XMLHttpRequest();
-      var htmlUrl = browser.runtime.getURL(htmlFile);
-      xhrHTML.open("GET", htmlUrl, true);
-      xhrHTML.onreadystatechange = function() {
-        if (xhrHTML.status === 200 && xhrHTML.readyState === 4) {
-          setupDisplay(xhrHTML.responseText);
-        }
-      };
-      xhrHTML.send();
-    }
-  };
-  xhrCSS.send();
+      return fetch(htmlUrl);
+    }).then(function(response) {
+      if (response.ok) {
+        return response.text();
+      }
+      throw new Error(`Received ${response.status} ${response.statusText} fetching ${response.url}`);
+    }).then(function(text) {
+      setupDisplay(text);
+    }).catch(function(e) {
+      throw new Error(e);
+    });
+  } catch (e) {
+    displayed = true;
+    handleDisable(e.message);
+  }
 }
 
 function positionWrapper() {
@@ -292,7 +299,8 @@ function updateCanvases(parent, canvases) {
 
 function observeCanvasMutations(mutations) {
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  var rows = Array.from(document.getElementById(listCanvasesId).querySelectorAll(".list_canvases_row"));
+  var parent = document.getElementById(listCanvasesId);
+  var rows = Array.from(parent.querySelectorAll(".list_canvases_row"));
   mutations = mutations.filter((el) => el.type === "attributes");
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
