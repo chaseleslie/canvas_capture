@@ -22,9 +22,23 @@
 var browser = chrome;
 
 var tabId = null;
-var port = port = browser.runtime.connect({
+var port = browser.runtime.connect({
   "name": "content-script-"
 });
+
+const MIME_TYPE_MAP = {
+  "mp4": "video/mp4",
+  "webm": "video/webm"
+};
+const DEFAULT_MIME_TYPE = "webm";
+const CAPTURE_INTERVAL = 1000;
+const DEFAULT_FPS = 30;
+const DEFAULT_BPS = 2500000;
+const CSS_STYLE_ID = "capture_list_container_css";
+const WRAPPER_ID = "capture_list_container";
+const LIST_CANVASES_ID = "list_canvases";
+const CSS_FILE_PATH = "/capture/capture.css";
+const HTML_FILE_PATH = "/capture/capture.html";
 var displayed = false;
 var mediaRecorder = null;
 var capturing = false;
@@ -33,22 +47,49 @@ var activeButton = null;
 var chunks = null;
 var allCanvases = null;
 var numBytes = 0;
-const mimeTypeMap = {
-  "mp4": "video/mp4",
-  "webm": "video/webm"
-};
-var mimeType = "webm";
 var objectURLs = [];
-var captureInterval = 1000;
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
-const defaultFPS = 30;
-const defaultBPS = 2500000;
 var wrapperMouseHover = false;
-var cssStyleId = "capture_list_container_css";
-var wrapperId = "capture_list_container";
-var listCanvasesId = "list_canvases";
-var cssFile = "/capture/capture.css";
-var htmlFile = "/capture/capture.html";
+var bodyMutObs = new MutationObserver(observeBodyMutations);
+var canvasMutObs = new MutationObserver(observeCanvasMutations);
+
+bodyMutObs.observe(document.body, {
+  "childList": true,
+  "subtree": true
+});
+function observeBodyMutations(mutations) {
+  var canvasesChanged = false;
+  mutations = mutations.filter((el) => el.type === "childList");
+
+  for (let k = 0, n = mutations.length; k < n; k += 1) {
+    let mutation = mutations[k];
+
+    let addedNodes = Array.from(mutation.addedNodes);
+    for (let iK = 0, iN = addedNodes.length; iK < iN; iK += 1) {
+      let node = addedNodes[iK];
+      if (node.nodeName.toLowerCase() === "canvas") {
+        canvasesChanged = true;
+        break;
+      }
+    }
+
+    let removedNodes = Array.from(mutation.removedNodes);
+    for (let iK = 0, iN = removedNodes.length; iK < iN; iK += 1) {
+      let node = removedNodes[iK];
+      if (node.nodeName.toLowerCase() === "canvas") {
+        canvasesChanged = true;
+        break;
+      }
+    }
+  }
+
+  var canvases = Array.from(document.body.querySelectorAll("canvas"));
+  allCanvases = canvases;
+
+  if (canvasesChanged) {
+    updateCanvases(document.getElementById(LIST_CANVASES_ID), canvases);
+  }
+}
 
 function freeObjectURLs() {
   for (let k = 0; k < objectURLs.length; k += 1) {
@@ -74,12 +115,12 @@ function handleDisable(notify) {
     return;
   }
 
-  var wrapper = document.getElementById(wrapperId);
+  var wrapper = document.getElementById(WRAPPER_ID);
   if (wrapper) {
     wrapper.parentElement.removeChild(wrapper);
   }
 
-  var style = document.getElementById(cssStyleId);
+  var style = document.getElementById(CSS_STYLE_ID);
   if (style) {
     style.parentElement.removeChild(style);
   }
@@ -114,40 +155,47 @@ function handleDisplay() {
     inputMaxSizeSetting.then(setMaxVideoSize);
   }
 
-  var xhrCSS = new XMLHttpRequest();
-  var cssUrl = browser.runtime.getURL(cssFile);
-  xhrCSS.open("GET", cssUrl, true);
-  xhrCSS.onreadystatechange = function() {
-    if (xhrCSS.status === 200 && xhrCSS.readyState === 4) {
+  try {
+    var cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
+    var htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
+    fetch(cssUrl).then(function(response) {
+      if (response.ok) {
+        return response.text();
+      }
+      throw new Error(`Received ${response.status} ${response.statusText} fetching ${response.url}`);
+    }).then(function(text) {
       var css = document.createElement("style");
       css.type = "text/css";
-      css.textContent = xhrCSS.responseText;
-      css.id = cssStyleId;
+      css.textContent = text;
+      css.id = CSS_STYLE_ID;
       document.head.appendChild(css);
 
-      var xhrHTML = new XMLHttpRequest();
-      var htmlUrl = browser.runtime.getURL(htmlFile);
-      xhrHTML.open("GET", htmlUrl, true);
-      xhrHTML.onreadystatechange = function() {
-        if (xhrHTML.status === 200 && xhrHTML.readyState === 4) {
-          listCanvases(xhrHTML.responseText);
-        }
-      };
-      xhrHTML.send();
-    }
-  };
-  xhrCSS.send();
+      return fetch(htmlUrl);
+    }).then(function(response) {
+      if (response.ok) {
+        return response.text();
+      }
+      throw new Error(`Received ${response.status} ${response.statusText} fetching ${response.url}`);
+    }).then(function(text) {
+      setupDisplay(text);
+    }).catch(function(e) {
+      throw new Error(e);
+    });
+  } catch (e) {
+    displayed = true;
+    handleDisable(e.message);
+  }
 }
 
 function positionWrapper() {
-  var wrapper = document.getElementById(wrapperId);
+  var wrapper = document.getElementById(WRAPPER_ID);
   var bodyRect = document.body.getBoundingClientRect();
   var wrapperRect = wrapper.getBoundingClientRect();
   wrapper.style.left = `${(bodyRect.width / 2) - (wrapperRect.width / 2)}px`;
 }
 
 function setupWrapperEvents() {
-  var wrapper = document.getElementById(wrapperId);
+  var wrapper = document.getElementById(WRAPPER_ID);
   wrapper.addEventListener("mouseenter", () => {
     wrapperMouseHover = true;
   }, false);
@@ -165,30 +213,42 @@ function setupWrapperEvents() {
   }, true);
 }
 
-function listCanvases(html) {
+function setupDisplay(html) {
   var wrapper = document.createElement("div");
   document.body.appendChild(wrapper);
   wrapper.outerHTML = html;
-  wrapper = document.getElementById(wrapperId);
-  var docFrag = document.createDocumentFragment();
-  var grid = document.getElementById(listCanvasesId);
-  var headerKeys = ["id", "width", "height"];
-  var row = null;
+  wrapper = document.getElementById(WRAPPER_ID);
+  var parent = document.getElementById(LIST_CANVASES_ID);
 
   positionWrapper();
   setupWrapperEvents();
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
   allCanvases = canvases;
+  updateCanvases(parent, canvases);
+}
+
+function updateCanvases(parent, canvases) {
+  var docFrag = document.createDocumentFragment();
+  var headerKeys = ["id", "width", "height"];
+  var oldRows = Array.from(parent.querySelectorAll(".list_canvases_row"));
+  var canvasObsOps = {
+    "attributes": true,
+    "attributeFilter": ["id", "width", "height"]
+  };
+
+  oldRows.forEach((row) => row.parentElement.removeChild(row));
+  canvases.forEach((canvas) => canvasMutObs.observe(canvas, canvasObsOps));
+
   for (let k = 0; k < canvases.length; k += 1) {
-    row = document.createElement("span");
+    var row = document.createElement("span");
     let canvas = canvases[k];
     for (let iK = 0; iK < headerKeys.length; iK += 1) {
       let col = document.createElement("span");
       col.textContent = canvas[headerKeys[iK]];
       col.classList.add("middle_centered");
+      col.classList.add(`list_canvases_canvas_${headerKeys[iK]}`);
       if (headerKeys[iK] === "id") {
-        col.classList.add("list_canvases_canvas_id");
         col.title = canvas[headerKeys[iK]];
       }
       row.appendChild(col);
@@ -197,7 +257,7 @@ function listCanvases(html) {
     let fpsInput = document.createElement("input");
     fpsInput.id = `fps${k}`;
     fpsInput.type = "text";
-    fpsInput.value = defaultFPS;
+    fpsInput.value = DEFAULT_FPS;
     fpsInput.size = 5;
     col.appendChild(fpsInput);
     col.classList.add("middle_centered");
@@ -207,7 +267,7 @@ function listCanvases(html) {
     let bpsInput = document.createElement("input");
     bpsInput.id = `bps${k}`;
     bpsInput.type = "text";
-    bpsInput.value = defaultBPS;
+    bpsInput.value = DEFAULT_BPS;
     bpsInput.size = 5;
     col.appendChild(bpsInput);
     col.classList.add("middle_centered");
@@ -235,7 +295,30 @@ function listCanvases(html) {
     docFrag.appendChild(row);
   }
 
-  grid.appendChild(docFrag);
+  parent.appendChild(docFrag);
+}
+
+function observeCanvasMutations(mutations) {
+  var canvases = Array.from(document.body.querySelectorAll("canvas"));
+  var parent = document.getElementById(LIST_CANVASES_ID);
+  var rows = Array.from(parent.querySelectorAll(".list_canvases_row"));
+  mutations = mutations.filter((el) => el.type === "attributes");
+
+  for (let k = 0, n = mutations.length; k < n; k += 1) {
+    let mutation = mutations[k];
+    let canvas = mutation.target;
+    let canvasIndex = -1;
+    canvases.forEach((el, index) => el === canvas && (canvasIndex = index));
+    if (canvasIndex >= 0) {
+      let row = rows[canvasIndex];
+      let colId = row.querySelector(".list_canvases_canvas_id");
+      let colWidth = row.querySelector(".list_canvases_canvas_width");
+      let colHeight = row.querySelector(".list_canvases_canvas_height");
+      colId.textContent = canvas.id;
+      colWidth.textContent = canvas.width;
+      colHeight.textContent = canvas.height;
+    }
+  }
 }
 
 function onToggleCapture(evt) {
@@ -262,7 +345,7 @@ function canCaptureStream(canvas) {
 }
 
 function preStartCapture() {
-  var grid = document.getElementById(listCanvasesId);
+  var grid = document.getElementById(LIST_CANVASES_ID);
   var buttons = Array.from(grid.querySelectorAll("button.canvas_capture_button"));
   var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
   var button = activeButton;
@@ -300,7 +383,7 @@ function preStartCapture() {
   fps = (isFinite(fps) && !isNaN(fps) && fps >= 0) ? fps : 0;
   var bpsInput = document.getElementById(button.dataset.bpsInput);
   var bps = parseFloat(bpsInput.value);
-  bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : defaultBPS;
+  bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : DEFAULT_BPS;
   capturingActiveCanvas = index;
 
   var ret = startCapture(canvas, fps, bps);
@@ -328,21 +411,21 @@ function startCapture(canvas, fps, bps) {
   try {
     mediaRecorder = new window.MediaRecorder(
       stream,
-      {"mimeType": mimeTypeMap[mimeType], "bitsPerSecond": bps}
+      {"DEFAULT_MIME_TYPE": MIME_TYPE_MAP[DEFAULT_MIME_TYPE], "bitsPerSecond": bps}
     );
   } catch (e) {
     mediaRecorder = new window.MediaRecorder(stream);
   }
   mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
   mediaRecorder.addEventListener("stop", stopCapture, false);
-  mediaRecorder.start(captureInterval);
+  mediaRecorder.start(CAPTURE_INTERVAL);
   capturing = true;
 
   return true;
 }
 
 function preStopCapture() {
-  var grid = document.getElementById(listCanvasesId);
+  var grid = document.getElementById(LIST_CANVASES_ID);
   var buttons = Array.from(grid.querySelectorAll("button.canvas_capture_button"));
   var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
   var linkCol = rows[activeButton.dataset.index].querySelector("span.canvas_capture_link_container");
@@ -365,7 +448,7 @@ function preStopCapture() {
 }
 
 function createVideoURL(blob) {
-  var grid = document.getElementById(listCanvasesId);
+  var grid = document.getElementById(LIST_CANVASES_ID);
   var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
   var row = rows[capturingActiveCanvas];
   var col = row.querySelector("span.canvas_capture_link_container");
