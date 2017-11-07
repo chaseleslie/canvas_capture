@@ -25,6 +25,20 @@ var tabId = null;
 var port = browser.runtime.connect({
   "name": "content-script-"
 });
+
+const MIME_TYPE_MAP = {
+  "mp4": "video/mp4",
+  "webm": "video/webm"
+};
+const DEFAULT_MIME_TYPE = "webm";
+const CAPTURE_INTERVAL = 1000;
+const DEFAULT_FPS = 30;
+const DEFAULT_BPS = 2500000;
+const CSS_STYLE_ID = "capture_list_container_css";
+const WRAPPER_ID = "capture_list_container";
+const LIST_CANVASES_ID = "list_canvases";
+const CSS_FILE_PATH = "/capture/capture.css";
+const HTML_FILE_PATH = "/capture/capture.html";
 var displayed = false;
 var mediaRecorder = null;
 var capturing = false;
@@ -33,22 +47,9 @@ var activeButton = null;
 var chunks = null;
 var allCanvases = null;
 var numBytes = 0;
-const mimeTypeMap = {
-  "mp4": "video/mp4",
-  "webm": "video/webm"
-};
-var mimeType = "webm";
 var objectURLs = [];
-var captureInterval = 1000;
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
-const defaultFPS = 30;
-const defaultBPS = 2500000;
 var wrapperMouseHover = false;
-var cssStyleId = "capture_list_container_css";
-var wrapperId = "capture_list_container";
-var listCanvasesId = "list_canvases";
-var cssFile = "/capture/capture.css";
-var htmlFile = "/capture/capture.html";
 var bodyMutObs = new MutationObserver(observeBodyMutations);
 var canvasMutObs = new MutationObserver(observeCanvasMutations);
 
@@ -86,7 +87,7 @@ function observeBodyMutations(mutations) {
   allCanvases = canvases;
 
   if (canvasesChanged) {
-    updateCanvases(document.getElementById(listCanvasesId), canvases);
+    updateCanvases(document.getElementById(LIST_CANVASES_ID), canvases);
   }
 }
 
@@ -114,12 +115,12 @@ function handleDisable(notify) {
     return;
   }
 
-  var wrapper = document.getElementById(wrapperId);
+  var wrapper = document.getElementById(WRAPPER_ID);
   if (wrapper) {
     wrapper.parentElement.removeChild(wrapper);
   }
 
-  var style = document.getElementById(cssStyleId);
+  var style = document.getElementById(CSS_STYLE_ID);
   if (style) {
     style.parentElement.removeChild(style);
   }
@@ -155,8 +156,8 @@ function handleDisplay() {
   }
 
   try {
-    var cssUrl = browser.runtime.getURL(cssFile);
-    var htmlUrl = browser.runtime.getURL(htmlFile);
+    var cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
+    var htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
     fetch(cssUrl).then(function(response) {
       if (response.ok) {
         return response.text();
@@ -166,7 +167,7 @@ function handleDisplay() {
       var css = document.createElement("style");
       css.type = "text/css";
       css.textContent = text;
-      css.id = cssStyleId;
+      css.id = CSS_STYLE_ID;
       document.head.appendChild(css);
 
       return fetch(htmlUrl);
@@ -187,14 +188,14 @@ function handleDisplay() {
 }
 
 function positionWrapper() {
-  var wrapper = document.getElementById(wrapperId);
+  var wrapper = document.getElementById(WRAPPER_ID);
   var bodyRect = document.body.getBoundingClientRect();
   var wrapperRect = wrapper.getBoundingClientRect();
   wrapper.style.left = `${(bodyRect.width / 2) - (wrapperRect.width / 2)}px`;
 }
 
 function setupWrapperEvents() {
-  var wrapper = document.getElementById(wrapperId);
+  var wrapper = document.getElementById(WRAPPER_ID);
   wrapper.addEventListener("mouseenter", () => {
     wrapperMouseHover = true;
   }, false);
@@ -216,8 +217,8 @@ function setupDisplay(html) {
   var wrapper = document.createElement("div");
   document.body.appendChild(wrapper);
   wrapper.outerHTML = html;
-  wrapper = document.getElementById(wrapperId);
-  var parent = document.getElementById(listCanvasesId);
+  wrapper = document.getElementById(WRAPPER_ID);
+  var parent = document.getElementById(LIST_CANVASES_ID);
 
   positionWrapper();
   setupWrapperEvents();
@@ -256,7 +257,7 @@ function updateCanvases(parent, canvases) {
     let fpsInput = document.createElement("input");
     fpsInput.id = `fps${k}`;
     fpsInput.type = "text";
-    fpsInput.value = defaultFPS;
+    fpsInput.value = DEFAULT_FPS;
     fpsInput.size = 5;
     col.appendChild(fpsInput);
     col.classList.add("middle_centered");
@@ -266,7 +267,7 @@ function updateCanvases(parent, canvases) {
     let bpsInput = document.createElement("input");
     bpsInput.id = `bps${k}`;
     bpsInput.type = "text";
-    bpsInput.value = defaultBPS;
+    bpsInput.value = DEFAULT_BPS;
     bpsInput.size = 5;
     col.appendChild(bpsInput);
     col.classList.add("middle_centered");
@@ -299,7 +300,7 @@ function updateCanvases(parent, canvases) {
 
 function observeCanvasMutations(mutations) {
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  var parent = document.getElementById(listCanvasesId);
+  var parent = document.getElementById(LIST_CANVASES_ID);
   var rows = Array.from(parent.querySelectorAll(".list_canvases_row"));
   mutations = mutations.filter((el) => el.type === "attributes");
 
@@ -344,7 +345,7 @@ function canCaptureStream(canvas) {
 }
 
 function preStartCapture() {
-  var grid = document.getElementById(listCanvasesId);
+  var grid = document.getElementById(LIST_CANVASES_ID);
   var buttons = Array.from(grid.querySelectorAll("button.canvas_capture_button"));
   var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
   var button = activeButton;
@@ -382,7 +383,7 @@ function preStartCapture() {
   fps = (isFinite(fps) && !isNaN(fps) && fps >= 0) ? fps : 0;
   var bpsInput = document.getElementById(button.dataset.bpsInput);
   var bps = parseFloat(bpsInput.value);
-  bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : defaultBPS;
+  bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : DEFAULT_BPS;
   capturingActiveCanvas = index;
 
   var ret = startCapture(canvas, fps, bps);
@@ -410,21 +411,21 @@ function startCapture(canvas, fps, bps) {
   try {
     mediaRecorder = new window.MediaRecorder(
       stream,
-      {"mimeType": mimeTypeMap[mimeType], "bitsPerSecond": bps}
+      {"DEFAULT_MIME_TYPE": MIME_TYPE_MAP[DEFAULT_MIME_TYPE], "bitsPerSecond": bps}
     );
   } catch (e) {
     mediaRecorder = new window.MediaRecorder(stream);
   }
   mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
   mediaRecorder.addEventListener("stop", stopCapture, false);
-  mediaRecorder.start(captureInterval);
+  mediaRecorder.start(CAPTURE_INTERVAL);
   capturing = true;
 
   return true;
 }
 
 function preStopCapture() {
-  var grid = document.getElementById(listCanvasesId);
+  var grid = document.getElementById(LIST_CANVASES_ID);
   var buttons = Array.from(grid.querySelectorAll("button.canvas_capture_button"));
   var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
   var linkCol = rows[activeButton.dataset.index].querySelector("span.canvas_capture_link_container");
@@ -447,7 +448,7 @@ function preStopCapture() {
 }
 
 function createVideoURL(blob) {
-  var grid = document.getElementById(listCanvasesId);
+  var grid = document.getElementById(LIST_CANVASES_ID);
   var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
   var row = rows[capturingActiveCanvas];
   var col = row.querySelector("span.canvas_capture_link_container");
