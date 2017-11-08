@@ -85,13 +85,15 @@ function connected(port) {
   }
   function getTabInfo(tabs) {
     var tab = tabs[0];
-    activeTabs[tab.id].port = port;
+    var tabId = tab.id;
+    var frame = {"frameId": port.name, "port": port};
+    activeTabs[tabId].frames.push(frame);
     port.onDisconnect.addListener(function() {
-      onDisconnectTab({"command": "disconnect","tabId": tab.id});
+      onDisconnectTab({"command": "disconnect","tabId": tabId, "frameId": port.name});
     });
     port.postMessage({
       "command": "display",
-      "tabId": tab.id
+      "tabId": tabId
     });
   }
 }
@@ -149,7 +151,8 @@ function onBrowserAction(tab) {
   var tabId = tab.id;
 
   if (tabId in activeTabs) {
-    activeTabs[tabId].port.postMessage({
+    var topFrame = activeTabs[tabId].frames.find((el) => el.frameId === "top");
+    topFrame.port.postMessage({
       "command": "disable",
       "tabId": tabId
     });
@@ -160,7 +163,7 @@ function onBrowserAction(tab) {
       "file": "/capture/capture.js",
       "allFrames": true
     });
-    activeTabs[tabId] = {"port": null};
+    activeTabs[tabId] = {"frames": [], "tabId": tabId};
     browser.browserAction.setIcon({"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}, nullifyError);
   }
 }
