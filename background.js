@@ -36,6 +36,8 @@ const ICON_ACTIVE_PATH_MAP = {
 };
 
 const MessageCommands = Object.freeze({
+  "CAPTURE_START": "capture-start",
+  "CAPTURE_STOP": "capture-stop",
   "DISABLE": "disable",
   "DISCONNECT": "disconnect",
   "DISPLAY": "display",

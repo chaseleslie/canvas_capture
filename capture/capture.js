@@ -50,6 +50,8 @@ var port = browser.runtime.connect({
 });
 
 const MessageCommands = Object.freeze({
+  "CAPTURE_START": "capture-start",
+  "CAPTURE_STOP": "capture-stop",
   "DISABLE": "disable",
   "DISCONNECT": "disconnect",
   "DISPLAY": "display",
@@ -73,10 +75,9 @@ const HTML_FILE_PATH = "/capture/capture.html";
 var displayed = false;
 var mediaRecorder = null;
 var capturing = false;
-var capturingActiveCanvas = null;
-var activeButton = null;
+var activeIndex = -1;
 var chunks = null;
-var allCanvases = null;
+var frames = {[frameId]: {"frameId": frameId, "canvases": []}};
 var numBytes = 0;
 var objectURLs = [];
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
@@ -115,7 +116,7 @@ function observeBodyMutations(mutations) {
   }
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  allCanvases = canvases;
+  frames[frameId].canvases = canvases;
 
   if (canvasesChanged) {
     updateCanvases(document.getElementById(LIST_CANVASES_ID), canvases);
@@ -257,7 +258,7 @@ function setupDisplay(html) {
   setupWrapperEvents();
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  allCanvases = canvases;
+  frames[frameId].canvases = canvases;
   updateCanvases(parent, canvases);
 }
 
@@ -355,9 +356,9 @@ function observeCanvasMutations(mutations) {
 }
 
 function onToggleCapture(evt) {
-  activeButton = evt.target;
+  activeIndex = evt.target.dataset.index;
 
-  activeButton.blur();
+  evt.target.blur();
 
   if (capturing) {
     preStopCapture();
@@ -378,12 +379,12 @@ function canCaptureStream(canvas) {
 }
 
 function preStartCapture() {
-  var grid = document.getElementById(LIST_CANVASES_ID);
-  var buttons = Array.from(grid.querySelectorAll("button.canvas_capture_button"));
-  var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
-  var button = activeButton;
-  var index = button.dataset.index;
-  var canvas = allCanvases[index];
+  var parent = document.getElementById(LIST_CANVASES_ID);
+  var buttons = Array.from(parent.querySelectorAll("button.canvas_capture_button"));
+  var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
+  var button = buttons[activeIndex];
+  var index = activeIndex;
+  var canvas = frames[frameId].canvases[index];
   var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
   linkCol.textContent = "";
 
@@ -417,12 +418,10 @@ function preStartCapture() {
   var bpsInput = document.getElementById(button.dataset.bpsInput);
   var bps = parseFloat(bpsInput.value);
   bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : DEFAULT_BPS;
-  capturingActiveCanvas = index;
 
   var ret = startCapture(canvas, fps, bps);
   if (ret) {
     linkCol.classList.add("capturing");
-    activeButton = button;
   }
 }
 
@@ -437,7 +436,6 @@ function startCapture(canvas, fps, bps) {
   try {
     stream = canvas.captureStream(fps);
   } catch (e) {
-    capturingActiveCanvas = null;
     return false;
   }
 
@@ -461,7 +459,7 @@ function preStopCapture() {
   var grid = document.getElementById(LIST_CANVASES_ID);
   var buttons = Array.from(grid.querySelectorAll("button.canvas_capture_button"));
   var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
-  var linkCol = rows[activeButton.dataset.index].querySelector("span.canvas_capture_link_container");
+  var linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
 
   for (let k = 0; k < rows.length; k += 1) {
     let row = rows[k];
@@ -477,13 +475,12 @@ function preStopCapture() {
   mediaRecorder.stop();
   numBytes = 0;
   linkCol.classList.remove("capturing");
-  activeButton = null;
 }
 
 function createVideoURL(blob) {
   var parent = document.getElementById(LIST_CANVASES_ID);
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
-  var row = rows[capturingActiveCanvas];
+  var row = rows[activeIndex];
   var col = row.querySelector("span.canvas_capture_link_container");
   var videoURL = window.URL.createObjectURL(blob);
   var link = document.createElement("a");
@@ -503,7 +500,7 @@ function stopCapture() {
   capturing = false;
   mediaRecorder = null;
   chunks = null;
-  capturingActiveCanvas = null;
+  activeIndex = -1;
 }
 
 function onDataAvailable(evt) {
@@ -514,7 +511,7 @@ function onDataAvailable(evt) {
     numBytes += blob.size;
 
     if (numBytes >= maxVideoSize) {
-      activeButton.click();
+      preStopCapture();
     }
   }
 }
