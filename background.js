@@ -87,11 +87,11 @@ function connected(port) {
     var tab = tabs[0];
     activeTabs[tab.id].port = port;
     port.onDisconnect.addListener(function() {
-      onDisconnectTab({"command": "disconnect","subcommand": tab.id});
+      onDisconnectTab({"command": "disconnect","tabId": tab.id});
     });
     port.postMessage({
       "command": "display",
-      "subcommand": tab.id
+      "tabId": tab.id
     });
   }
 }
@@ -135,7 +135,7 @@ function onTabNotify(msg) {
 }
 
 function onDisconnectTab(msg) {
-  var tabId = msg.subcommand;
+  var tabId = msg.tabId;
   if (tabId in activeTabs) {
     delete activeTabs[tabId];
   }
@@ -151,7 +151,7 @@ function onBrowserAction(tab) {
   if (tabId in activeTabs) {
     activeTabs[tabId].port.postMessage({
       "command": "disable",
-      "subcommand": tabId
+      "tabId": tabId
     });
     delete activeTabs[tabId];
     browser.browserAction.setIcon({"path": ICON_PATH_MAP, "tabId": tabId}, nullifyError);

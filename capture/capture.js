@@ -99,7 +99,7 @@ function freeObjectURLs() {
 
 function onMessage(msg) {
   if (msg.command === "display") {
-    tabId = msg.subcommand;
+    tabId = msg.tabId;
     if (!displayed) {
       handleDisplay(msg);
       displayed = true;
@@ -131,7 +131,7 @@ function handleDisable(notify) {
   displayed = false;
   port.postMessage({
     "command": cmd,
-    "subcommand": tabId,
+    "tabId": tabId,
     "notification": notify
   });
 }
