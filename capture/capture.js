@@ -49,6 +49,14 @@ var port = browser.runtime.connect({
   "name": frameId
 });
 
+const MessageCommands = Object.freeze({
+  "DISABLE": "disable",
+  "DISCONNECT": "disconnect",
+  "DISPLAY": "display",
+  "NOTIFY": "notify",
+  "UPDATE_CANVASES": "update-canvases"
+});
+
 const MIME_TYPE_MAP = {
   "mp4": "video/mp4",
   "webm": "video/webm"
@@ -121,13 +129,13 @@ function freeObjectURLs() {
 }
 
 function onMessage(msg) {
-  if (msg.command === "display") {
+  if (msg.command === MessageCommands.DISPLAY) {
     tabId = msg.tabId;
     if (!displayed) {
       handleDisplay(msg);
       displayed = true;
     }
-  } else if (msg.command === "disable") {
+  } else if (msg.command === MessageCommands.DISABLE) {
     handleDisable();
   }
 }
@@ -148,15 +156,16 @@ function handleDisable(notify) {
     style.parentElement.removeChild(style);
   }
 
-  var cmd = (notify) ? "disconnect-notify" : "disconnect";
-
   freeObjectURLs();
   displayed = false;
   port.postMessage({
-    "command": cmd,
-    "tabId": tabId,
-    "frameId": frameId,
+    "command": MessageCommands.NOTIFY,
     "notification": notify
+  });
+  port.postMessage({
+    "command": MessageCommands.DISCONNECT,
+    "tabId": tabId,
+    "frameId": frameId
   });
 }
 

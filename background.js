@@ -35,6 +35,14 @@ const ICON_ACTIVE_PATH_MAP = {
   "128": "/img/icon_active_128.svg"
 };
 
+const MessageCommands = Object.freeze({
+  "DISABLE": "disable",
+  "DISCONNECT": "disconnect",
+  "DISPLAY": "display",
+  "NOTIFY": "notify",
+  "UPDATE_CANVASES": "update-canvases"
+});
+
 const NOTIFICATION_DURATION = 10000;
 var notifications = [];
 
@@ -89,10 +97,10 @@ function connected(port) {
     var frame = {"frameId": port.name, "port": port};
     activeTabs[tabId].frames.push(frame);
     port.onDisconnect.addListener(function() {
-      onDisconnectTab({"command": "disconnect","tabId": tabId, "frameId": port.name});
+      onDisconnectTab({"command": MessageCommands.DISCONNECT, "tabId": tabId, "frameId": port.name});
     });
     port.postMessage({
-      "command": "display",
+      "command": MessageCommands.DISPLAY,
       "tabId": tabId
     });
   }
@@ -100,9 +108,9 @@ function connected(port) {
 browser.runtime.onConnect.addListener(connected);
 
 function onMessage(msg) {
-  if (msg.command === "notify") {
+  if (msg.command === MessageCommands.NOTIFY) {
     onTabNotify(msg);
-  } else if (msg.command === "disconnect" || msg.command === "disconnect-notify") {
+  } else if (msg.command === MessageCommands.DISCONNECT) {
     onDisconnectTab(msg);
   }
 }
@@ -142,9 +150,6 @@ function onDisconnectTab(msg) {
     delete activeTabs[tabId];
   }
   browser.browserAction.setIcon({"path": ICON_PATH_MAP, "tabId": tabId}, nullifyError);
-  if (msg.command === "disconnect-notify") {
-    onTabNotify(msg);
-  }
 }
 
 function onBrowserAction(tab) {
@@ -153,7 +158,7 @@ function onBrowserAction(tab) {
   if (tabId in activeTabs) {
     var topFrame = activeTabs[tabId].frames.find((el) => el.frameId === "top");
     topFrame.port.postMessage({
-      "command": "disable",
+      "command": MessageCommands.DISABLE,
       "tabId": tabId
     });
     delete activeTabs[tabId];
