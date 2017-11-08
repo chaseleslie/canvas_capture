@@ -472,8 +472,8 @@ function preStopCapture() {
 }
 
 function createVideoURL(blob) {
-  var grid = document.getElementById(LIST_CANVASES_ID);
-  var rows = Array.from(grid.querySelectorAll("span.list_canvases_row"));
+  var parent = document.getElementById(LIST_CANVASES_ID);
+  var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
   var row = rows[capturingActiveCanvas];
   var col = row.querySelector("span.canvas_capture_link_container");
   var videoURL = window.URL.createObjectURL(blob);
