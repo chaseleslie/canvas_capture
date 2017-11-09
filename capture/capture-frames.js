@@ -23,7 +23,7 @@ var browser = chrome;
 var frameId = genUUIDv4();
 
 if (!inIframe()) {
-  return; // eslint-disable-line
+  return;
 }
 
 var tabId = null;
@@ -40,6 +40,7 @@ const MessageCommands = Object.freeze({
   "NOTIFY": "notify",
   "UPDATE_CANVASES": "update-canvases"
 });
+const TOP_FRAME_ID = "top";
 
 const MIME_TYPE_MAP = {
   "mp4": "video/mp4",
@@ -73,6 +74,7 @@ function onMessage(msg) {
       "command": MessageCommands.CAPTURE_START,
       "tabId": tabId,
       "frameId": frameId,
+      "targetFrameId": TOP_FRAME_ID,
       "success": ret
     });
   } else if (msg.command === MessageCommands.CAPTURE_STOP) {
@@ -87,6 +89,9 @@ function onMessage(msg) {
     };
     canvases.forEach((canvas) => canvasMutObs.observe(canvas, canvasObsOps));
     maxVideoSize = msg.defaultSettings.maxVideoSize;
+    tabId = msg.tabId;
+    frames[frameId].canvases = canvases;
+    updateCanvases(canvases);
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     let canvases = Array.from(document.body.querySelectorAll("canvas"));
     updateCanvases(canvases);
@@ -153,8 +158,9 @@ function updateCanvases(canvases) {
 
   port.postMessage({
     "command": MessageCommands.UPDATE_CANVASES,
-    "frameId": frameId,
     "tabId": tabId,
+    "frameId": frameId,
+    "targetFrameId": TOP_FRAME_ID,
     "canvases": canvasData
   });
 }
@@ -223,6 +229,7 @@ function stopCapture(evt, success) {
     "command": MessageCommands.CAPTURE_STOP,
     "tabId": tabId,
     "frameId": frameId,
+    "targetFrameId": TOP_FRAME_ID,
     "canvasIndex": activeIndex,
     "videoURL": videoURL,
     "success": success

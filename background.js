@@ -20,6 +20,7 @@
 var browser = chrome;
 
 var activeTabs = {};
+
 const ICON_PATH_MAP = {
   "16": "/img/icon_16.svg",
   "32": "/img/icon_32.svg",
@@ -34,6 +35,9 @@ const ICON_ACTIVE_PATH_MAP = {
   "64": "/img/icon_active_64.svg",
   "128": "/img/icon_active_128.svg"
 };
+
+const CAPTURE_JS_PATH = "/capture/capture.js";
+const CAPTURE_FRAMES_JS_PATH = "/capture/capture-frames.js";
 
 const MessageCommands = Object.freeze({
   "CAPTURE_START": "capture-start",
@@ -101,19 +105,45 @@ function connected(port) {
     port.onDisconnect.addListener(function() {
       onDisconnectTab({"command": MessageCommands.DISCONNECT, "tabId": tabId, "frameId": port.name});
     });
-    port.postMessage({
-      "command": MessageCommands.DISPLAY,
-      "tabId": tabId
-    });
+    function sendDisplayCommand(setting) {
+      if (Array.isArray(setting)) {
+        setting = setting[0];
+      }
+      var maxVideoSize = setting.maxVideoSize || 4 * 1024 * 1024 * 1024;
+
+      port.postMessage({
+        "command": MessageCommands.DISPLAY,
+        "tabId": tabId,
+        "defaultSettings": {
+          "maxVideoSize": maxVideoSize
+        }
+      });
+    }
+    var prom = browser.storage.local.get("maxVideoSize", sendDisplayCommand);
+    if (prom) {
+      prom.then(sendDisplayCommand);
+    }
   }
 }
 browser.runtime.onConnect.addListener(connected);
 
 function onMessage(msg) {
-  if (msg.command === MessageCommands.NOTIFY) {
-    onTabNotify(msg);
-  } else if (msg.command === MessageCommands.DISCONNECT) {
-    onDisconnectTab(msg);
+  switch (msg.command) {
+    case MessageCommands.CAPTURE_START:
+    case MessageCommands.CAPTURE_STOP:
+    case MessageCommands.UPDATE_CANVASES: {
+      let tabId = msg.tabId;
+      let targetFrame = activeTabs[tabId].frames.find((el) => el.frameId === msg.targetFrameId);
+      targetFrame.port.postMessage(msg);
+    }
+    break;
+
+    case MessageCommands.DISCONNECT:
+      onDisconnectTab(msg);
+    break;
+    case MessageCommands.NOTIFY:
+      onTabNotify(msg);
+    break;
   }
 }
 
@@ -167,7 +197,11 @@ function onBrowserAction(tab) {
     browser.browserAction.setIcon({"path": ICON_PATH_MAP, "tabId": tabId}, nullifyError);
   } else {
     browser.tabs.executeScript({
-      "file": "/capture/capture.js",
+      "file": CAPTURE_JS_PATH,
+      "allFrames": true
+    });
+    browser.tabs.executeScript({
+      "file": CAPTURE_FRAMES_JS_PATH,
       "allFrames": true
     });
     activeTabs[tabId] = {"frames": [], "tabId": tabId};
