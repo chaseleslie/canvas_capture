@@ -37,6 +37,7 @@ const MessageCommands = Object.freeze({
   "DISABLE": "disable",
   "DISCONNECT": "disconnect",
   "DISPLAY": "display",
+  "DOWNLOAD": "download",
   "NOTIFY": "notify",
   "UPDATE_CANVASES": "update-canvases"
 });
@@ -56,6 +57,7 @@ var chunks = null;
 var frames = {[frameId]: {"frameId": frameId, "canvases": []}};
 var numBytes = 0;
 var objectURLs = [];
+var downloadLinks = [];
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
 var bodyMutObs = new MutationObserver(observeBodyMutations);
 var canvasMutObs = new MutationObserver(observeCanvasMutations);
@@ -92,6 +94,19 @@ function onMessage(msg) {
     tabId = msg.tabId;
     frames[frameId].canvases = canvases;
     updateCanvases(canvases);
+  } else if (msg.command === MessageCommands.DOWNLOAD) {
+    let link = document.createElement("a");
+    link.textContent = "download";
+    link.href = objectURLs[msg.canvasIndex];
+    link.download = `capture-${Date.now()}.${DEFAULT_MIME_TYPE}`;
+    link.style.maxWidth = "0px";
+    link.style.maxHeight = "0px";
+    link.style.display = "block";
+    link.style.visibility = "hidden";
+    link.style.position = "absolute";
+    downloadLinks.push(link);
+    document.body.appendChild(link);
+    link.click();
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     let canvases = Array.from(document.body.querySelectorAll("canvas"));
     updateCanvases(canvases);
@@ -223,7 +238,8 @@ function stopCapture(evt, success) {
   }
   var blob = new Blob(chunks, {"type": chunks[0].type});
   var videoURL = window.URL.createObjectURL(blob);
-  objectURLs.push(videoURL);
+  objectURLs[activeIndex] = videoURL;
+  success = (typeof success === "boolean") ? success : true;
 
   port.postMessage({
     "command": MessageCommands.CAPTURE_STOP,
@@ -269,6 +285,13 @@ function freeObjectURLs() {
   for (let k = 0; k < objectURLs.length; k += 1) {
     window.URL.revokeObjectURL(objectURLs[k]);
   }
+
+  for (let k = 0, n = downloadLinks.length; k < n; k += 1) {
+    let link = downloadLinks[k];
+    link.parentElement.removeChild(link);
+    downloadLinks[k] = null;
+  }
+  downloadLinks = [];
 }
 
 function genUUIDv4() {

@@ -38,6 +38,7 @@ const ICON_ACTIVE_PATH_MAP = {
 
 const CAPTURE_JS_PATH = "/capture/capture.js";
 const CAPTURE_FRAMES_JS_PATH = "/capture/capture-frames.js";
+const TOP_FRAME_ID = "top";
 
 const MessageCommands = Object.freeze({
   "CAPTURE_START": "capture-start",
@@ -45,6 +46,7 @@ const MessageCommands = Object.freeze({
   "DISABLE": "disable",
   "DISCONNECT": "disconnect",
   "DISPLAY": "display",
+  "DOWNLOAD": "download",
   "NOTIFY": "notify",
   "UPDATE_CANVASES": "update-canvases"
 });
@@ -119,9 +121,11 @@ function connected(port) {
         }
       });
     }
-    var prom = browser.storage.local.get("maxVideoSize", sendDisplayCommand);
-    if (prom) {
-      prom.then(sendDisplayCommand);
+    if (port.name === TOP_FRAME_ID) {
+      let prom = browser.storage.local.get("maxVideoSize", sendDisplayCommand);
+      if (prom) {
+        prom.then(sendDisplayCommand);
+      }
     }
   }
 }
@@ -131,10 +135,31 @@ function onMessage(msg) {
   switch (msg.command) {
     case MessageCommands.CAPTURE_START:
     case MessageCommands.CAPTURE_STOP:
+    case MessageCommands.DOWNLOAD:
     case MessageCommands.UPDATE_CANVASES: {
       let tabId = msg.tabId;
       let targetFrame = activeTabs[tabId].frames.find((el) => el.frameId === msg.targetFrameId);
       targetFrame.port.postMessage(msg);
+    }
+    break;
+
+    case MessageCommands.DISPLAY: {
+      let tabId = msg.tabId;
+      let targetFrame = activeTabs[tabId].frames.find((el) => el.frameId === msg.targetFrameId);
+      if (msg.targetFrameId === "*" && msg.frameId === TOP_FRAME_ID) {
+        let frames = activeTabs[tabId].frames;
+        for (let k = 0, n = frames.length; k < n; k += 1) {
+          let frame = frames[k];
+          if (frame.frameId !== TOP_FRAME_ID) {
+            let obj = JSON.parse(JSON.stringify(msg));
+            obj.targetFrameId = frame.frameId;
+            frame.port.postMessage(obj);
+            break;
+          }
+        }
+      } else {
+        targetFrame.port.postMessage(msg);
+      }
     }
     break;
 

@@ -37,6 +37,7 @@ const MessageCommands = Object.freeze({
   "DISABLE": "disable",
   "DISCONNECT": "disconnect",
   "DISPLAY": "display",
+  "DOWNLOAD": "download",
   "NOTIFY": "notify",
   "UPDATE_CANVASES": "update-canvases"
 });
@@ -59,6 +60,7 @@ var displayed = false;
 var mediaRecorder = null;
 var capturing = false;
 var activeIndex = -1;
+var activeFrameId = null;
 var chunks = null;
 var frames = {[FRAME_ID]: {"frameId": FRAME_ID, "canvases": []}};
 var numBytes = 0;
@@ -77,15 +79,39 @@ bodyMutObs.observe(document.body, {
 function onMessage(msg) {
   if (msg.command === MessageCommands.CAPTURE_START) {
     if (msg.success) {
-      console.log("success");
       capturing = true;
       let parent = document.getElementById(LIST_CANVASES_ID);
-      let linkCol = parent.querySelector("span.list_canvases_row.capture_active span.canvas_capture_link_container");
-      console.log(linkCol);
+      let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
+      let linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
       linkCol.classList.add("capturing");
+    } else {
+      capturing = false;
     }
   } else if (msg.command === MessageCommands.CAPTURE_STOP) {
-    //
+    capturing = true;
+    let parent = document.getElementById(LIST_CANVASES_ID);
+    let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
+    let linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
+    linkCol.classList.remove("capturing");
+    if (msg.success) {
+      let link = document.createElement("a");
+      link.textContent = "download";
+      link.href = msg.videoURL;
+      link.download = `capture-${Date.now()}.${DEFAULT_MIME_TYPE}`;
+      link.addEventListener("click", function(evt) {
+        port.postMessage({
+          "command": MessageCommands.DOWNLOAD,
+          "tabId": tabId,
+          "frameId": FRAME_ID,
+          "targetFrameId": msg.frameId,
+          "canvasIndex": msg.canvasIndex
+        });
+        evt.preventDefault();
+      }, false);
+      linkCol.appendChild(link);
+    } else {
+      // error
+    }
   } else if (msg.command === MessageCommands.DISABLE) {
     handleDisable();
   } else if (msg.command === MessageCommands.DISPLAY) {
@@ -194,12 +220,6 @@ function handleDisable(notify) {
 }
 
 function handleDisplay(msg) {
-  if (!document.querySelectorAll("canvas").length) {
-    displayed = true;
-    handleDisable("No canvases found");
-    return;
-  }
-
   maxVideoSize = msg.defaultSettings.maxVideoSize;
 
   try {
@@ -265,14 +285,21 @@ function setupDisplay(html) {
   document.body.appendChild(wrapper);
   wrapper.outerHTML = html;
   wrapper = document.getElementById(WRAPPER_ID);
-  // var parent = document.getElementById(LIST_CANVASES_ID);
 
   positionWrapper();
   setupWrapperEvents();
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
   frames[FRAME_ID].canvases = canvases;
-  updateCanvases();
+  port.postMessage({
+    "command": MessageCommands.DISPLAY,
+    "tabId": tabId,
+    "frameId": FRAME_ID,
+    "targetFrameId": "*",
+    "defaultSettings": {
+      "maxVideoSize": maxVideoSize
+    }
+  });
 }
 
 function getAllCanvases() {
@@ -393,15 +420,16 @@ function updateCanvases() {
 }
 
 function onToggleCapture(evt) {
-  // TODO set activeIndex properly, keep track of activeFrameId
-  activeIndex = evt.target.dataset.index;
+  var button = evt.target;
+  activeFrameId = button.dataset.frameId;
+  activeIndex = button.dataset.index;
 
-  evt.target.blur();
-console.log("onToggleCapture");
+  button.blur();
+
   if (capturing) {
     preStopCapture();
   } else {
-    preStartCapture(evt.target);
+    preStartCapture(button);
   }
 }
 
@@ -411,7 +439,7 @@ function preStartCapture(button) {
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
   var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
   var index = activeIndex;
-  var canvas = frames[FRAME_ID].canvases[index];
+  var canvas = frames[activeFrameId].canvases[index];
   var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
   linkCol.textContent = "";
 
@@ -450,7 +478,6 @@ function preStartCapture(button) {
     let ret = startCapture(canvas, fps, bps);
     if (ret) {
       linkCol.classList.add("capturing");
-      rows[index].classList.add("capture_active");
     }
   } else {
     port.postMessage({
@@ -498,6 +525,8 @@ function startCapture(canvas, fps, bps) {
 function preStopCapture() {
   var parent = document.getElementById(LIST_CANVASES_ID);
   var buttons = Array.from(parent.querySelectorAll("button.canvas_capture_button"));
+  var button = buttons[activeIndex];
+  var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
   var linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
 
@@ -512,8 +541,18 @@ function preStopCapture() {
     but.textContent = "Capture";
   }
 
-  mediaRecorder.stop();
-  linkCol.classList.remove("capturing");
+  if (canvasIsLocal) {
+    mediaRecorder.stop();
+    linkCol.classList.remove("capturing");
+  } else {
+    port.postMessage({
+      "command": MessageCommands.CAPTURE_STOP,
+      "tabId": tabId,
+      "frameId": FRAME_ID,
+      "targetFrameId": button.dataset.frameId,
+      "canvasIndex": button.dataset.canvasIndex
+    });
+  }
 }
 
 function createVideoURL(blob) {
@@ -524,7 +563,7 @@ function createVideoURL(blob) {
   var videoURL = window.URL.createObjectURL(blob);
   var link = document.createElement("a");
   link.textContent = "Download";
-  link.download = `capture-${Date.now()}.webm`;
+  link.download = `capture-${Date.now()}.${DEFAULT_MIME_TYPE}`;
   link.href = videoURL;
   col.appendChild(link);
   objectURLs.push(videoURL);
