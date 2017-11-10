@@ -39,6 +39,7 @@
   font-size: 1.5em;
   line-height: 1.1875em;
   background-color: #2C3044;
+  cursor: default;
 }
 
 #list_canvases {

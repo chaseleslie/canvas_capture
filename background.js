@@ -174,6 +174,10 @@ function onMessage(msg) {
 
 function onTabNotify(msg) {
   var notifyId = msg.notification;
+  if (!notifyId) {
+    return;
+  }
+
   var notifyOpts = {
     "type": "basic",
     "message": msg.notification,
