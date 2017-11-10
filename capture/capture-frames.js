@@ -20,7 +20,7 @@
 "use strict";
 
 var browser = chrome;
-var frameId = genUUIDv4();
+var frameUUID = genUUIDv4();
 
 if (!inIframe()) {
   return;
@@ -28,7 +28,7 @@ if (!inIframe()) {
 
 var tabId = null;
 var port = browser.runtime.connect({
-  "name": frameId
+  "name": frameUUID
 });
 
 const MessageCommands = Object.freeze({
@@ -54,7 +54,7 @@ var mediaRecorder = null;
 var capturing = false;
 var activeIndex = -1;
 var chunks = null;
-var frames = {[frameId]: {"frameId": frameId, "canvases": []}};
+var frames = {[frameUUID]: {"frameUUID": frameUUID, "canvases": []}};
 var numBytes = 0;
 var objectURLs = [];
 var downloadLinks = [];
@@ -75,8 +75,8 @@ function onMessage(msg) {
     port.postMessage({
       "command": MessageCommands.CAPTURE_START,
       "tabId": tabId,
-      "frameId": frameId,
-      "targetFrameId": TOP_FRAME_ID,
+      "frameUUID": frameUUID,
+      "targetFrameUUID": TOP_FRAME_ID,
       "success": ret
     });
   } else if (msg.command === MessageCommands.CAPTURE_STOP) {
@@ -92,7 +92,7 @@ function onMessage(msg) {
     canvases.forEach((canvas) => canvasMutObs.observe(canvas, canvasObsOps));
     maxVideoSize = msg.defaultSettings.maxVideoSize;
     tabId = msg.tabId;
-    frames[frameId].canvases = canvases;
+    frames[frameUUID].canvases = canvases;
     updateCanvases(canvases);
   } else if (msg.command === MessageCommands.DOWNLOAD) {
     let link = document.createElement("a");
@@ -140,7 +140,7 @@ function observeBodyMutations(mutations) {
   }
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  frames[frameId].canvases = canvases;
+  frames[frameUUID].canvases = canvases;
 
   if (canvasesChanged) {
     updateCanvases(canvases);
@@ -174,8 +174,8 @@ function updateCanvases(canvases) {
   port.postMessage({
     "command": MessageCommands.UPDATE_CANVASES,
     "tabId": tabId,
-    "frameId": frameId,
-    "targetFrameId": TOP_FRAME_ID,
+    "frameUUID": frameUUID,
+    "targetFrameUUID": TOP_FRAME_ID,
     "canvases": canvasData
   });
 }
@@ -186,7 +186,7 @@ function preStartCapture(msg) {
   }
 
   activeIndex = msg.canvasIndex;
-  var canvas = frames[frameId].canvases[activeIndex];
+  var canvas = frames[frameUUID].canvases[activeIndex];
   var fps = msg.fps;
   var bps = msg.bps;
 
@@ -244,8 +244,8 @@ function stopCapture(evt, success) {
   port.postMessage({
     "command": MessageCommands.CAPTURE_STOP,
     "tabId": tabId,
-    "frameId": frameId,
-    "targetFrameId": TOP_FRAME_ID,
+    "frameUUID": frameUUID,
+    "targetFrameUUID": TOP_FRAME_ID,
     "canvasIndex": activeIndex,
     "videoURL": videoURL,
     "success": success,

@@ -62,7 +62,7 @@ var capturing = false;
 var activeIndex = -1;
 var activeFrameId = null;
 var chunks = null;
-var frames = {[FRAME_ID]: {"frameId": FRAME_ID, "canvases": []}};
+var frames = {[FRAME_ID]: {"frameUUID": FRAME_ID, "canvases": []}};
 var numBytes = 0;
 var objectURLs = [];
 var wrapperMouseHover = false;
@@ -103,8 +103,8 @@ function onMessage(msg) {
         port.postMessage({
           "command": MessageCommands.DOWNLOAD,
           "tabId": tabId,
-          "frameId": FRAME_ID,
-          "targetFrameId": msg.frameId,
+          "frameUUID": FRAME_ID,
+          "targetFrameUUID": msg.frameUUID,
           "canvasIndex": msg.canvasIndex
         });
         evt.preventDefault();
@@ -122,12 +122,12 @@ function onMessage(msg) {
       displayed = true;
     }
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
-    let frameId = msg.frameId;
-    if (frames[frameId]) {
-      frames[frameId].canvases = msg.canvases;
+    let frameUUID = msg.frameUUID;
+    if (frames[frameUUID]) {
+      frames[frameUUID].canvases = msg.canvases;
     } else {
-      frames[frameId] = {
-        "frameId": frameId,
+      frames[frameUUID] = {
+        "frameUUID": frameUUID,
         "canvases": msg.canvases
       };
     }
@@ -216,7 +216,7 @@ function handleDisable(notify) {
   port.postMessage({
     "command": MessageCommands.DISCONNECT,
     "tabId": tabId,
-    "frameId": FRAME_ID
+    "frameUUID": FRAME_ID
   });
 }
 
@@ -295,8 +295,8 @@ function setupDisplay(html) {
   port.postMessage({
     "command": MessageCommands.DISPLAY,
     "tabId": tabId,
-    "frameId": FRAME_ID,
-    "targetFrameId": "*",
+    "frameUUID": FRAME_ID,
+    "targetFrameUUID": "*",
     "defaultSettings": {
       "maxVideoSize": maxVideoSize
     }
@@ -310,7 +310,7 @@ function getAllCanvases() {
   canvases = canvases.map(function(el, index) {
     return {
       "element": el,
-      "frameId": FRAME_ID,
+      "frameUUID": FRAME_ID,
       "index": index,
       "local": true,
       "id": el.id,
@@ -325,7 +325,7 @@ function getAllCanvases() {
       frameCanvases = frameCanvases.map(function(el, index) {
         var obj = JSON.parse(JSON.stringify(el));
         obj.local = false;
-        obj.frameId = key;
+        obj.frameUUID = key;
         obj.index = index;
         return obj;
       });
@@ -401,7 +401,7 @@ function updateCanvases() {
     button.dataset.fpsInput = fpsInput.id;
     button.dataset.bpsInput = bpsInput.id;
     button.dataset.canvasIsLocal = canvasIsLocal;
-    button.dataset.frameId = canvas.frameId;
+    button.dataset.frameUUID = canvas.frameUUID;
     button.dataset.canvasIndex = canvas.index;
     button.addEventListener("click", onToggleCapture, false);
     button.classList.add("canvas_capture_button");
@@ -424,7 +424,7 @@ function updateCanvases() {
 
 function onToggleCapture(evt) {
   var button = evt.target;
-  activeFrameId = button.dataset.frameId;
+  activeFrameId = button.dataset.frameUUID;
   activeIndex = button.dataset.index;
 
   button.blur();
@@ -486,8 +486,8 @@ function preStartCapture(button) {
     port.postMessage({
       "command": MessageCommands.CAPTURE_START,
       "tabId": tabId,
-      "frameId": FRAME_ID,
-      "targetFrameId": button.dataset.frameId,
+      "frameUUID": FRAME_ID,
+      "targetFrameUUID": button.dataset.frameUUID,
       "canvasIndex": button.dataset.canvasIndex,
       "fps": fps,
       "bps": bps
@@ -551,8 +551,8 @@ function preStopCapture() {
     port.postMessage({
       "command": MessageCommands.CAPTURE_STOP,
       "tabId": tabId,
-      "frameId": FRAME_ID,
-      "targetFrameId": button.dataset.frameId,
+      "frameUUID": FRAME_ID,
+      "targetFrameUUID": button.dataset.frameUUID,
       "canvasIndex": button.dataset.canvasIndex
     });
   }

@@ -102,10 +102,10 @@ function connected(port) {
   function getTabInfo(tabs) {
     var tab = tabs[0];
     var tabId = tab.id;
-    var frame = {"frameId": port.name, "port": port};
+    var frame = {"frameUUID": port.name, "port": port};
     activeTabs[tabId].frames.push(frame);
     port.onDisconnect.addListener(function() {
-      onDisconnectTab({"command": MessageCommands.DISCONNECT, "tabId": tabId, "frameId": port.name});
+      onDisconnectTab({"command": MessageCommands.DISCONNECT, "tabId": tabId, "frameUUID": port.name});
     });
     function sendDisplayCommand(setting) {
       if (Array.isArray(setting)) {
@@ -138,21 +138,21 @@ function onMessage(msg) {
     case MessageCommands.DOWNLOAD:
     case MessageCommands.UPDATE_CANVASES: {
       let tabId = msg.tabId;
-      let targetFrame = activeTabs[tabId].frames.find((el) => el.frameId === msg.targetFrameId);
+      let targetFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === msg.targetFrameUUID);
       targetFrame.port.postMessage(msg);
     }
     break;
 
     case MessageCommands.DISPLAY: {
       let tabId = msg.tabId;
-      let targetFrame = activeTabs[tabId].frames.find((el) => el.frameId === msg.targetFrameId);
-      if (msg.targetFrameId === "*" && msg.frameId === TOP_FRAME_ID) {
+      let targetFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === msg.targetFrameUUID);
+      if (msg.targetFrameUUID === "*" && msg.frameUUID === TOP_FRAME_ID) {
         let frames = activeTabs[tabId].frames;
         for (let k = 0, n = frames.length; k < n; k += 1) {
           let frame = frames[k];
-          if (frame.frameId !== TOP_FRAME_ID) {
+          if (frame.frameUUID !== TOP_FRAME_ID) {
             let obj = JSON.parse(JSON.stringify(msg));
-            obj.targetFrameId = frame.frameId;
+            obj.targetFrameUUID = frame.frameUUID;
             frame.port.postMessage(obj);
             break;
           }
@@ -213,7 +213,7 @@ function onBrowserAction(tab) {
   var tabId = tab.id;
 
   if (tabId in activeTabs) {
-    var topFrame = activeTabs[tabId].frames.find((el) => el.frameId === "top");
+    var topFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === "top");
     topFrame.port.postMessage({
       "command": MessageCommands.DISABLE,
       "tabId": tabId
