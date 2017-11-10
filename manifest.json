@@ -15,7 +15,10 @@
   "permissions": [
     "activeTab",
     "storage",
-    "notifications"
+    "notifications",
+    "webNavigation",
+    "http://*/",
+    "https://*/"
   ],
 
   "background": {

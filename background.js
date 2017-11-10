@@ -209,6 +209,22 @@ function onDisconnectTab(msg) {
   browser.browserAction.setIcon({"path": ICON_PATH_MAP, "tabId": tabId}, nullifyError);
 }
 
+function injectScriptIntoFrames(frames) {
+  browser.tabs.executeScript({
+    "file": CAPTURE_JS_PATH,
+    "frameId": 0
+  });
+  for (let k = 0, n = frames.length; k < n; k += 1) {
+    let frame = frames[k];
+    if (frame.frameId !== 0) {
+      browser.tabs.executeScript({
+        "file": CAPTURE_FRAMES_JS_PATH,
+        "frameId": frame.frameId
+      });
+    }
+  }
+}
+
 function onBrowserAction(tab) {
   var tabId = tab.id;
 
@@ -221,14 +237,10 @@ function onBrowserAction(tab) {
     delete activeTabs[tabId];
     browser.browserAction.setIcon({"path": ICON_PATH_MAP, "tabId": tabId}, nullifyError);
   } else {
-    browser.tabs.executeScript({
-      "file": CAPTURE_JS_PATH,
-      "allFrames": true
-    });
-    browser.tabs.executeScript({
-      "file": CAPTURE_FRAMES_JS_PATH,
-      "allFrames": true
-    });
+    let prom = browser.webNavigation.getAllFrames({"tabId": tabId}, injectScriptIntoFrames);
+    if (prom) {
+      prom.then(injectScriptIntoFrames);
+    }
     activeTabs[tabId] = {"frames": [], "tabId": tabId};
     browser.browserAction.setIcon({"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}, nullifyError);
   }
