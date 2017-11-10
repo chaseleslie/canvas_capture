@@ -22,10 +22,6 @@
 var browser = chrome;
 var frameUUID = genUUIDv4();
 
-if (!inIframe()) {
-  return;
-}
-
 var tabId = null;
 var port = browser.runtime.connect({
   "name": frameUUID
@@ -302,13 +298,5 @@ function genUUIDv4() {
     (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
   );
   /* eslint-enable no-bitwise, id-length, no-mixed-operators */
-}
-
-function inIframe() {
-  try {
-    return window.self !== window.top;
-  } catch (e) {
-    return true;
-  }
 }
 }());

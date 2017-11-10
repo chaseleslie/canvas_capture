@@ -22,10 +22,6 @@
 var browser = chrome;
 const FRAME_ID = "top";
 
-if (inIframe()) {
-  return;
-}
-
 var tabId = null;
 var port = browser.runtime.connect({
   "name": FRAME_ID
@@ -613,14 +609,6 @@ function canCaptureStream(canvas) {
 function freeObjectURLs() {
   for (let k = 0; k < objectURLs.length; k += 1) {
     window.URL.revokeObjectURL(objectURLs[k]);
-  }
-}
-
-function inIframe() {
-  try {
-    return window.self !== window.top;
-  } catch (e) {
-    return true;
   }
 }
 
