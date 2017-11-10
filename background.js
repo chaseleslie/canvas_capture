@@ -210,10 +210,6 @@ function onDisconnectTab(msg) {
 }
 
 function injectScriptIntoFrames(frames) {
-  browser.tabs.executeScript({
-    "file": CAPTURE_JS_PATH,
-    "frameId": 0
-  });
   for (let k = 0, n = frames.length; k < n; k += 1) {
     let frame = frames[k];
     if (frame.frameId !== 0) {
@@ -223,6 +219,11 @@ function injectScriptIntoFrames(frames) {
       });
     }
   }
+
+  browser.tabs.executeScript({
+    "file": CAPTURE_JS_PATH,
+    "frameId": 0
+  });
 }
 
 function onBrowserAction(tab) {
