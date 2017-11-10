@@ -66,6 +66,13 @@
   height: 1.75em;
 }
 
+.list_canvases_row:nth-child(odd) {
+  background-color: #282837;
+}
+.list_canvases_row:nth-child(even) {
+  background-color: #20202E;
+}
+
 .list_canvases_canvas_id {
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -85,7 +92,20 @@
 }
 
 .canvas_capture_link_container a {
+  text-decoration: underline;
+  font-size: 100%;
   color: #77F;
+}
+
+.list_canvases_row input {
+  border: 3px solid #AAA;
+  border-radius: 2px;
+  font-size: 100%;
+  font-family: monospace;
+  transition: border-color 0.3s;
+}
+.list_canvases_row input:focus {
+  border-color: #66D;
 }
 
 .anchored {

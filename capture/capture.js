@@ -379,7 +379,7 @@ function updateCanvases() {
     fpsInput.id = `fps${k}`;
     fpsInput.type = "text";
     fpsInput.value = DEFAULT_FPS;
-    fpsInput.size = 5;
+    fpsInput.size = 3;
     col.appendChild(fpsInput);
     col.classList.add("middle_centered");
     row.appendChild(col);
@@ -389,7 +389,7 @@ function updateCanvases() {
     bpsInput.id = `bps${k}`;
     bpsInput.type = "text";
     bpsInput.value = DEFAULT_BPS;
-    bpsInput.size = 5;
+    bpsInput.size = 8;
     col.appendChild(bpsInput);
     col.classList.add("middle_centered");
     row.appendChild(col);
