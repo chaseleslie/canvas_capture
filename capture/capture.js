@@ -95,9 +95,10 @@ function onMessage(msg) {
     linkCol.classList.remove("capturing");
     if (msg.success) {
       let link = document.createElement("a");
-      link.textContent = "download";
+      link.textContent = "Download";
+      link.download = `capture-${parseInt(Date.now() / 1000, 10)}.${DEFAULT_MIME_TYPE}`;
       link.href = msg.videoURL;
-      link.download = `capture-${Date.now()}.${DEFAULT_MIME_TYPE}`;
+      link.title = prettyFileSize(msg.size);
       link.addEventListener("click", function(evt) {
         port.postMessage({
           "command": MessageCommands.DOWNLOAD,
@@ -563,8 +564,9 @@ function createVideoURL(blob) {
   var videoURL = window.URL.createObjectURL(blob);
   var link = document.createElement("a");
   link.textContent = "Download";
-  link.download = `capture-${Date.now()}.${DEFAULT_MIME_TYPE}`;
+  link.download = `capture-${parseInt(Date.now() / 1000, 10)}.${DEFAULT_MIME_TYPE}`;
   link.href = videoURL;
+  link.title = prettyFileSize(blob.size);
   col.appendChild(link);
   objectURLs.push(videoURL);
 }
@@ -618,5 +620,20 @@ function inIframe() {
   } catch (e) {
     return true;
   }
+}
+
+function prettyFileSize(nBytes, useSI) {
+  const SI_UNITS = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+  const IEC_UNITS = ["B", "kiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"];
+  const mult = useSI ? 1000 : 1024;
+  const units = useSI ? SI_UNITS : IEC_UNITS;
+  var index = 0;
+
+  while (Math.abs(nBytes) >= mult) {
+    index += 1;
+    nBytes /= mult;
+  }
+
+  return `${nBytes.toFixed(1)} ${units[index]}`;
 }
 }());

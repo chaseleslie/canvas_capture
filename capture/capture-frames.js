@@ -98,7 +98,7 @@ function onMessage(msg) {
     let link = document.createElement("a");
     link.textContent = "download";
     link.href = objectURLs[msg.canvasIndex];
-    link.download = `capture-${Date.now()}.${DEFAULT_MIME_TYPE}`;
+    link.download = `capture-${parseInt(Date.now() / 1000, 10)}.${DEFAULT_MIME_TYPE}`;
     link.style.maxWidth = "0px";
     link.style.maxHeight = "0px";
     link.style.display = "block";
@@ -248,7 +248,8 @@ function stopCapture(evt, success) {
     "targetFrameId": TOP_FRAME_ID,
     "canvasIndex": activeIndex,
     "videoURL": videoURL,
-    "success": success
+    "success": success,
+    "size": blob.size
   });
 
   capturing = false;
