@@ -88,7 +88,7 @@ function onMessage(msg) {
       capturing = false;
     }
   } else if (msg.command === MessageCommands.CAPTURE_STOP) {
-    capturing = true;
+    capturing = false;
     let parent = document.getElementById(LIST_CANVASES_ID);
     let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
     let linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
