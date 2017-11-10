@@ -301,6 +301,8 @@ function setupDisplay(html) {
       "maxVideoSize": maxVideoSize
     }
   });
+
+  updateCanvases();
 }
 
 function getAllCanvases() {
