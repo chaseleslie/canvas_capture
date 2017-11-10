@@ -92,19 +92,24 @@ function onMessage(msg) {
     if (msg.success) {
       let link = document.createElement("a");
       link.textContent = "Download";
-      link.download = `capture-${parseInt(Date.now() / 1000, 10)}.${DEFAULT_MIME_TYPE}`;
       link.href = msg.videoURL;
       link.title = prettyFileSize(msg.size);
-      link.addEventListener("click", function(evt) {
-        port.postMessage({
-          "command": MessageCommands.DOWNLOAD,
-          "tabId": tabId,
-          "frameUUID": FRAME_ID,
-          "targetFrameUUID": msg.frameUUID,
-          "canvasIndex": msg.canvasIndex
+      if (msg.size) {
+        link.addEventListener("click", function(evt) {
+          port.postMessage({
+            "command": MessageCommands.DOWNLOAD,
+            "tabId": tabId,
+            "frameUUID": FRAME_ID,
+            "targetFrameUUID": msg.frameUUID,
+            "canvasIndex": msg.canvasIndex
+          });
+          evt.preventDefault();
+        }, false);
+      } else {
+        link.addEventListener("click", function(evt) {
+          evt.preventDefault();
         });
-        evt.preventDefault();
-      }, false);
+      }
       linkCol.appendChild(link);
     } else {
       // error
@@ -559,21 +564,32 @@ function createVideoURL(blob) {
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
   var row = rows[activeIndex];
   var col = row.querySelector("span.canvas_capture_link_container");
-  var videoURL = window.URL.createObjectURL(blob);
+  var videoURL = "";
   var link = document.createElement("a");
+  var size = blob ? blob.size : 0;
+
+  if (blob) {
+    videoURL = window.URL.createObjectURL(blob);
+  } else {
+    link.addEventListener("click", function(evt) {
+      evt.preventDefault();
+    });
+  }
+
   link.textContent = "Download";
   link.download = `capture-${parseInt(Date.now() / 1000, 10)}.${DEFAULT_MIME_TYPE}`;
   link.href = videoURL;
-  link.title = prettyFileSize(blob.size);
+  link.title = prettyFileSize(size);
   col.appendChild(link);
   objectURLs.push(videoURL);
 }
 
 function stopCapture() {
+  var blob = null;
   if (chunks.length) {
-    var blob = new Blob(chunks, {"type": chunks[0].type});
-    createVideoURL(blob);
+    blob = new Blob(chunks, {"type": chunks[0].type});
   }
+  createVideoURL(blob);
 
   capturing = false;
   mediaRecorder = null;
@@ -624,6 +640,6 @@ function prettyFileSize(nBytes, useSI) {
     nBytes /= mult;
   }
 
-  return `${nBytes.toFixed(1)} ${units[index]}`;
+  return `${nBytes.toFixed(Boolean(index))} ${units[index]}`;
 }
 }());

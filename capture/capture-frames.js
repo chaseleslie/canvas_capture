@@ -229,12 +229,14 @@ function preStopCapture() {
 }
 
 function stopCapture(evt, success) {
-  if (!chunks.length) {
-    return;
+  var blob = null;
+  var videoURL = "";
+
+  if (chunks.length) {
+    blob = new Blob(chunks, {"type": chunks[0].type});
+    videoURL = window.URL.createObjectURL(blob);
+    objectURLs[activeIndex] = videoURL;
   }
-  var blob = new Blob(chunks, {"type": chunks[0].type});
-  var videoURL = window.URL.createObjectURL(blob);
-  objectURLs[activeIndex] = videoURL;
   success = (typeof success === "boolean") ? success : true;
 
   port.postMessage({
@@ -245,7 +247,7 @@ function stopCapture(evt, success) {
     "canvasIndex": activeIndex,
     "videoURL": videoURL,
     "success": success,
-    "size": blob.size
+    "size": blob ? blob.size : 0
   });
 
   capturing = false;
