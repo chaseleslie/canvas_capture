@@ -16,8 +16,7 @@
 
 "use strict";
 
-/* global chrome */
-var browser = chrome;
+/* global browser */
 
 var activeTabs = {};
 
@@ -37,6 +36,7 @@ const ICON_ACTIVE_PATH_MAP = {
 };
 
 const CAPTURE_JS_PATH = "/capture/capture.js";
+const BROWSER_POLYFILL_JS_PATH = "/lib/webextension-polyfill/browser-polyfill.min.js";
 const CAPTURE_FRAMES_JS_PATH = "/capture/capture-frames.js";
 const TOP_FRAME_ID = "top";
 
@@ -224,6 +224,10 @@ function injectScriptIntoFrames(frames) {
     }
   }
 
+  browser.tabs.executeScript({
+    "file": BROWSER_POLYFILL_JS_PATH,
+    "frameId": 0
+  });
   browser.tabs.executeScript({
     "file": CAPTURE_JS_PATH,
     "frameId": 0

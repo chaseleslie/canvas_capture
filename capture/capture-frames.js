@@ -15,11 +15,10 @@
 
 
 ; // eslint-disable-line no-extra-semi
-/* global chrome */
+/* global browser */
 (function() {
 "use strict";
 
-var browser = chrome;
 var frameUUID = genUUIDv4();
 
 var tabId = null;
