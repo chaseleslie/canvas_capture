@@ -20,6 +20,7 @@
 var browser = chrome;
 
 var activeTabs = {};
+
 const ICON_PATH_MAP = {
   "16": "/img/icon_16.svg",
   "32": "/img/icon_32.svg",
@@ -34,6 +35,21 @@ const ICON_ACTIVE_PATH_MAP = {
   "64": "/img/icon_active_64.svg",
   "128": "/img/icon_active_128.svg"
 };
+
+const CAPTURE_JS_PATH = "/capture/capture.js";
+const CAPTURE_FRAMES_JS_PATH = "/capture/capture-frames.js";
+const TOP_FRAME_ID = "top";
+
+const MessageCommands = Object.freeze({
+  "CAPTURE_START": "capture-start",
+  "CAPTURE_STOP": "capture-stop",
+  "DISABLE": "disable",
+  "DISCONNECT": "disconnect",
+  "DISPLAY": "display",
+  "DOWNLOAD": "download",
+  "NOTIFY": "notify",
+  "UPDATE_CANVASES": "update-canvases"
+});
 
 const NOTIFICATION_DURATION = 10000;
 var notifications = [];
@@ -85,28 +101,83 @@ function connected(port) {
   }
   function getTabInfo(tabs) {
     var tab = tabs[0];
-    activeTabs[tab.id].port = port;
+    var tabId = tab.id;
+    var frame = {"frameUUID": port.name, "port": port};
+    activeTabs[tabId].frames.push(frame);
     port.onDisconnect.addListener(function() {
-      onDisconnectTab({"command": "disconnect","subcommand": tab.id});
+      onDisconnectTab({"command": MessageCommands.DISCONNECT, "tabId": tabId, "frameUUID": port.name});
     });
-    port.postMessage({
-      "command": "display",
-      "subcommand": tab.id
-    });
+    function sendDisplayCommand(setting) {
+      if (Array.isArray(setting)) {
+        setting = setting[0];
+      }
+      var maxVideoSize = setting.maxVideoSize || 4 * 1024 * 1024 * 1024;
+
+      port.postMessage({
+        "command": MessageCommands.DISPLAY,
+        "tabId": tabId,
+        "defaultSettings": {
+          "maxVideoSize": maxVideoSize
+        }
+      });
+    }
+    if (port.name === TOP_FRAME_ID) {
+      let prom = browser.storage.local.get("maxVideoSize", sendDisplayCommand);
+      if (prom) {
+        prom.then(sendDisplayCommand);
+      }
+    }
   }
 }
 browser.runtime.onConnect.addListener(connected);
 
 function onMessage(msg) {
-  if (msg.command === "notify") {
-    onTabNotify(msg);
-  } else if (msg.command === "disconnect" || msg.command === "disconnect-notify") {
-    onDisconnectTab(msg);
+  switch (msg.command) {
+    case MessageCommands.CAPTURE_START:
+    case MessageCommands.CAPTURE_STOP:
+    case MessageCommands.DOWNLOAD:
+    case MessageCommands.UPDATE_CANVASES: {
+      let tabId = msg.tabId;
+      let targetFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === msg.targetFrameUUID);
+      targetFrame.port.postMessage(msg);
+    }
+    break;
+
+    case MessageCommands.DISPLAY: {
+      let tabId = msg.tabId;
+      let targetFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === msg.targetFrameUUID);
+      if (msg.targetFrameUUID === "*" && msg.frameUUID === TOP_FRAME_ID) {
+        let frames = activeTabs[tabId].frames;
+        for (let k = 0, n = frames.length; k < n; k += 1) {
+          let frame = frames[k];
+          if (frame.frameUUID !== TOP_FRAME_ID) {
+            let obj = JSON.parse(JSON.stringify(msg));
+            obj.targetFrameUUID = frame.frameUUID;
+            frame.port.postMessage(obj);
+            break;
+          }
+        }
+      } else {
+        targetFrame.port.postMessage(msg);
+      }
+    }
+    break;
+
+    case MessageCommands.DISCONNECT:
+      onDisconnectTab(msg);
+    break;
+    case MessageCommands.NOTIFY:
+      onTabNotify(msg);
+    break;
   }
 }
 
 function onTabNotify(msg) {
   var notifyId = msg.notification;
+  if (!notifyId) {
+    return;
+  }
+
   var notifyOpts = {
     "type": "basic",
     "message": msg.notification,
@@ -135,32 +206,47 @@ function onTabNotify(msg) {
 }
 
 function onDisconnectTab(msg) {
-  var tabId = msg.subcommand;
+  var tabId = msg.tabId;
   if (tabId in activeTabs) {
     delete activeTabs[tabId];
   }
   browser.browserAction.setIcon({"path": ICON_PATH_MAP, "tabId": tabId}, nullifyError);
-  if (msg.command === "disconnect-notify") {
-    onTabNotify(msg);
+}
+
+function injectScriptIntoFrames(frames) {
+  for (let k = 0, n = frames.length; k < n; k += 1) {
+    let frame = frames[k];
+    if (frame.frameId !== 0) {
+      browser.tabs.executeScript({
+        "file": CAPTURE_FRAMES_JS_PATH,
+        "frameId": frame.frameId
+      });
+    }
   }
+
+  browser.tabs.executeScript({
+    "file": CAPTURE_JS_PATH,
+    "frameId": 0
+  });
 }
 
 function onBrowserAction(tab) {
   var tabId = tab.id;
 
   if (tabId in activeTabs) {
-    activeTabs[tabId].port.postMessage({
-      "command": "disable",
-      "subcommand": tabId
+    var topFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === "top");
+    topFrame.port.postMessage({
+      "command": MessageCommands.DISABLE,
+      "tabId": tabId
     });
     delete activeTabs[tabId];
     browser.browserAction.setIcon({"path": ICON_PATH_MAP, "tabId": tabId}, nullifyError);
   } else {
-    browser.tabs.executeScript({
-      "file": "/capture/capture.js",
-      "allFrames": true
-    });
-    activeTabs[tabId] = {"port": null};
+    let prom = browser.webNavigation.getAllFrames({"tabId": tabId}, injectScriptIntoFrames);
+    if (prom) {
+      prom.then(injectScriptIntoFrames);
+    }
+    activeTabs[tabId] = {"frames": [], "tabId": tabId};
     browser.browserAction.setIcon({"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}, nullifyError);
   }
 }
