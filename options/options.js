@@ -16,29 +16,25 @@
 
 "use strict";
 
-/* global chrome */
-var browser = chrome;
+/* global browser */
 
-var maxVideoSizeKey = "maxVideoSize";
+const MAX_VIDEO_SIZE_KEY = "maxVideoSize";
+
+window.addEventListener("load", initOptions, false);
 
 function initOptions() {
   var inputMaxSize = document.getElementById("option_max_video_size");
   inputMaxSize.addEventListener("blur", updateMaxVideoSize, false);
 
-  var inputMaxSizeSetting = browser.storage.local.get(maxVideoSizeKey, getMaxVideoSize);
+  var inputMaxSizeSetting = browser.storage.local.get(MAX_VIDEO_SIZE_KEY);
   if (inputMaxSizeSetting) {
-    inputMaxSizeSetting.then(getMaxVideoSize);
+    inputMaxSizeSetting.then(function(setting) {
+      if (Array.isArray(setting)) {
+        setting = setting[0];
+      }
+      inputMaxSize.value = setting[MAX_VIDEO_SIZE_KEY];
+    });
   }
-}
-window.addEventListener("load", initOptions, false);
-
-function getMaxVideoSize(setting) {
-  var inputMaxSize = document.getElementById("option_max_video_size");
-
-  if (Array.isArray(setting)) {
-    setting = setting[0];
-  }
-  inputMaxSize.value = setting[maxVideoSizeKey];
 }
 
 function updateMaxVideoSize(e) {
@@ -49,6 +45,6 @@ function updateMaxVideoSize(e) {
   }
 
   var obj = {};
-  obj[maxVideoSizeKey] = size;
+  obj[MAX_VIDEO_SIZE_KEY] = size;
   browser.storage.local.set(obj);
 }

@@ -14,16 +14,17 @@
  */
 
 
+ /* global browser */
+
 ; // eslint-disable-line no-extra-semi
-/* global browser */
 (function() {
 "use strict";
 
-const FRAME_ID = "top";
+const TOP_FRAME_UUID = "top";
 
 var tabId = null;
 var port = browser.runtime.connect({
-  "name": FRAME_ID
+  "name": TOP_FRAME_UUID
 });
 
 const MessageCommands = Object.freeze({
@@ -57,7 +58,7 @@ var capturing = false;
 var activeIndex = -1;
 var activeFrameId = null;
 var chunks = null;
-var frames = {[FRAME_ID]: {"frameUUID": FRAME_ID, "canvases": []}};
+var frames = {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}};
 var numBytes = 0;
 var objectURLs = [];
 var wrapperMouseHover = false;
@@ -98,7 +99,7 @@ function onMessage(msg) {
           port.postMessage({
             "command": MessageCommands.DOWNLOAD,
             "tabId": tabId,
-            "frameUUID": FRAME_ID,
+            "frameUUID": TOP_FRAME_UUID,
             "targetFrameUUID": msg.frameUUID,
             "canvasIndex": msg.canvasIndex
           });
@@ -162,7 +163,7 @@ function observeBodyMutations(mutations) {
   }
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  frames[FRAME_ID].canvases = canvases;
+  frames[TOP_FRAME_UUID].canvases = canvases;
 
   if (canvasesChanged) {
     updateCanvases();
@@ -216,7 +217,7 @@ function handleDisable(notify) {
   port.postMessage({
     "command": MessageCommands.DISCONNECT,
     "tabId": tabId,
-    "frameUUID": FRAME_ID
+    "frameUUID": TOP_FRAME_UUID
   });
 }
 
@@ -291,11 +292,11 @@ function setupDisplay(html) {
   setupWrapperEvents();
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  frames[FRAME_ID].canvases = canvases;
+  frames[TOP_FRAME_UUID].canvases = canvases;
   port.postMessage({
     "command": MessageCommands.DISPLAY,
     "tabId": tabId,
-    "frameUUID": FRAME_ID,
+    "frameUUID": TOP_FRAME_UUID,
     "targetFrameUUID": "*",
     "defaultSettings": {
       "maxVideoSize": maxVideoSize
@@ -310,7 +311,7 @@ function getAllCanvases() {
   canvases = canvases.map(function(el, index) {
     return {
       "element": el,
-      "frameUUID": FRAME_ID,
+      "frameUUID": TOP_FRAME_UUID,
       "index": index,
       "local": true,
       "id": el.id,
@@ -320,7 +321,7 @@ function getAllCanvases() {
   });
 
   for (let key in frames) {
-    if (Object.prototype.hasOwnProperty.call(frames, key) && key !== FRAME_ID) {
+    if (Object.prototype.hasOwnProperty.call(frames, key) && key !== TOP_FRAME_UUID) {
       let frameCanvases = frames[key].canvases;
       frameCanvases = frameCanvases.map(function(el, index) {
         var obj = JSON.parse(JSON.stringify(el));
@@ -486,7 +487,7 @@ function preStartCapture(button) {
     port.postMessage({
       "command": MessageCommands.CAPTURE_START,
       "tabId": tabId,
-      "frameUUID": FRAME_ID,
+      "frameUUID": TOP_FRAME_UUID,
       "targetFrameUUID": button.dataset.frameUUID,
       "canvasIndex": button.dataset.canvasIndex,
       "fps": fps,
@@ -551,7 +552,7 @@ function preStopCapture() {
     port.postMessage({
       "command": MessageCommands.CAPTURE_STOP,
       "tabId": tabId,
-      "frameUUID": FRAME_ID,
+      "frameUUID": TOP_FRAME_UUID,
       "targetFrameUUID": button.dataset.frameUUID,
       "canvasIndex": button.dataset.canvasIndex
     });

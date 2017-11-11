@@ -54,15 +54,28 @@ const MessageCommands = Object.freeze({
 const NOTIFICATION_DURATION = 10000;
 var notifications = [];
 
-function nullifyError() {
-  if (browser.runtime.lastError) {
-    // eslint-disable-line no-empty
-  }
+browser.browserAction.setIcon(
+  {"path": ICON_PATH_MAP}
+).then(nullifyError).catch(nullifyError);
+browser.runtime.onConnect.addListener(connected);
+browser.browserAction.onClicked.addListener(onBrowserAction);
+
+if ("onInstalled" in browser.runtime) {
+  /* New browser version support runtime.onInstalled */
+  browser.runtime.onInstalled.addListener(handleInstall);
+} else {
+  /* Fallback for older browser versions first install */
+  let firstInstallSetting = browser.storage.local.get("firstInstall");
+  firstInstallSetting.then(function(setting) {
+    if (Array.isArray(setting)) {
+      setting = setting[0];
+    }
+    if (browser.runtime.lastError || !("firstInstall" in setting)) {
+      handleInstall({"reason": "install"});
+    }
+  });
 }
 
-browser.browserAction.setIcon({"path": ICON_PATH_MAP}, nullifyError);
-
-/* New browser version support runtime.onInstalled */
 function handleInstall(details) {
   var reason = details.reason;
   switch (reason) {
@@ -73,33 +86,11 @@ function handleInstall(details) {
   }
 }
 
-/* Fallback for older browser versions first install */
-function getFirstInstallSetting(setting) {
-  if (Array.isArray(setting)) {
-    setting = setting[0];
-  }
-  if (browser.runtime.lastError || !("firstInstall" in setting)) {
-    handleInstall({"reason": "install"});
-  }
-}
-
-if ("onInstalled" in browser.runtime) {
-  browser.runtime.onInstalled.addListener(handleInstall);
-} else {
-  let firstInstallSetting = browser.storage.local.get("firstInstall", getFirstInstallSetting);
-  if (firstInstallSetting) {
-    firstInstallSetting.then(getFirstInstallSetting);
-  }
-}
-
 function connected(port) {
   port.onMessage.addListener(onMessage);
 
-  var queryTab = browser.tabs.query({"active": true}, getTabInfo);
-  if (queryTab) {
-    queryTab.then(getTabInfo);
-  }
-  function getTabInfo(tabs) {
+  var queryTab = browser.tabs.query({"active": true});
+  queryTab.then(function(tabs) {
     var tab = tabs[0];
     var tabId = tab.id;
     var frame = {"frameUUID": port.name, "port": port};
@@ -107,29 +98,36 @@ function connected(port) {
     port.onDisconnect.addListener(function() {
       onDisconnectTab({"command": MessageCommands.DISCONNECT, "tabId": tabId, "frameUUID": port.name});
     });
-    function sendDisplayCommand(setting) {
-      if (Array.isArray(setting)) {
-        setting = setting[0];
-      }
-      var maxVideoSize = setting.maxVideoSize || 4 * 1024 * 1024 * 1024;
 
-      port.postMessage({
-        "command": MessageCommands.DISPLAY,
-        "tabId": tabId,
-        "defaultSettings": {
-          "maxVideoSize": maxVideoSize
+    if (port.name === TOP_FRAME_ID) {
+      let prom = browser.storage.local.get("maxVideoSize");
+      prom.then(function(setting) {
+        if (Array.isArray(setting)) {
+          setting = setting[0];
         }
+        var maxVideoSize = setting.maxVideoSize || 4 * 1024 * 1024 * 1024;
+
+        port.postMessage({
+          "command": MessageCommands.DISPLAY,
+          "tabId": tabId,
+          "defaultSettings": {
+            "maxVideoSize": maxVideoSize
+          }
+        });
       });
     }
-    if (port.name === TOP_FRAME_ID) {
-      let prom = browser.storage.local.get("maxVideoSize", sendDisplayCommand);
-      if (prom) {
-        prom.then(sendDisplayCommand);
-      }
-    }
-  }
+  });
 }
-browser.runtime.onConnect.addListener(connected);
+
+function onDisconnectTab(msg) {
+  var tabId = msg.tabId;
+  if (tabId in activeTabs) {
+    delete activeTabs[tabId];
+  }
+  browser.browserAction.setIcon(
+    {"path": ICON_PATH_MAP, "tabId": tabId}
+  ).then(nullifyError).catch(nullifyError);
+}
 
 function onMessage(msg) {
   switch (msg.command) {
@@ -205,35 +203,6 @@ function onTabNotify(msg) {
   }, NOTIFICATION_DURATION);
 }
 
-function onDisconnectTab(msg) {
-  var tabId = msg.tabId;
-  if (tabId in activeTabs) {
-    delete activeTabs[tabId];
-  }
-  browser.browserAction.setIcon({"path": ICON_PATH_MAP, "tabId": tabId}, nullifyError);
-}
-
-function injectScriptIntoFrames(frames) {
-  for (let k = 0, n = frames.length; k < n; k += 1) {
-    let frame = frames[k];
-    if (frame.frameId !== 0) {
-      browser.tabs.executeScript({
-        "file": CAPTURE_FRAMES_JS_PATH,
-        "frameId": frame.frameId
-      });
-    }
-  }
-
-  browser.tabs.executeScript({
-    "file": BROWSER_POLYFILL_JS_PATH,
-    "frameId": 0
-  });
-  browser.tabs.executeScript({
-    "file": CAPTURE_JS_PATH,
-    "frameId": 0
-  });
-}
-
 function onBrowserAction(tab) {
   var tabId = tab.id;
 
@@ -244,14 +213,40 @@ function onBrowserAction(tab) {
       "tabId": tabId
     });
     delete activeTabs[tabId];
-    browser.browserAction.setIcon({"path": ICON_PATH_MAP, "tabId": tabId}, nullifyError);
+    browser.browserAction.setIcon(
+      {"path": ICON_PATH_MAP, "tabId": tabId}
+    ).then(nullifyError).catch(nullifyError);
   } else {
-    let prom = browser.webNavigation.getAllFrames({"tabId": tabId}, injectScriptIntoFrames);
-    if (prom) {
-      prom.then(injectScriptIntoFrames);
-    }
+    let prom = browser.webNavigation.getAllFrames({"tabId": tabId});
+    prom.then(function(frames) {
+      for (let k = 0, n = frames.length; k < n; k += 1) {
+        let frame = frames[k];
+        if (frame.frameId !== 0) {
+          browser.tabs.executeScript({
+            "file": CAPTURE_FRAMES_JS_PATH,
+            "frameId": frame.frameId
+          });
+        }
+      }
+
+      browser.tabs.executeScript({
+        "file": BROWSER_POLYFILL_JS_PATH,
+        "frameId": 0
+      });
+      browser.tabs.executeScript({
+        "file": CAPTURE_JS_PATH,
+        "frameId": 0
+      });
+    });
     activeTabs[tabId] = {"frames": [], "tabId": tabId};
-    browser.browserAction.setIcon({"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}, nullifyError);
+    browser.browserAction.setIcon(
+      {"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}
+    ).then(nullifyError).catch(nullifyError);
   }
 }
-browser.browserAction.onClicked.addListener(onBrowserAction);
+
+function nullifyError() {
+  if (browser.runtime.lastError) {
+    // eslint-disable-line no-empty
+  }
+}
