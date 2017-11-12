@@ -14,17 +14,19 @@
  */
 
 
+ /* global browser */
+
 ; // eslint-disable-line no-extra-semi
-/* global chrome */
 (function() {
 "use strict";
 
-var browser = chrome;
-const FRAME_ID = "top";
+const TOP_FRAME_UUID = "top";
+const BG_FRAME_UUID = "background";
+const ALL_FRAMES_UUID = "*";
 
 var tabId = null;
 var port = browser.runtime.connect({
-  "name": FRAME_ID
+  "name": `${TOP_FRAME_UUID}@${window.location}`
 });
 
 const MessageCommands = Object.freeze({
@@ -35,6 +37,7 @@ const MessageCommands = Object.freeze({
   "DISPLAY": "display",
   "DOWNLOAD": "download",
   "NOTIFY": "notify",
+  "REGISTER": "register",
   "UPDATE_CANVASES": "update-canvases"
 });
 
@@ -58,7 +61,7 @@ var capturing = false;
 var activeIndex = -1;
 var activeFrameId = null;
 var chunks = null;
-var frames = {[FRAME_ID]: {"frameUUID": FRAME_ID, "canvases": []}};
+var frames = {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}};
 var numBytes = 0;
 var objectURLs = [];
 var wrapperMouseHover = false;
@@ -74,13 +77,19 @@ bodyMutObs.observe(document.body, {
 
 function onMessage(msg) {
   if (msg.command === MessageCommands.CAPTURE_START) {
+    let parent = document.getElementById(LIST_CANVASES_ID);
+    let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
     if (msg.success) {
-      capturing = true;
-      let parent = document.getElementById(LIST_CANVASES_ID);
-      let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
       let linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
       linkCol.classList.add("capturing");
+      capturing = true;
     } else {
+      for (let k = 0, n = rows.length; k < n; k += 1) {
+        let row = rows[k];
+        let button = row.querySelector("button");
+        button.textContent = "Capture";
+        button.addEventListener("click", onToggleCapture, false);
+      }
       capturing = false;
     }
   } else if (msg.command === MessageCommands.CAPTURE_STOP) {
@@ -99,7 +108,7 @@ function onMessage(msg) {
           port.postMessage({
             "command": MessageCommands.DOWNLOAD,
             "tabId": tabId,
-            "frameUUID": FRAME_ID,
+            "frameUUID": TOP_FRAME_UUID,
             "targetFrameUUID": msg.frameUUID,
             "canvasIndex": msg.canvasIndex
           });
@@ -116,15 +125,28 @@ function onMessage(msg) {
     }
   } else if (msg.command === MessageCommands.DISABLE) {
     handleDisable();
+  } else if (msg.command === MessageCommands.DISCONNECT) {
+    let frameUUID = msg.frameUUID;
+    delete frames[frameUUID];
+    updateCanvases();
   } else if (msg.command === MessageCommands.DISPLAY) {
-    tabId = msg.tabId;
     if (!displayed) {
       handleDisplay(msg);
       displayed = true;
     }
+  } else if (msg.command === MessageCommands.REGISTER) {
+    tabId = msg.tabId;
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     let frameUUID = msg.frameUUID;
-    if (frames[frameUUID]) {
+    if (frameUUID === BG_FRAME_UUID) {
+      port.postMessage({
+        "command": MessageCommands.UPDATE_CANVASES,
+        "tabId": tabId,
+        "frameUUID": TOP_FRAME_UUID,
+        "targetFrameUUID": ALL_FRAMES_UUID
+      });
+      return;
+    } else if (frames[frameUUID]) {
       frames[frameUUID].canvases = msg.canvases;
     } else {
       frames[frameUUID] = {
@@ -163,7 +185,7 @@ function observeBodyMutations(mutations) {
   }
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  frames[FRAME_ID].canvases = canvases;
+  frames[TOP_FRAME_UUID].canvases = canvases;
 
   if (canvasesChanged) {
     updateCanvases();
@@ -217,7 +239,7 @@ function handleDisable(notify) {
   port.postMessage({
     "command": MessageCommands.DISCONNECT,
     "tabId": tabId,
-    "frameUUID": FRAME_ID
+    "frameUUID": TOP_FRAME_UUID
   });
 }
 
@@ -292,12 +314,12 @@ function setupDisplay(html) {
   setupWrapperEvents();
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  frames[FRAME_ID].canvases = canvases;
+  frames[TOP_FRAME_UUID].canvases = canvases;
   port.postMessage({
     "command": MessageCommands.DISPLAY,
     "tabId": tabId,
-    "frameUUID": FRAME_ID,
-    "targetFrameUUID": "*",
+    "frameUUID": TOP_FRAME_UUID,
+    "targetFrameUUID": ALL_FRAMES_UUID,
     "defaultSettings": {
       "maxVideoSize": maxVideoSize
     }
@@ -311,7 +333,7 @@ function getAllCanvases() {
   canvases = canvases.map(function(el, index) {
     return {
       "element": el,
-      "frameUUID": FRAME_ID,
+      "frameUUID": TOP_FRAME_UUID,
       "index": index,
       "local": true,
       "id": el.id,
@@ -321,7 +343,7 @@ function getAllCanvases() {
   });
 
   for (let key in frames) {
-    if (Object.prototype.hasOwnProperty.call(frames, key) && key !== FRAME_ID) {
+    if (Object.prototype.hasOwnProperty.call(frames, key) && key !== TOP_FRAME_UUID) {
       let frameCanvases = frames[key].canvases;
       frameCanvases = frameCanvases.map(function(el, index) {
         var obj = JSON.parse(JSON.stringify(el));
@@ -487,7 +509,7 @@ function preStartCapture(button) {
     port.postMessage({
       "command": MessageCommands.CAPTURE_START,
       "tabId": tabId,
-      "frameUUID": FRAME_ID,
+      "frameUUID": TOP_FRAME_UUID,
       "targetFrameUUID": button.dataset.frameUUID,
       "canvasIndex": button.dataset.canvasIndex,
       "fps": fps,
@@ -552,7 +574,7 @@ function preStopCapture() {
     port.postMessage({
       "command": MessageCommands.CAPTURE_STOP,
       "tabId": tabId,
-      "frameUUID": FRAME_ID,
+      "frameUUID": TOP_FRAME_UUID,
       "targetFrameUUID": button.dataset.frameUUID,
       "canvasIndex": button.dataset.canvasIndex
     });

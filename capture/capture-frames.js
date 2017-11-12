@@ -14,17 +14,18 @@
  */
 
 
+ /* global browser */
+
 ; // eslint-disable-line no-extra-semi
-/* global chrome */
 (function() {
 "use strict";
 
-var browser = chrome;
-var frameUUID = genUUIDv4();
+const FRAME_UUID = genUUIDv4();
+const TOP_FRAME_UUID = "top";
 
 var tabId = null;
 var port = browser.runtime.connect({
-  "name": frameUUID
+  "name": `${FRAME_UUID}@${window.location}`
 });
 
 const MessageCommands = Object.freeze({
@@ -35,9 +36,9 @@ const MessageCommands = Object.freeze({
   "DISPLAY": "display",
   "DOWNLOAD": "download",
   "NOTIFY": "notify",
+  "REGISTER": "register",
   "UPDATE_CANVASES": "update-canvases"
 });
-const TOP_FRAME_ID = "top";
 
 const MIME_TYPE_MAP = {
   "mp4": "video/mp4",
@@ -50,7 +51,7 @@ var mediaRecorder = null;
 var capturing = false;
 var activeIndex = -1;
 var chunks = null;
-var frames = {[frameUUID]: {"frameUUID": frameUUID, "canvases": []}};
+var frames = {[FRAME_UUID]: {"frameUUID": FRAME_UUID, "canvases": []}};
 var numBytes = 0;
 var objectURLs = [];
 var downloadLinks = [];
@@ -71,8 +72,8 @@ function onMessage(msg) {
     port.postMessage({
       "command": MessageCommands.CAPTURE_START,
       "tabId": tabId,
-      "frameUUID": frameUUID,
-      "targetFrameUUID": TOP_FRAME_ID,
+      "frameUUID": FRAME_UUID,
+      "targetFrameUUID": TOP_FRAME_UUID,
       "success": ret
     });
   } else if (msg.command === MessageCommands.CAPTURE_STOP) {
@@ -88,7 +89,7 @@ function onMessage(msg) {
     canvases.forEach((canvas) => canvasMutObs.observe(canvas, canvasObsOps));
     maxVideoSize = msg.defaultSettings.maxVideoSize;
     tabId = msg.tabId;
-    frames[frameUUID].canvases = canvases;
+    frames[FRAME_UUID].canvases = canvases;
     updateCanvases(canvases);
   } else if (msg.command === MessageCommands.DOWNLOAD) {
     let link = document.createElement("a");
@@ -103,8 +104,11 @@ function onMessage(msg) {
     downloadLinks.push(link);
     document.body.appendChild(link);
     link.click();
+  } else if (msg.command === MessageCommands.REGISTER) {
+    tabId = msg.tabId;
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     let canvases = Array.from(document.body.querySelectorAll("canvas"));
+    frames[FRAME_UUID].canvases = canvases;
     updateCanvases(canvases);
   }
 }
@@ -136,7 +140,7 @@ function observeBodyMutations(mutations) {
   }
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  frames[frameUUID].canvases = canvases;
+  frames[FRAME_UUID].canvases = canvases;
 
   if (canvasesChanged) {
     updateCanvases(canvases);
@@ -170,8 +174,8 @@ function updateCanvases(canvases) {
   port.postMessage({
     "command": MessageCommands.UPDATE_CANVASES,
     "tabId": tabId,
-    "frameUUID": frameUUID,
-    "targetFrameUUID": TOP_FRAME_ID,
+    "frameUUID": FRAME_UUID,
+    "targetFrameUUID": TOP_FRAME_UUID,
     "canvases": canvasData
   });
 }
@@ -182,7 +186,7 @@ function preStartCapture(msg) {
   }
 
   activeIndex = msg.canvasIndex;
-  var canvas = frames[frameUUID].canvases[activeIndex];
+  var canvas = frames[FRAME_UUID].canvases[activeIndex];
   var fps = msg.fps;
   var bps = msg.bps;
 
@@ -242,8 +246,8 @@ function stopCapture(evt, success) {
   port.postMessage({
     "command": MessageCommands.CAPTURE_STOP,
     "tabId": tabId,
-    "frameUUID": frameUUID,
-    "targetFrameUUID": TOP_FRAME_ID,
+    "frameUUID": FRAME_UUID,
+    "targetFrameUUID": TOP_FRAME_UUID,
     "canvasIndex": activeIndex,
     "videoURL": videoURL,
     "success": success,
