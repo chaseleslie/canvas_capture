@@ -36,6 +36,7 @@ const MessageCommands = Object.freeze({
   "DISCONNECT": "disconnect",
   "DISPLAY": "display",
   "DOWNLOAD": "download",
+  "HIGHLIGHT": "highlight",
   "NOTIFY": "notify",
   "REGISTER": "register",
   "UPDATE_CANVASES": "update-canvases"
@@ -67,6 +68,13 @@ var objectURLs = [];
 var wrapperMouseHover = false;
 var bodyMutObs = new MutationObserver(observeBodyMutations);
 var canvasMutObs = new MutationObserver(observeCanvasMutations);
+var highlighter = {
+  "left": null,
+  "top": null,
+  "right": null,
+  "bottom": null,
+  "current": null
+};
 
 port.onMessage.addListener(onMessage);
 
@@ -230,6 +238,12 @@ function handleDisable(notify) {
     style.parentElement.removeChild(style);
   }
 
+  for (let prop in highlighter) {
+    if (Object.prototype.hasOwnProperty.call(highlighter, prop)) {
+      highlighter[prop].parentElement.removeChild(highlighter[prop]);
+    }
+  }
+
   freeObjectURLs();
   displayed = false;
   port.postMessage({
@@ -276,6 +290,19 @@ function handleDisplay(msg) {
     displayed = true;
     handleDisable(e.message);
   }
+
+  for (let prop in highlighter) {
+    if (Object.prototype.hasOwnProperty.call(highlighter, prop) && prop !== "current") {
+      highlighter[prop] = document.createElement("div");
+      highlighter[prop].textContent = " ";
+      highlighter[prop].classList.add("hidden");
+      document.body.appendChild(highlighter[prop]);
+    }
+  }
+  highlighter.left.classList.add("highlighter_vertical");
+  highlighter.top.classList.add("highlighter_horizontal");
+  highlighter.right.classList.add("highlighter_vertical");
+  highlighter.bottom.classList.add("highlighter_horizontal");
 }
 
 function positionWrapper() {
@@ -439,10 +466,65 @@ function updateCanvases() {
 
     row.classList.add("list_canvases_row");
     row.dataset.index = k;
+    row.dataset.canvasIsLocal = canvasIsLocal;
+    row.dataset.frameUUID = canvas.frameUUID;
+    row.addEventListener("mouseenter", highlightCanvas, false);
+    row.addEventListener("mouseleave", unhighlightCanvas, false);
     docFrag.appendChild(row);
   }
 
   parent.appendChild(docFrag);
+}
+
+function highlightCanvas(evt) {
+  var el = evt.target;
+  var rect = null;
+
+  if (!el.classList.contains("list_canvases_row")) {
+    return;
+  }
+
+  if (JSON.parse(el.dataset.canvasIsLocal)) {
+    rect = frames[TOP_FRAME_UUID].canvases[el.dataset.index].getBoundingClientRect();
+
+    for (let prop in highlighter) {
+      if (Object.prototype.hasOwnProperty.call(highlighter, prop) && prop !== "current") {
+        highlighter[prop].classList.remove("hidden");
+      }
+    }
+
+    highlighter.left.style.left = `${rect.left}px`;
+    highlighter.top.style.top = `${rect.top}px`;
+    highlighter.right.style.left = `${rect.right}px`;
+    highlighter.bottom.style.top = `${rect.bottom}px`;
+    highlighter.current = el;
+  } else {
+    port.postMessage({
+      "command": MessageCommands.HIGHLIGHT,
+      "tabId": tabId,
+      "frameUUID": TOP_FRAME_UUID,
+      "targetFrameUUID": el.dataset.frameUUID,
+      "direction": true
+    });
+  }
+
+  evt.stopPropagation();
+}
+
+function unhighlightCanvas(evt) {
+  var el = evt.target;
+
+  if (!el.classList.contains("list_canvases_row") || el !== highlighter.current) {
+    return;
+  }
+
+  for (let prop in highlighter) {
+    if (Object.prototype.hasOwnProperty.call(highlighter, prop) && prop !== "current") {
+      highlighter[prop].classList.add("hidden");
+    }
+  }
+
+  highlighter.current = null;
 }
 
 function onToggleCapture(evt) {

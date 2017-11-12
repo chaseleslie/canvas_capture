@@ -35,6 +35,7 @@ const MessageCommands = Object.freeze({
   "DISCONNECT": "disconnect",
   "DISPLAY": "display",
   "DOWNLOAD": "download",
+  "HIGHLIGHT": "highlight",
   "NOTIFY": "notify",
   "REGISTER": "register",
   "UPDATE_CANVASES": "update-canvases"

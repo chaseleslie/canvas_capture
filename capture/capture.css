@@ -120,6 +120,32 @@
   justify-content: center;
 }
 
+.hidden {
+  display: none !important;
+}
+
+.highlighter_vertical {
+  position: absolute;
+  display: block;
+  min-height: 100vh;
+  max-height: 100vh;
+  top: 0px;
+  z-index: 10000;
+  box-sizing: border-box;
+  border: 1px dashed #66A;
+}
+
+.highlighter_horizontal {
+  position: absolute;
+  display: block;
+  min-width: 100vw;
+  max-width: 100vw;
+  left: 0px;
+  z-index: 10000;
+  box-sizing: border-box;
+  border: 1px dashed #66A;
+}
+
 @keyframes cc_spinner {
   to {
     transform: rotate(360deg);

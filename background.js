@@ -50,6 +50,7 @@ const MessageCommands = Object.freeze({
   "DISCONNECT": "disconnect",
   "DISPLAY": "display",
   "DOWNLOAD": "download",
+  "HIGHLIGHT": "highlight",
   "NOTIFY": "notify",
   "REGISTER": "register",
   "UPDATE_CANVASES": "update-canvases"
@@ -209,10 +210,13 @@ function onMessage(msg) {
   switch (msg.command) {
     case MessageCommands.CAPTURE_START:
     case MessageCommands.CAPTURE_STOP:
-    case MessageCommands.DOWNLOAD: {
+    case MessageCommands.DOWNLOAD:
+    case MessageCommands.HIGHLIGHT: {
       let tabId = msg.tabId;
       let targetFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === msg.targetFrameUUID);
-      targetFrame.port.postMessage(msg);
+      if (targetFrame) {
+        targetFrame.port.postMessage(msg);
+      }
     }
     break;
 
@@ -230,7 +234,7 @@ function onMessage(msg) {
             frame.port.postMessage(obj);
           }
         }
-      } else {
+      } else if (targetFrame) {
         targetFrame.port.postMessage(msg);
       }
     }
