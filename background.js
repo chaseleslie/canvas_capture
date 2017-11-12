@@ -100,16 +100,21 @@ function onNavigationCompleted(details) {
   }
 
   browser.tabs.executeScript({
-    "file": CAPTURE_FRAMES_JS_PATH,
+    "file": BROWSER_POLYFILL_JS_PATH,
     "frameId": frameId
   }).then(function() {
-    var frames = activeTabs[tabId].frames;
-    var frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
-    frame.port.postMessage({
-      "command": MessageCommands.UPDATE_CANVASES,
-      "tabId": tabId,
-      "frameUUID": BG_FRAME_UUID,
-      "targetFrameUUID": TOP_FRAME_UUID
+    browser.tabs.executeScript({
+      "file": CAPTURE_FRAMES_JS_PATH,
+      "frameId": frameId
+    }).then(function() {
+      var frames = activeTabs[tabId].frames;
+      var frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+      frame.port.postMessage({
+        "command": MessageCommands.UPDATE_CANVASES,
+        "tabId": tabId,
+        "frameUUID": BG_FRAME_UUID,
+        "targetFrameUUID": TOP_FRAME_UUID
+      });
     });
   });
 }
@@ -293,8 +298,13 @@ function onBrowserAction(tab) {
         let frame = frames[k];
         if (frame.frameId !== 0) {
           browser.tabs.executeScript({
-            "file": CAPTURE_FRAMES_JS_PATH,
+            "file": BROWSER_POLYFILL_JS_PATH,
             "frameId": frame.frameId
+          }).then(function() {
+            browser.tabs.executeScript({
+              "file": CAPTURE_FRAMES_JS_PATH,
+              "frameId": frame.frameId
+            });
           });
         }
       }
@@ -302,10 +312,11 @@ function onBrowserAction(tab) {
       browser.tabs.executeScript({
         "file": BROWSER_POLYFILL_JS_PATH,
         "frameId": 0
-      });
-      browser.tabs.executeScript({
-        "file": CAPTURE_JS_PATH,
-        "frameId": 0
+      }).then(function() {
+        browser.tabs.executeScript({
+          "file": CAPTURE_JS_PATH,
+          "frameId": 0
+        });
       });
     });
 
