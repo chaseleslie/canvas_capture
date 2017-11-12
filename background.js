@@ -103,18 +103,18 @@ function onNavigationCompleted(details) {
     "file": BROWSER_POLYFILL_JS_PATH,
     "frameId": frameId
   }).then(function() {
-    browser.tabs.executeScript({
+    return browser.tabs.executeScript({
       "file": CAPTURE_FRAMES_JS_PATH,
       "frameId": frameId
-    }).then(function() {
-      var frames = activeTabs[tabId].frames;
-      var frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
-      frame.port.postMessage({
-        "command": MessageCommands.UPDATE_CANVASES,
-        "tabId": tabId,
-        "frameUUID": BG_FRAME_UUID,
-        "targetFrameUUID": TOP_FRAME_UUID
-      });
+    });
+  }).then(function() {
+    var frames = activeTabs[tabId].frames;
+    var frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+    frame.port.postMessage({
+      "command": MessageCommands.UPDATE_CANVASES,
+      "tabId": tabId,
+      "frameUUID": BG_FRAME_UUID,
+      "targetFrameUUID": TOP_FRAME_UUID
     });
   });
 }
@@ -144,8 +144,8 @@ function connected(port) {
     });
 
     if (frameUUID === TOP_FRAME_UUID) {
-      let prom = browser.storage.local.get(MAX_VIDEO_SIZE_KEY);
-      prom.then(function(setting) {
+      browser.storage.local.get(MAX_VIDEO_SIZE_KEY)
+      .then(function(setting) {
         if (Array.isArray(setting)) {
           setting = setting[0];
         }
