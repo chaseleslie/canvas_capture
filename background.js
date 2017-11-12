@@ -38,7 +38,10 @@ const ICON_ACTIVE_PATH_MAP = {
 const CAPTURE_JS_PATH = "/capture/capture.js";
 const BROWSER_POLYFILL_JS_PATH = "/lib/webextension-polyfill/browser-polyfill.min.js";
 const CAPTURE_FRAMES_JS_PATH = "/capture/capture-frames.js";
-const TOP_FRAME_ID = "top";
+const TOP_FRAME_UUID = "top";
+const BG_FRAME_UUID = "background";
+const ALL_FRAMES_UUID = "*";
+const MAX_VIDEO_SIZE_KEY = "maxVideoSize";
 
 const MessageCommands = Object.freeze({
   "CAPTURE_START": "capture-start",
@@ -48,6 +51,7 @@ const MessageCommands = Object.freeze({
   "DISPLAY": "display",
   "DOWNLOAD": "download",
   "NOTIFY": "notify",
+  "REGISTER": "register",
   "UPDATE_CANVASES": "update-canvases"
 });
 
@@ -59,6 +63,7 @@ browser.browserAction.setIcon(
 ).then(nullifyError).catch(nullifyError);
 browser.runtime.onConnect.addListener(connected);
 browser.browserAction.onClicked.addListener(onBrowserAction);
+browser.webNavigation.onCompleted.addListener(onNavigationCompleted);
 
 if ("onInstalled" in browser.runtime) {
   /* New browser version support runtime.onInstalled */
@@ -80,32 +85,66 @@ function handleInstall(details) {
   var reason = details.reason;
   switch (reason) {
     case "install":
-      var obj = {"maxVideoSize": 524288000, "firstInstall": true};
+      var obj = {[MAX_VIDEO_SIZE_KEY]: 524288000, "firstInstall": true};
       browser.storage.local.set(obj);
     break;
   }
 }
 
+function onNavigationCompleted(details) {
+  var tabId = details.tabId;
+  var frameId = details.frameId;
+
+  if (details.url === "about:blank" || frameId === 0 || !(tabId in activeTabs)) {
+    return;
+  }
+
+  browser.tabs.executeScript({
+    "file": CAPTURE_FRAMES_JS_PATH,
+    "frameId": frameId
+  }).then(function() {
+    var frames = activeTabs[tabId].frames;
+    var frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+    frame.port.postMessage({
+      "command": MessageCommands.UPDATE_CANVASES,
+      "tabId": tabId,
+      "frameUUID": BG_FRAME_UUID,
+      "targetFrameUUID": TOP_FRAME_UUID
+    });
+  });
+}
+
 function connected(port) {
   port.onMessage.addListener(onMessage);
 
-  var queryTab = browser.tabs.query({"active": true});
-  queryTab.then(function(tabs) {
+  browser.tabs.query({"active": true})
+  .then(function(tabs) {
     var tab = tabs[0];
     var tabId = tab.id;
-    var frame = {"frameUUID": port.name, "port": port};
-    activeTabs[tabId].frames.push(frame);
+    var sepPos = port.name.indexOf("@");
+    sepPos = sepPos >= 0 ? sepPos : port.name.length;
+    var frameUUID = port.name.substr(0, sepPos);
+    var url = port.name.substr(sepPos + 1);
+    var frames = activeTabs[tabId].frames;
+    var frame = {"frameUUID": frameUUID, "port": port, "url": url};
+    frames.push(frame);
+
     port.onDisconnect.addListener(function() {
-      onDisconnectTab({"command": MessageCommands.DISCONNECT, "tabId": tabId, "frameUUID": port.name});
+      onDisconnectTab({"command": MessageCommands.DISCONNECT, "tabId": tabId, "frameUUID": frameUUID});
     });
 
-    if (port.name === TOP_FRAME_ID) {
-      let prom = browser.storage.local.get("maxVideoSize");
+    port.postMessage({
+      "command": MessageCommands.REGISTER,
+      "tabId": tabId
+    });
+
+    if (frameUUID === TOP_FRAME_UUID) {
+      let prom = browser.storage.local.get(MAX_VIDEO_SIZE_KEY);
       prom.then(function(setting) {
         if (Array.isArray(setting)) {
           setting = setting[0];
         }
-        var maxVideoSize = setting.maxVideoSize || 4 * 1024 * 1024 * 1024;
+        var maxVideoSize = setting[MAX_VIDEO_SIZE_KEY] || 4 * 1024 * 1024 * 1024;
 
         port.postMessage({
           "command": MessageCommands.DISPLAY,
@@ -121,38 +160,69 @@ function connected(port) {
 
 function onDisconnectTab(msg) {
   var tabId = msg.tabId;
-  if (tabId in activeTabs) {
-    delete activeTabs[tabId];
+  var frameUUID = msg.frameUUID;
+
+  if (!(tabId in activeTabs)) {
+    return;
   }
-  browser.browserAction.setIcon(
-    {"path": ICON_PATH_MAP, "tabId": tabId}
-  ).then(nullifyError).catch(nullifyError);
+
+  if (frameUUID === TOP_FRAME_UUID) {
+    delete activeTabs[tabId];
+    browser.browserAction.setIcon(
+      {"path": ICON_PATH_MAP, "tabId": tabId}
+    ).then(nullifyError).catch(nullifyError);
+  } else {
+    let frames = activeTabs[tabId].frames;
+    let frameIndex = -1;
+
+    for (let k = 0, n = frames.length; k < n; k += 1) {
+      let frame = frames[k];
+      if (frame.frameUUID === frameUUID) {
+        frameIndex = k;
+        break;
+      }
+    }
+
+    if (frameIndex >= 0) {
+      frames.splice(frameIndex, 1);
+    }
+
+    for (let k = 0, n = frames.length; k < n; k += 1) {
+      let frame = frames[k];
+      if (frame.frameUUID === TOP_FRAME_UUID) {
+        frame.port.postMessage({
+          "command": MessageCommands.DISCONNECT,
+          "tabId": tabId,
+          "frameUUID": frameUUID
+        });
+      }
+    }
+  }
 }
 
 function onMessage(msg) {
   switch (msg.command) {
     case MessageCommands.CAPTURE_START:
     case MessageCommands.CAPTURE_STOP:
-    case MessageCommands.DOWNLOAD:
-    case MessageCommands.UPDATE_CANVASES: {
+    case MessageCommands.DOWNLOAD: {
       let tabId = msg.tabId;
       let targetFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === msg.targetFrameUUID);
       targetFrame.port.postMessage(msg);
     }
     break;
 
-    case MessageCommands.DISPLAY: {
+    case MessageCommands.DISPLAY:
+    case MessageCommands.UPDATE_CANVASES: {
       let tabId = msg.tabId;
       let targetFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === msg.targetFrameUUID);
-      if (msg.targetFrameUUID === "*" && msg.frameUUID === TOP_FRAME_ID) {
+      if (msg.targetFrameUUID === ALL_FRAMES_UUID && msg.frameUUID === TOP_FRAME_UUID) {
         let frames = activeTabs[tabId].frames;
         for (let k = 0, n = frames.length; k < n; k += 1) {
           let frame = frames[k];
-          if (frame.frameUUID !== TOP_FRAME_ID) {
+          if (frame.frameUUID !== TOP_FRAME_UUID) {
             let obj = JSON.parse(JSON.stringify(msg));
             obj.targetFrameUUID = frame.frameUUID;
             frame.port.postMessage(obj);
-            break;
           }
         }
       } else {
@@ -217,8 +287,8 @@ function onBrowserAction(tab) {
       {"path": ICON_PATH_MAP, "tabId": tabId}
     ).then(nullifyError).catch(nullifyError);
   } else {
-    let prom = browser.webNavigation.getAllFrames({"tabId": tabId});
-    prom.then(function(frames) {
+    browser.webNavigation.getAllFrames({"tabId": tabId})
+    .then(function(frames) {
       for (let k = 0, n = frames.length; k < n; k += 1) {
         let frame = frames[k];
         if (frame.frameId !== 0) {
@@ -238,6 +308,7 @@ function onBrowserAction(tab) {
         "frameId": 0
       });
     });
+
     activeTabs[tabId] = {"frames": [], "tabId": tabId};
     browser.browserAction.setIcon(
       {"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}

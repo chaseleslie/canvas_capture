@@ -25,7 +25,7 @@ const TOP_FRAME_UUID = "top";
 
 var tabId = null;
 var port = browser.runtime.connect({
-  "name": FRAME_UUID
+  "name": `${FRAME_UUID}@${window.location}`
 });
 
 const MessageCommands = Object.freeze({
@@ -36,6 +36,7 @@ const MessageCommands = Object.freeze({
   "DISPLAY": "display",
   "DOWNLOAD": "download",
   "NOTIFY": "notify",
+  "REGISTER": "register",
   "UPDATE_CANVASES": "update-canvases"
 });
 
@@ -103,8 +104,11 @@ function onMessage(msg) {
     downloadLinks.push(link);
     document.body.appendChild(link);
     link.click();
+  } else if (msg.command === MessageCommands.REGISTER) {
+    tabId = msg.tabId;
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     let canvases = Array.from(document.body.querySelectorAll("canvas"));
+    frames[FRAME_UUID].canvases = canvases;
     updateCanvases(canvases);
   }
 }
