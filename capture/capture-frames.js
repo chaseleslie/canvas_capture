@@ -24,8 +24,9 @@ const FRAME_UUID = genUUIDv4();
 const TOP_FRAME_UUID = "top";
 
 var tabId = null;
+var frameId = null;
 var port = browser.runtime.connect({
-  "name": `${FRAME_UUID}@${window.location}`
+  "name": FRAME_UUID
 });
 
 const MessageCommands = Object.freeze({
@@ -35,6 +36,7 @@ const MessageCommands = Object.freeze({
   "DISCONNECT": "disconnect",
   "DISPLAY": "display",
   "DOWNLOAD": "download",
+  "HIGHLIGHT": "highlight",
   "NOTIFY": "notify",
   "REGISTER": "register",
   "UPDATE_CANVASES": "update-canvases"
@@ -60,57 +62,108 @@ var bodyMutObs = new MutationObserver(observeBodyMutations);
 var canvasMutObs = new MutationObserver(observeCanvasMutations);
 
 port.onMessage.addListener(onMessage);
+window.addEventListener("message", handleWindowMessage, true);
 
 bodyMutObs.observe(document.body, {
   "childList": true,
   "subtree": true
 });
 
+function handleWindowMessage(evt) {
+  var msg = evt.data;
+
+  if (msg.command === "identify") {
+    let obj = JSON.parse(JSON.stringify(msg));
+    obj.frameUUID = FRAME_UUID;
+    evt.source.postMessage(obj, evt.origin);
+  }
+}
+
 function onMessage(msg) {
   if (msg.command === MessageCommands.CAPTURE_START) {
-    let ret = preStartCapture(msg);
-    port.postMessage({
-      "command": MessageCommands.CAPTURE_START,
-      "tabId": tabId,
-      "frameUUID": FRAME_UUID,
-      "targetFrameUUID": TOP_FRAME_UUID,
-      "success": ret
-    });
+    handleMessageCaptureStart(msg);
   } else if (msg.command === MessageCommands.CAPTURE_STOP) {
     preStopCapture();
   } else if (msg.command === MessageCommands.DISABLE) {
     freeObjectURLs();
   } else if (msg.command === MessageCommands.DISPLAY) {
-    let canvases = Array.from(document.body.querySelectorAll("canvas"));
-    let canvasObsOps = {
-      "attributes": true,
-      "attributeFilter": ["id", "width", "height"]
-    };
-    canvases.forEach((canvas) => canvasMutObs.observe(canvas, canvasObsOps));
-    maxVideoSize = msg.defaultSettings.maxVideoSize;
-    tabId = msg.tabId;
-    frames[FRAME_UUID].canvases = canvases;
-    updateCanvases(canvases);
+    handleMessageDisplay(msg);
   } else if (msg.command === MessageCommands.DOWNLOAD) {
-    let link = document.createElement("a");
-    link.textContent = "download";
-    link.href = objectURLs[msg.canvasIndex];
-    link.download = `capture-${parseInt(Date.now() / 1000, 10)}.${DEFAULT_MIME_TYPE}`;
-    link.style.maxWidth = "0px";
-    link.style.maxHeight = "0px";
-    link.style.display = "block";
-    link.style.visibility = "hidden";
-    link.style.position = "absolute";
-    downloadLinks.push(link);
-    document.body.appendChild(link);
-    link.click();
+    handleMessageDownload(msg);
+  } else if (msg.command === MessageCommands.HIGHLIGHT) {
+    handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
     tabId = msg.tabId;
+    frameId = msg.frameId;
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     let canvases = Array.from(document.body.querySelectorAll("canvas"));
     frames[FRAME_UUID].canvases = canvases;
     updateCanvases(canvases);
   }
+}
+
+function handleMessageCaptureStart(msg) {
+  var ret = preStartCapture(msg);
+  port.postMessage({
+    "command": MessageCommands.CAPTURE_START,
+    "tabId": tabId,
+    "frameId": frameId,
+    "frameUUID": FRAME_UUID,
+    "targetFrameUUID": TOP_FRAME_UUID,
+    "success": ret
+  });
+}
+
+function handleMessageDisplay(msg) {
+  var canvases = Array.from(document.body.querySelectorAll("canvas"));
+  var canvasObsOps = {
+    "attributes": true,
+    "attributeFilter": ["id", "width", "height"]
+  };
+
+  canvases.forEach((canvas) => canvasMutObs.observe(canvas, canvasObsOps));
+  maxVideoSize = msg.defaultSettings.maxVideoSize;
+  tabId = msg.tabId;
+  frames[FRAME_UUID].canvases = canvases;
+  updateCanvases(canvases);
+}
+
+function handleMessageDownload(msg) {
+  var link = document.createElement("a");
+  link.textContent = "download";
+  link.href = objectURLs[msg.canvasIndex];
+  link.download = `capture-${parseInt(Date.now() / 1000, 10)}.${DEFAULT_MIME_TYPE}`;
+  link.style.maxWidth = "0px";
+  link.style.maxHeight = "0px";
+  link.style.display = "block";
+  link.style.visibility = "hidden";
+  link.style.position = "absolute";
+  downloadLinks.push(link);
+  document.body.appendChild(link);
+  link.click();
+}
+
+function handleMessageHighlight(msg) {
+  var canvasIndex = msg.canvasIndex;
+  var rect = frames[FRAME_UUID].canvases[canvasIndex].getBoundingClientRect();
+
+  port.postMessage({
+    "command": MessageCommands.HIGHLIGHT,
+    "tabId": tabId,
+    "frameId": frameId,
+    "frameUUID": FRAME_UUID,
+    "targetFrameUUID": TOP_FRAME_UUID,
+    "rect": {
+      "left": rect.left,
+      "top": rect.top,
+      "right": rect.right,
+      "bottom": rect.bottom,
+      "width": rect.width,
+      "height": rect.height,
+      "x": rect.x,
+      "y": rect.y
+    }
+  });
 }
 
 function observeBodyMutations(mutations) {
@@ -174,6 +227,7 @@ function updateCanvases(canvases) {
   port.postMessage({
     "command": MessageCommands.UPDATE_CANVASES,
     "tabId": tabId,
+    "frameId": frameId,
     "frameUUID": FRAME_UUID,
     "targetFrameUUID": TOP_FRAME_UUID,
     "canvases": canvasData
@@ -246,6 +300,7 @@ function stopCapture(evt, success) {
   port.postMessage({
     "command": MessageCommands.CAPTURE_STOP,
     "tabId": tabId,
+    "frameId": frameId,
     "frameUUID": FRAME_UUID,
     "targetFrameUUID": TOP_FRAME_UUID,
     "canvasIndex": activeIndex,
