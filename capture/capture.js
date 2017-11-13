@@ -25,8 +25,9 @@ const BG_FRAME_UUID = "background";
 const ALL_FRAMES_UUID = "*";
 
 var tabId = null;
+var frameId = null;
 var port = browser.runtime.connect({
-  "name": `${TOP_FRAME_UUID}@${window.location}`
+  "name": TOP_FRAME_UUID
 });
 
 const MessageCommands = Object.freeze({
@@ -63,6 +64,7 @@ var activeIndex = -1;
 var activeFrameId = null;
 var chunks = null;
 var frames = {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}};
+var frameElementsTS = 0;
 var numBytes = 0;
 var objectURLs = [];
 var wrapperMouseHover = false;
@@ -77,92 +79,191 @@ var highlighter = {
 };
 
 port.onMessage.addListener(onMessage);
+window.addEventListener("message", handleWindowMessage, true);
 
 bodyMutObs.observe(document.body, {
   "childList": true,
   "subtree": true
 });
 
+function handleWindowMessage(evt) {
+  var msg = evt.data;
+  var frameElements = Array.from(document.querySelectorAll("iframe"));
+
+  if (msg.ts < frameElementsTS) {
+    frameElementsTS = Date.now();
+    for (let k = 0, n = frameElements.length; k < n; k += 1) {
+      let frame = frameElements[k];
+      frame.contentWindow.postMessage({
+        "command": "identify",
+        "ts": Date.now(),
+        "index": k
+      }, "*");
+    }
+    evt.stopPropagation();
+    return;
+  }
+
+  frames[msg.frameUUID].node = frameElements[msg.index];
+  evt.stopPropagation();
+}
+
 function onMessage(msg) {
   if (msg.command === MessageCommands.CAPTURE_START) {
-    let parent = document.getElementById(LIST_CANVASES_ID);
-    let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
-    if (msg.success) {
-      let linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
-      linkCol.classList.add("capturing");
-      capturing = true;
-    } else {
-      for (let k = 0, n = rows.length; k < n; k += 1) {
-        let row = rows[k];
-        let button = row.querySelector("button");
-        button.textContent = "Capture";
-        button.addEventListener("click", onToggleCapture, false);
-      }
-      capturing = false;
-    }
+    handleMessageCaptureStart(msg);
   } else if (msg.command === MessageCommands.CAPTURE_STOP) {
-    capturing = false;
-    let parent = document.getElementById(LIST_CANVASES_ID);
-    let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
-    let linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
-    linkCol.classList.remove("capturing");
-    if (msg.success) {
-      let link = document.createElement("a");
-      link.textContent = "Download";
-      link.href = msg.videoURL;
-      link.title = prettyFileSize(msg.size);
-      if (msg.size) {
-        link.addEventListener("click", function(evt) {
-          port.postMessage({
-            "command": MessageCommands.DOWNLOAD,
-            "tabId": tabId,
-            "frameUUID": TOP_FRAME_UUID,
-            "targetFrameUUID": msg.frameUUID,
-            "canvasIndex": msg.canvasIndex
-          });
-          evt.preventDefault();
-        }, false);
-      } else {
-        link.addEventListener("click", function(evt) {
-          evt.preventDefault();
-        });
-      }
-      linkCol.appendChild(link);
-    } else {
-      // error
-    }
+    handleMessageCaptureStop(msg);
   } else if (msg.command === MessageCommands.DISABLE) {
     handleDisable();
   } else if (msg.command === MessageCommands.DISCONNECT) {
     let frameUUID = msg.frameUUID;
     delete frames[frameUUID];
     updateCanvases();
+    frameElementsTS = Date.now();
   } else if (msg.command === MessageCommands.DISPLAY) {
     if (!displayed) {
       handleDisplay(msg);
       displayed = true;
     }
+  } else if (msg.command === MessageCommands.HIGHLIGHT) {
+    handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
     tabId = msg.tabId;
+    frameId = msg.frameId;
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
-    let frameUUID = msg.frameUUID;
-    if (frameUUID === BG_FRAME_UUID) {
-      port.postMessage({
-        "command": MessageCommands.UPDATE_CANVASES,
-        "tabId": tabId,
-        "frameUUID": TOP_FRAME_UUID,
-        "targetFrameUUID": ALL_FRAMES_UUID
-      });
-      return;
-    } else if (frames[frameUUID]) {
-      frames[frameUUID].canvases = msg.canvases;
-    } else {
-      frames[frameUUID] = {
-        "frameUUID": frameUUID,
-        "canvases": msg.canvases
-      };
+    handleMessageUpdateCanvases(msg);
+  }
+}
+
+function handleMessageCaptureStart(msg) {
+  let parent = document.getElementById(LIST_CANVASES_ID);
+  let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
+  if (msg.success) {
+    let linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
+    linkCol.classList.add("capturing");
+    capturing = true;
+  } else {
+    for (let k = 0, n = rows.length; k < n; k += 1) {
+      let row = rows[k];
+      let button = row.querySelector("button");
+      button.textContent = "Capture";
+      button.addEventListener("click", onToggleCapture, false);
     }
-    updateCanvases();
+    capturing = false;
+  }
+}
+
+function handleMessageCaptureStop(msg) {
+  capturing = false;
+  var parent = document.getElementById(LIST_CANVASES_ID);
+  var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
+  var linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
+  linkCol.classList.remove("capturing");
+
+  if (msg.success) {
+    let link = document.createElement("a");
+    link.textContent = "Download";
+    link.href = msg.videoURL;
+    link.title = prettyFileSize(msg.size);
+
+    if (msg.size) {
+      link.addEventListener("click", function(evt) {
+        port.postMessage({
+          "command": MessageCommands.DOWNLOAD,
+          "tabId": tabId,
+          "frameId": frameId,
+          "frameUUID": TOP_FRAME_UUID,
+          "targetFrameUUID": msg.frameUUID,
+          "canvasIndex": msg.canvasIndex
+        });
+        evt.preventDefault();
+      }, false);
+    } else {
+      link.addEventListener("click", function(evt) {
+        evt.preventDefault();
+      });
+    }
+
+    linkCol.appendChild(link);
+  } else {
+    // error
+  }
+}
+
+function handleMessageHighlight(msg, node) {
+  var frame = frames[msg.frameUUID];
+  node = node || frame.node;
+
+  if (node && highlighter.current) {
+    let rect = msg.rect;
+    let nodeRect = node.getBoundingClientRect();
+    let nodeStyle = window.getComputedStyle(node);
+    let borderWidthLeft = parseInt(nodeStyle.borderLeftWidth, 10);
+    let borderWidthTop = parseInt(nodeStyle.borderTopWidth, 10);
+    let vertTracerStyle = window.getComputedStyle(highlighter.left);
+    let horizTracerStyle = window.getComputedStyle(highlighter.top);
+    let vertTracerWidth = highlighter.left.offsetWidth + (2 * parseInt(vertTracerStyle.borderLeftWidth, 10) || 0);
+    let horizTracerWidth = highlighter.top.offsetHeight + (2 * parseInt(horizTracerStyle.borderTopWidth, 10) || 0);
+    let left = nodeRect.left + rect.left + borderWidthLeft;
+    let top = nodeRect.top + rect.top + borderWidthTop;
+    let right = nodeRect.left + rect.left + rect.width + borderWidthLeft;
+    right = Math.min(document.documentElement.clientWidth - vertTracerWidth, right);
+    let bottom = nodeRect.top + rect.top + rect.height + borderWidthTop;
+    bottom = Math.min(document.documentElement.clientHeight - horizTracerWidth, bottom);
+
+    if (left >= 0 && left <= window.screen.availWidth) {
+      highlighter.left.classList.remove("hidden");
+    }
+    if (top >= 0 && top <= window.screen.availHeight) {
+      highlighter.top.classList.remove("hidden");
+    }
+    if (right >= 0 && right <= window.screen.availWidth) {
+      highlighter.right.classList.remove("hidden");
+    }
+    if (bottom >= 0 && bottom <= window.screen.availHeight) {
+      highlighter.bottom.classList.remove("hidden");
+    }
+
+    highlighter.left.style.left = `${left}px`;
+    highlighter.top.style.top = `${top}px`;
+    highlighter.right.style.left = `${right}px`;
+    highlighter.bottom.style.top = `${bottom}px`;
+  }
+}
+
+function handleMessageUpdateCanvases(msg) {
+  var frameUUID = msg.frameUUID;
+
+  if (frameUUID === BG_FRAME_UUID) {
+    port.postMessage({
+      "command": MessageCommands.UPDATE_CANVASES,
+      "tabId": tabId,
+      "frameId": frameId,
+      "frameUUID": TOP_FRAME_UUID,
+      "targetFrameUUID": ALL_FRAMES_UUID
+    });
+    return;
+  } else if (frames[frameUUID]) {
+    frames[frameUUID].canvases = msg.canvases;
+  } else {
+    frames[frameUUID] = {
+      "frameUUID": frameUUID,
+      "canvases": msg.canvases,
+      "frameId": msg.frameId
+    };
+  }
+
+  updateCanvases();
+
+  var frameElements = Array.from(document.querySelectorAll("iframe"));
+  frameElementsTS = Date.now();
+  for (let k = 0, n = frameElements.length; k < n; k += 1) {
+    let frame = frameElements[k];
+    frame.contentWindow.postMessage({
+      "command": "identify",
+      "ts": Date.now(),
+      "index": k
+    }, "*");
   }
 }
 
@@ -248,11 +349,14 @@ function handleDisable(notify) {
   displayed = false;
   port.postMessage({
     "command": MessageCommands.NOTIFY,
+    "tabId": tabId,
+    "frameId": frameId,
     "notification": notify
   });
   port.postMessage({
     "command": MessageCommands.DISCONNECT,
     "tabId": tabId,
+    "frameId": frameId,
     "frameUUID": TOP_FRAME_UUID
   });
 }
@@ -345,6 +449,7 @@ function setupDisplay(html) {
   port.postMessage({
     "command": MessageCommands.DISPLAY,
     "tabId": tabId,
+    "frameId": frameId,
     "frameUUID": TOP_FRAME_UUID,
     "targetFrameUUID": ALL_FRAMES_UUID,
     "defaultSettings": {
@@ -468,6 +573,7 @@ function updateCanvases() {
     row.dataset.index = k;
     row.dataset.canvasIsLocal = canvasIsLocal;
     row.dataset.frameUUID = canvas.frameUUID;
+    row.dataset.canvasIndex = canvas.index;
     row.addEventListener("mouseenter", highlightCanvas, false);
     row.addEventListener("mouseleave", unhighlightCanvas, false);
     docFrag.appendChild(row);
@@ -478,33 +584,37 @@ function updateCanvases() {
 
 function highlightCanvas(evt) {
   var el = evt.target;
-  var rect = null;
 
   if (!el.classList.contains("list_canvases_row")) {
     return;
   }
 
+  highlighter.current = el;
+
   if (JSON.parse(el.dataset.canvasIsLocal)) {
-    rect = frames[TOP_FRAME_UUID].canvases[el.dataset.index].getBoundingClientRect();
+    let rect = frames[TOP_FRAME_UUID].canvases[el.dataset.index].getBoundingClientRect();
 
-    for (let prop in highlighter) {
-      if (Object.prototype.hasOwnProperty.call(highlighter, prop) && prop !== "current") {
-        highlighter[prop].classList.remove("hidden");
+    handleMessageHighlight({
+      "frameUUID": TOP_FRAME_UUID,
+      "rect": {
+        "width": rect.width,
+        "height": rect.height,
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "x": 0,
+        "y": 0
       }
-    }
-
-    highlighter.left.style.left = `${rect.left}px`;
-    highlighter.top.style.top = `${rect.top}px`;
-    highlighter.right.style.left = `${rect.right}px`;
-    highlighter.bottom.style.top = `${rect.bottom}px`;
-    highlighter.current = el;
+    }, frames[TOP_FRAME_UUID].canvases[el.dataset.index]);
   } else {
     port.postMessage({
       "command": MessageCommands.HIGHLIGHT,
       "tabId": tabId,
+      "frameId": frameId,
       "frameUUID": TOP_FRAME_UUID,
       "targetFrameUUID": el.dataset.frameUUID,
-      "direction": true
+      "canvasIndex": el.dataset.canvasIndex
     });
   }
 
@@ -591,6 +701,7 @@ function preStartCapture(button) {
     port.postMessage({
       "command": MessageCommands.CAPTURE_START,
       "tabId": tabId,
+      "frameId": frameId,
       "frameUUID": TOP_FRAME_UUID,
       "targetFrameUUID": button.dataset.frameUUID,
       "canvasIndex": button.dataset.canvasIndex,
@@ -656,6 +767,7 @@ function preStopCapture() {
     port.postMessage({
       "command": MessageCommands.CAPTURE_STOP,
       "tabId": tabId,
+      "frameId": frameId,
       "frameUUID": TOP_FRAME_UUID,
       "targetFrameUUID": button.dataset.frameUUID,
       "canvasIndex": button.dataset.canvasIndex

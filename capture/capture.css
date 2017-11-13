@@ -22,7 +22,7 @@
   bottom: 0px;
   display: grid;
   grid-template-rows: 1fr 4fr;
-  z-index: 1000;
+  z-index: 100000;
   overflow-y: hidden;
   border-radius: 10px;
   background-color: #20202E;

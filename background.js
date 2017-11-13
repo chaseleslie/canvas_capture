@@ -123,45 +123,48 @@ function onNavigationCompleted(details) {
 function connected(port) {
   port.onMessage.addListener(onMessage);
 
-  browser.tabs.query({"active": true})
-  .then(function(tabs) {
-    var tab = tabs[0];
-    var tabId = tab.id;
-    var sepPos = port.name.indexOf("@");
-    sepPos = sepPos >= 0 ? sepPos : port.name.length;
-    var frameUUID = port.name.substr(0, sepPos);
-    var url = port.name.substr(sepPos + 1);
-    var frames = activeTabs[tabId].frames;
-    var frame = {"frameUUID": frameUUID, "port": port, "url": url};
-    frames.push(frame);
+  var sender = port.sender;
+  var tab = sender.tab;
+  var tabId = tab.id;
+  var frameId = sender.frameId;
+  var frameUUID = port.name;
+  var url = sender.url;
+  var frames = activeTabs[tabId].frames;
+  var frame = {"frameUUID": frameUUID, "port": port, "url": url, "frameId": frameId};
+  frames.push(frame);
 
-    port.onDisconnect.addListener(function() {
-      onDisconnectTab({"command": MessageCommands.DISCONNECT, "tabId": tabId, "frameUUID": frameUUID});
+  port.onDisconnect.addListener(function() {
+    onDisconnectTab({
+      "command": MessageCommands.DISCONNECT,
+      "tabId": tabId,
+      "frameUUID": frameUUID,
+      "frameId": frameId
     });
-
-    port.postMessage({
-      "command": MessageCommands.REGISTER,
-      "tabId": tabId
-    });
-
-    if (frameUUID === TOP_FRAME_UUID) {
-      browser.storage.local.get(MAX_VIDEO_SIZE_KEY)
-      .then(function(setting) {
-        if (Array.isArray(setting)) {
-          setting = setting[0];
-        }
-        var maxVideoSize = setting[MAX_VIDEO_SIZE_KEY] || 4 * 1024 * 1024 * 1024;
-
-        port.postMessage({
-          "command": MessageCommands.DISPLAY,
-          "tabId": tabId,
-          "defaultSettings": {
-            "maxVideoSize": maxVideoSize
-          }
-        });
-      });
-    }
   });
+
+  port.postMessage({
+    "command": MessageCommands.REGISTER,
+    "tabId": tabId,
+    "frameId": frameId
+  });
+
+  if (frameUUID === TOP_FRAME_UUID) {
+    browser.storage.local.get(MAX_VIDEO_SIZE_KEY)
+    .then(function(setting) {
+      if (Array.isArray(setting)) {
+        setting = setting[0];
+      }
+      var maxVideoSize = setting[MAX_VIDEO_SIZE_KEY] || 4 * 1024 * 1024 * 1024;
+
+      port.postMessage({
+        "command": MessageCommands.DISPLAY,
+        "tabId": tabId,
+        "defaultSettings": {
+          "maxVideoSize": maxVideoSize
+        }
+      });
+    });
+  }
 }
 
 function onDisconnectTab(msg) {
@@ -214,6 +217,7 @@ function onMessage(msg) {
     case MessageCommands.HIGHLIGHT: {
       let tabId = msg.tabId;
       let targetFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === msg.targetFrameUUID);
+
       if (targetFrame) {
         targetFrame.port.postMessage(msg);
       }
