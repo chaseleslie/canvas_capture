@@ -102,6 +102,8 @@ function handleWindowMessage(evt) {
     }
     evt.stopPropagation();
     return;
+  } else if (!("command" in msg) || msg.command !== "identify") {
+    return;
   }
 
   frames[msg.frameUUID].node = frameElements[msg.index];

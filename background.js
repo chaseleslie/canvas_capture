@@ -96,7 +96,12 @@ function onNavigationCompleted(details) {
   var tabId = details.tabId;
   var frameId = details.frameId;
 
-  if (details.url === "about:blank" || frameId === 0 || !(tabId in activeTabs)) {
+  if (
+    details.url === "about:blank" ||
+    details.url.indexOf("blob") === 0 ||
+    frameId === 0 ||
+    !(tabId in activeTabs)
+  ) {
     return;
   }
 
