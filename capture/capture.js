@@ -59,9 +59,13 @@ const HTML_FILE_PATH = "/capture/capture.html";
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
 var displayed = false;
 var mediaRecorder = null;
-var capturing = false;
-var activeIndex = -1;
-var activeFrameId = null;
+var active = Object.seal({
+  "capturing": false,
+  "index": -1,
+  "frameUUID": "",
+  "canvas": null,
+  "startTS": 0
+});
 var chunks = null;
 var frames = {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}};
 var frameElementsTS = 0;
@@ -70,13 +74,13 @@ var objectURLs = [];
 var wrapperMouseHover = false;
 var bodyMutObs = new MutationObserver(observeBodyMutations);
 var canvasMutObs = new MutationObserver(observeCanvasMutations);
-var highlighter = {
+var highlighter = Object.seal({
   "left": null,
   "top": null,
   "right": null,
   "bottom": null,
   "current": null
-};
+});
 
 port.onMessage.addListener(onMessage);
 window.addEventListener("message", handleWindowMessage, true);
@@ -90,7 +94,9 @@ function handleWindowMessage(evt) {
   var msg = evt.data;
   var frameElements = Array.from(document.querySelectorAll("iframe"));
 
-  if (msg.ts < frameElementsTS) {
+  if (!("command" in msg) || msg.command !== "identify") {
+    return;
+  } else if (msg.ts < frameElementsTS) {
     frameElementsTS = Date.now();
     for (let k = 0, n = frameElements.length; k < n; k += 1) {
       let frame = frameElements[k];
@@ -101,8 +107,6 @@ function handleWindowMessage(evt) {
       }, "*");
     }
     evt.stopPropagation();
-    return;
-  } else if (!("command" in msg) || msg.command !== "identify") {
     return;
   }
 
@@ -118,10 +122,7 @@ function onMessage(msg) {
   } else if (msg.command === MessageCommands.DISABLE) {
     handleDisable();
   } else if (msg.command === MessageCommands.DISCONNECT) {
-    let frameUUID = msg.frameUUID;
-    delete frames[frameUUID];
-    updateCanvases();
-    frameElementsTS = Date.now();
+    handleMessageDisconnect(msg);
   } else if (msg.command === MessageCommands.DISPLAY) {
     if (!displayed) {
       handleDisplay(msg);
@@ -141,9 +142,10 @@ function handleMessageCaptureStart(msg) {
   let parent = document.getElementById(LIST_CANVASES_ID);
   let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
   if (msg.success) {
-    let linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
+    let linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
     linkCol.classList.add("capturing");
-    capturing = true;
+    active.capturing = true;
+    active.startTS = Date.now();
   } else {
     for (let k = 0, n = rows.length; k < n; k += 1) {
       let row = rows[k];
@@ -151,16 +153,21 @@ function handleMessageCaptureStart(msg) {
       button.textContent = "Capture";
       button.addEventListener("click", onToggleCapture, false);
     }
-    capturing = false;
+    active.capturing = false;
+    active.index = -1;
+    active.frameUUID = "";
   }
 }
 
 function handleMessageCaptureStop(msg) {
-  capturing = false;
   var parent = document.getElementById(LIST_CANVASES_ID);
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
-  var linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
+  var linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
   linkCol.classList.remove("capturing");
+
+  active.capturing = false;
+  active.index = -1;
+  active.frameUUID = "";
 
   if (msg.success) {
     let link = document.createElement("a");
@@ -190,6 +197,25 @@ function handleMessageCaptureStop(msg) {
   } else {
     // error
   }
+}
+
+function handleMessageDisconnect(msg) {
+  let frameUUID = msg.frameUUID;
+
+  if (active.capturing && active.frameUUID === frameUUID) {
+    preStopCapture();
+    handleMessageCaptureStop({
+      "command": MessageCommands.CAPTURE_STOP,
+      "tabId": tabId,
+      "frameUUID": active.frameUUID,
+      "targetFrameUUID": TOP_FRAME_UUID,
+      "success": false
+    });
+  }
+
+  delete frames[frameUUID];
+  updateCanvases();
+  frameElementsTS = Date.now();
 }
 
 function handleMessageHighlight(msg, node) {
@@ -290,15 +316,20 @@ function observeBodyMutations(mutations) {
       let node = removedNodes[iK];
       if (node.nodeName.toLowerCase() === "canvas") {
         canvasesChanged = true;
-        break;
+        if (active.capturing && node === active.canvas) {
+          active.capturing = false;
+          active.canvas = null;
+          preStopCapture();
+          break;
+        }
       }
     }
   }
 
-  var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  frames[TOP_FRAME_UUID].canvases = canvases;
-
   if (canvasesChanged) {
+    let canvases = Array.from(document.body.querySelectorAll("canvas"));
+    frames[TOP_FRAME_UUID].canvases = canvases;
+
     updateCanvases();
   }
 }
@@ -641,12 +672,10 @@ function unhighlightCanvas(evt) {
 
 function onToggleCapture(evt) {
   var button = evt.target;
-  activeFrameId = button.dataset.frameUUID;
-  activeIndex = button.dataset.index;
 
   button.blur();
 
-  if (capturing) {
+  if (active.capturing) {
     preStopCapture();
   } else {
     preStartCapture(button);
@@ -658,8 +687,10 @@ function preStartCapture(button) {
   var buttons = Array.from(parent.querySelectorAll("button.canvas_capture_button"));
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
   var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
-  var index = activeIndex;
-  var canvas = frames[activeFrameId].canvases[index];
+  active.index = button.dataset.index;
+  active.frameUUID = button.dataset.frameUUID;
+  var index = active.index;
+  var canvas = frames[active.frameUUID].canvases[index];
   var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
   linkCol.textContent = "";
 
@@ -738,7 +769,9 @@ function startCapture(canvas, fps, bps) {
   mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
   mediaRecorder.addEventListener("stop", stopCapture, false);
   mediaRecorder.start(CAPTURE_INTERVAL);
-  capturing = true;
+  active.capturing = true;
+  active.canvas = canvas;
+  active.startTS = Date.now();
 
   return true;
 }
@@ -746,10 +779,10 @@ function startCapture(canvas, fps, bps) {
 function preStopCapture() {
   var parent = document.getElementById(LIST_CANVASES_ID);
   var buttons = Array.from(parent.querySelectorAll("button.canvas_capture_button"));
-  var button = buttons[activeIndex];
+  var button = buttons[active.index];
   var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
-  var linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
+  var linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
 
   for (let k = 0; k < rows.length; k += 1) {
     let row = rows[k];
@@ -780,7 +813,7 @@ function preStopCapture() {
 function createVideoURL(blob) {
   var parent = document.getElementById(LIST_CANVASES_ID);
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
-  var row = rows[activeIndex];
+  var row = rows[active.index];
   var col = row.querySelector("span.canvas_capture_link_container");
   var videoURL = "";
   var link = document.createElement("a");
@@ -804,15 +837,27 @@ function createVideoURL(blob) {
 
 function stopCapture() {
   var blob = null;
-  if (chunks.length) {
-    blob = new Blob(chunks, {"type": chunks[0].type});
+  if (active.capturing) {
+    if (chunks.length) {
+      blob = new Blob(chunks, {"type": chunks[0].type});
+    }
+    createVideoURL(blob);
+  } else {
+    port.postMessage({
+      "command": MessageCommands.NOTIFY,
+      "tabId": tabId,
+      "frameUUID": TOP_FRAME_UUID,
+      "notification": "Canvas was removed while it was being recorded."
+    });
   }
-  createVideoURL(blob);
 
-  capturing = false;
   mediaRecorder = null;
   chunks = null;
-  activeIndex = -1;
+  active.capturing = false;
+  active.index = -1;
+  active.frameUUID = "";
+  active.canvas = null;
+  active.startTS = 0;
   numBytes = 0;
 }
 
