@@ -26,7 +26,7 @@ const ALL_FRAMES_UUID = "*";
 
 var tabId = null;
 var frameId = null;
-var port = browser.runtime.connect({
+const port = browser.runtime.connect({
   "name": TOP_FRAME_UUID
 });
 
@@ -59,7 +59,7 @@ const HTML_FILE_PATH = "/capture/capture.html";
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
 var displayed = false;
 var mediaRecorder = null;
-var active = Object.seal({
+const active = Object.seal({
   "capturing": false,
   "index": -1,
   "frameUUID": "",
@@ -154,9 +154,14 @@ function handleMessageCaptureStart(msg) {
     for (let k = 0, n = rows.length; k < n; k += 1) {
       let row = rows[k];
       let button = row.querySelector("button");
+      let linkCol = row.querySelector("span.canvas_capture_link_container");
       button.textContent = "Capture";
       button.addEventListener("click", onToggleCapture, false);
+      linkCol.classList.remove("capturing");
+      row.classList.remove("canvas_capture_selected");
+      row.classList.remove("canvas_capture_inactive");
     }
+
     active.capturing = false;
     active.index = -1;
     active.frameUUID = "";
@@ -168,7 +173,6 @@ function handleMessageCaptureStop(msg) {
   var parent = document.getElementById(LIST_CANVASES_ID);
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
   var linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
-  linkCol.classList.remove("capturing");
 
   active.capturing = false;
   active.index = -1;
@@ -286,7 +290,46 @@ function handleMessageUpdateCanvases(msg) {
     };
   }
 
+  var canvasIndex = -1;
+  var canvasFrameUUID = frameUUID;
+  if (active.capturing) {
+    let parent = document.getElementById(LIST_CANVASES_ID);
+    let row = parent.querySelector(".list_canvases_row.canvas_capture_selected");
+    let canvasIsLocal = active.frameUUID === TOP_FRAME_UUID;
+
+    if (canvasIsLocal) {
+      canvasIndex = parseInt(active.index, 10);
+    } else if (frameUUID === active.frameUUID) {
+      canvasIndex = parseInt(msg.activeCanvasIndex, 10);
+    } else {
+      canvasIndex = parseInt(row.dataset.canvasIndex, 10);
+      canvasFrameUUID = row.dataset.frameUUID;
+    }
+  }
+
   updateCanvases();
+
+  if (active.capturing) {
+    let parent = document.getElementById(LIST_CANVASES_ID);
+    let canvasIsLocal = active.frameUUID === TOP_FRAME_UUID;
+
+    if (canvasIsLocal) {
+      setRowActive(canvasIndex);
+    } else {
+      let row = null;
+      let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
+      let frameRows = rows.filter((el) => el.dataset.frameUUID === canvasFrameUUID);
+      row = frameRows[canvasIndex];
+      for (let k = 0, n = rows.length; k < n; k += 1) {
+        if (row === rows[k]) {
+          canvasIndex = k;
+          break;
+        }
+      }
+      setRowActive(canvasIndex);
+      active.index = canvasIndex;
+    }
+  }
 
   var frameElements = Array.from(document.querySelectorAll("iframe"));
   frameElementsTS = Date.now();
@@ -343,9 +386,7 @@ function observeBodyMutations(mutations) {
     if (active.capturing) {
       row = parent.querySelector(".list_canvases_row.canvas_capture_selected");
       canvasIsLocal = JSON.parse(row.dataset.canvasIsLocal);
-      if (canvasIsLocal) {
-        canvasIndex = parseInt(row.dataset.index, 10);
-      } else {
+      if (!canvasIsLocal) {
         canvasIndex = parseInt(row.dataset.canvasIndex, 10);
       }
     }
@@ -833,11 +874,9 @@ function startCapture(canvas, fps, bps) {
   return true;
 }
 
-function preStopCapture() {
+function clearActiveRows() {
   var parent = document.getElementById(LIST_CANVASES_ID);
   var buttons = Array.from(parent.querySelectorAll("button.canvas_capture_button"));
-  var button = buttons[active.index];
-  var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
   var linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
 
@@ -852,9 +891,19 @@ function preStopCapture() {
     but.textContent = "Capture";
   }
 
+  linkCol.classList.remove("capturing");
+}
+
+function preStopCapture() {
+  var parent = document.getElementById(LIST_CANVASES_ID);
+  var buttons = Array.from(parent.querySelectorAll("button.canvas_capture_button"));
+  var button = buttons[active.index];
+  var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
+
+  clearActiveRows();
+
   if (canvasIsLocal) {
     mediaRecorder.stop();
-    linkCol.classList.remove("capturing");
   } else {
     port.postMessage({
       "command": MessageCommands.CAPTURE_STOP,

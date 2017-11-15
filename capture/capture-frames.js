@@ -25,7 +25,7 @@ const TOP_FRAME_UUID = "top";
 
 var tabId = null;
 var frameId = null;
-var port = browser.runtime.connect({
+const port = browser.runtime.connect({
   "name": FRAME_UUID
 });
 
@@ -50,16 +50,26 @@ const DEFAULT_MIME_TYPE = "webm";
 const CAPTURE_INTERVAL = 1000;
 
 var mediaRecorder = null;
-var capturing = false;
-var activeIndex = -1;
+const active = Object.seal({
+  "capturing": false,
+  "index": -1,
+  "frameUUID": FRAME_UUID,
+  "canvas": null,
+  "startTS": 0,
+  "canvasRemoved": false
+});
 var chunks = null;
 var frames = {[FRAME_UUID]: {"frameUUID": FRAME_UUID, "canvases": []}};
 var numBytes = 0;
 var objectURLs = [];
 var downloadLinks = [];
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
-var bodyMutObs = new MutationObserver(observeBodyMutations);
-var canvasMutObs = new MutationObserver(observeCanvasMutations);
+const bodyMutObs = new MutationObserver(observeBodyMutations);
+const canvasMutObs = new MutationObserver(observeCanvasMutations);
+const CANVAS_OBSERVER_OPS = Object.freeze({
+  "attributes": true,
+  "attributeFilter": ["id", "width", "height"]
+});
 
 port.onMessage.addListener(onMessage);
 window.addEventListener("message", handleWindowMessage, true);
@@ -187,7 +197,11 @@ function observeBodyMutations(mutations) {
       let node = removedNodes[iK];
       if (node.nodeName.toLowerCase() === "canvas") {
         canvasesChanged = true;
-        break;
+        if (active.capturing && node.classList.contains("canvas_active_capturing")) {
+          active.canvasRemoved = true;
+          preStopCapture();
+          break;
+        }
       }
     }
   }
@@ -196,6 +210,16 @@ function observeBodyMutations(mutations) {
   frames[FRAME_UUID].canvases = canvases;
 
   if (canvasesChanged) {
+    if (active.capturing && !active.canvasRemoved) {
+      for (let k = 0, n = canvases.length; k < n; k += 1) {
+        if (canvases[k].classList.contains("canvas_active_capturing")) {
+          active.index = k;
+          active.canvas = canvases[k];
+          break;
+        }
+      }
+    }
+
     updateCanvases(canvases);
   }
 }
@@ -210,10 +234,6 @@ function observeCanvasMutations(mutations) {
 }
 
 function updateCanvases(canvases) {
-  var canvasObsOps = {
-    "attributes": true,
-    "attributeFilter": ["id", "width", "height"]
-  };
   var canvasData = canvases.map(function(el) {
     return {
       "id": el.id,
@@ -222,7 +242,7 @@ function updateCanvases(canvases) {
     };
   });
 
-  canvases.forEach((canvas) => canvasMutObs.observe(canvas, canvasObsOps));
+  canvases.forEach((canvas) => canvasMutObs.observe(canvas, CANVAS_OBSERVER_OPS));
 
   port.postMessage({
     "command": MessageCommands.UPDATE_CANVASES,
@@ -230,17 +250,18 @@ function updateCanvases(canvases) {
     "frameId": frameId,
     "frameUUID": FRAME_UUID,
     "targetFrameUUID": TOP_FRAME_UUID,
-    "canvases": canvasData
+    "canvases": canvasData,
+    "activeCanvasIndex": active.index
   });
 }
 
 function preStartCapture(msg) {
-  if (capturing) {
+  if (active.capturing) {
     return false;
   }
 
-  activeIndex = msg.canvasIndex;
-  var canvas = frames[FRAME_UUID].canvases[activeIndex];
+  active.index = msg.canvasIndex;
+  var canvas = frames[FRAME_UUID].canvases[active.index];
   var fps = msg.fps;
   var bps = msg.bps;
 
@@ -277,7 +298,10 @@ function startCapture(canvas, fps, bps) {
   mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
   mediaRecorder.addEventListener("stop", stopCapture, false);
   mediaRecorder.start(CAPTURE_INTERVAL);
-  capturing = true;
+  active.capturing = true;
+  active.startTS = Date.now();
+  active.canvas = canvas;
+  canvas.classList.add("canvas_active_capturing");
 
   return true;
 }
@@ -293,9 +317,20 @@ function stopCapture(evt, success) {
   if (chunks.length) {
     blob = new Blob(chunks, {"type": chunks[0].type});
     videoURL = window.URL.createObjectURL(blob);
-    objectURLs[activeIndex] = videoURL;
+    objectURLs[active.index] = videoURL;
   }
   success = (typeof success === "boolean") ? success : true;
+
+  if (active.canvasRemoved) {
+    port.postMessage({
+      "command": MessageCommands.NOTIFY,
+      "tabId": tabId,
+      "frameId": frameId,
+      "frameUUID": FRAME_UUID,
+      "notification": "Canvas was removed while it was being recorded."
+    });
+    success = false;
+  }
 
   port.postMessage({
     "command": MessageCommands.CAPTURE_STOP,
@@ -303,16 +338,20 @@ function stopCapture(evt, success) {
     "frameId": frameId,
     "frameUUID": FRAME_UUID,
     "targetFrameUUID": TOP_FRAME_UUID,
-    "canvasIndex": activeIndex,
+    "canvasIndex": active.index,
     "videoURL": videoURL,
     "success": success,
-    "size": blob ? blob.size : 0
+    "size": blob ? blob.size : 0,
+    "startTS": active.startTS
   });
 
-  capturing = false;
+  active.capturing = false;
+  active.index = -1;
+  active.canvas = null;
+  active.startTS = 0;
+  active.canvasRemoved = false;
   mediaRecorder = null;
   chunks = null;
-  activeIndex = -1;
 }
 
 function onDataAvailable(evt) {
