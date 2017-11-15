@@ -67,14 +67,18 @@ var active = Object.seal({
   "startTS": 0
 });
 var chunks = null;
+var objectURLs = [];
 var frames = {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}};
 var frameElementsTS = 0;
 var numBytes = 0;
-var objectURLs = [];
 var wrapperMouseHover = false;
-var bodyMutObs = new MutationObserver(observeBodyMutations);
-var canvasMutObs = new MutationObserver(observeCanvasMutations);
-var highlighter = Object.seal({
+const bodyMutObs = new MutationObserver(observeBodyMutations);
+const canvasMutObs = new MutationObserver(observeCanvasMutations);
+const CANVAS_OBSERVER_OPS = Object.freeze({
+  "attributes": true,
+  "attributeFilter": ["id", "width", "height"]
+});
+const highlighter = Object.seal({
   "left": null,
   "top": null,
   "right": null,
@@ -156,6 +160,7 @@ function handleMessageCaptureStart(msg) {
     active.capturing = false;
     active.index = -1;
     active.frameUUID = "";
+    active.canvas = null;
   }
 }
 
@@ -327,10 +332,54 @@ function observeBodyMutations(mutations) {
   }
 
   if (canvasesChanged) {
+    let activeCanvas = active.canvas;
+    let activeFrameUUID = active.frameUUID;
+    let parent = document.getElementById(LIST_CANVASES_ID);
+    let row = null;
+    let canvasIsLocal = true;
+    let canvasIndex = -1;
     let canvases = Array.from(document.body.querySelectorAll("canvas"));
+
+    if (active.capturing) {
+      row = parent.querySelector(".list_canvases_row.canvas_capture_selected");
+      canvasIsLocal = JSON.parse(row.dataset.canvasIsLocal);
+      if (canvasIsLocal) {
+        canvasIndex = parseInt(row.dataset.index, 10);
+      } else {
+        canvasIndex = parseInt(row.dataset.canvasIndex, 10);
+      }
+    }
+
     frames[TOP_FRAME_UUID].canvases = canvases;
 
     updateCanvases();
+
+    if (active.capturing && canvasIsLocal) {
+      for (let k = 0, n = canvases.length; k < n; k += 1) {
+        if (canvases[k] === activeCanvas) {
+          canvasIndex = k;
+          break;
+        }
+      }
+
+      setRowActive(canvasIndex);
+      active.index = canvasIndex;
+    } else if (active.capturing && !canvasIsLocal) {
+      let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
+      let index = -1;
+
+      for (let k = 0, n = rows.length; k < n; k += 1) {
+        if (
+          parseInt(rows[k].dataset.canvasIndex, 10) === canvasIndex &&
+          rows[k].dataset.frameUUID === activeFrameUUID
+        ) {
+          index = k;
+        }
+      }
+
+      setRowActive(index);
+      active.index = index;
+    }
   }
 }
 
@@ -526,18 +575,14 @@ function getAllCanvases() {
 function updateCanvases() {
   var parent = document.getElementById(LIST_CANVASES_ID);
   var docFrag = document.createDocumentFragment();
-  var headerKeys = ["id", "width", "height"];
+  var attrKeys = ["id", "width", "height"];
   var oldRows = Array.from(parent.querySelectorAll(".list_canvases_row"));
   var canvases = getAllCanvases();
-  var canvasObsOps = {
-    "attributes": true,
-    "attributeFilter": ["id", "width", "height"]
-  };
 
   oldRows.forEach((row) => row.parentElement.removeChild(row));
   canvases.forEach(function(canvas) {
     if (canvas.local) {
-      canvasMutObs.observe(canvas.element, canvasObsOps);
+      canvasMutObs.observe(canvas.element, CANVAS_OBSERVER_OPS);
     }
   });
 
@@ -545,7 +590,7 @@ function updateCanvases() {
     let row = document.createElement("span");
     let canvasIsLocal = true;
     let canvas = canvases[k];
-    for (let iK = 0; iK < headerKeys.length; iK += 1) {
+    for (let iK = 0; iK < attrKeys.length; iK += 1) {
       if (canvas.local) {
         canvasIsLocal = true;
         row.classList.add("local_canvas");
@@ -554,10 +599,10 @@ function updateCanvases() {
         row.classList.add("remote_canvas");
       }
       let col = document.createElement("span");
-      col.textContent = canvas[headerKeys[iK]];
+      col.textContent = canvas[attrKeys[iK]];
       col.classList.add("middle_centered");
-      col.classList.add(`list_canvases_canvas_${headerKeys[iK]}`);
-      if (headerKeys[iK] === "id") {
+      col.classList.add(`list_canvases_canvas_${attrKeys[iK]}`);
+      if (attrKeys[iK] === "id") {
         col.title = canvas.id;
       }
       row.appendChild(col);
@@ -682,15 +727,44 @@ function onToggleCapture(evt) {
   }
 }
 
-function preStartCapture(button) {
+function setRowActive(index) {
   var parent = document.getElementById(LIST_CANVASES_ID);
   var buttons = Array.from(parent.querySelectorAll("button.canvas_capture_button"));
+  var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
+  var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
+
+  for (let k = 0; k < rows.length; k += 1) {
+    let row = rows[k];
+
+    if (parseInt(row.dataset.index, 10) === index) {
+      row.classList.add("canvas_capture_selected");
+    } else {
+      row.classList.add("canvas_capture_inactive");
+    }
+  }
+
+  for (let k = 0; k < buttons.length; k += 1) {
+    let button = buttons[k];
+
+    if (k === index) {
+      button.textContent = "Stop";
+    } else {
+      button.removeEventListener("click", onToggleCapture);
+    }
+  }
+
+  linkCol.classList.add("capturing");
+}
+
+function preStartCapture(button) {
+  var parent = document.getElementById(LIST_CANVASES_ID);
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
   var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
   active.index = button.dataset.index;
   active.frameUUID = button.dataset.frameUUID;
   var index = active.index;
-  var canvas = frames[active.frameUUID].canvases[index];
+  var frame = frames[active.frameUUID];
+  var canvas = canvasIsLocal ? frame.canvases[index] : frame.canvases[button.dataset.canvasIndex];
   var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
   linkCol.textContent = "";
 
@@ -698,25 +772,7 @@ function preStartCapture(button) {
     return;
   }
 
-  for (let k = 0; k < rows.length; k += 1) {
-    let ro = rows[k];
-
-    if (ro.dataset.index === index) {
-      ro.classList.add("canvas_capture_selected");
-    } else {
-      ro.classList.add("canvas_capture_inactive");
-    }
-  }
-
-  for (let k = 0; k < buttons.length; k += 1) {
-    let but = buttons[k];
-
-    if (but === button) {
-      but.textContent = "Stop";
-    } else {
-      but.removeEventListener("click", onToggleCapture);
-    }
-  }
+  setRowActive(parseInt(index, 10));
 
   var fpsInput = document.getElementById(button.dataset.fpsInput);
   var fps = parseFloat(fpsInput.value);
@@ -727,8 +783,8 @@ function preStartCapture(button) {
 
   if (canvasIsLocal) {
     let ret = startCapture(canvas, fps, bps);
-    if (ret) {
-      linkCol.classList.add("capturing");
+    if (!ret) {
+      linkCol.classList.remove("capturing");
     }
   } else {
     port.postMessage({
@@ -741,6 +797,7 @@ function preStartCapture(button) {
       "fps": fps,
       "bps": bps
     });
+    active.canvas = canvas;
   }
 }
 

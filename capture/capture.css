@@ -55,6 +55,7 @@
   width: 100%;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+  z-index: 100;
   background-color: #402230;
   font-weight: 600;
   cursor: default;
