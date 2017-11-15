@@ -64,7 +64,14 @@ const active = Object.seal({
   "index": -1,
   "frameUUID": "",
   "canvas": null,
-  "startTS": 0
+  "startTS": 0,
+  "clear": function() {
+    this.capturing = false;
+    this.index = -1;
+    this.frameUUID = "";
+    this.canvas = null;
+    this.startTS = 0;
+  }
 });
 var chunks = null;
 var objectURLs = [];
@@ -162,10 +169,7 @@ function handleMessageCaptureStart(msg) {
       row.classList.remove("canvas_capture_inactive");
     }
 
-    active.capturing = false;
-    active.index = -1;
-    active.frameUUID = "";
-    active.canvas = null;
+    active.clear();
   }
 }
 
@@ -174,10 +178,7 @@ function handleMessageCaptureStop(msg) {
   var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
   var linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
 
-  active.capturing = false;
-  active.index = -1;
-  active.frameUUID = "";
-  active.canvas = null;
+  active.clear();
 
   if (msg.success) {
     let link = document.createElement("a");
@@ -221,12 +222,7 @@ function handleMessageDisconnect(msg) {
       "targetFrameUUID": TOP_FRAME_UUID,
       "success": false
     });
-    port.postMessage({
-      "command": MessageCommands.NOTIFY,
-      "tabId": tabId,
-      "frameUUID": TOP_FRAME_UUID,
-      "notification": "Iframe was removed while one of its canvases was being recorded."
-    });
+    showNotification("Iframe was removed while one of its canvases was being recorded.");
   }
 
   delete frames[frameUUID];
@@ -477,12 +473,7 @@ function handleDisable(notify) {
 
   freeObjectURLs();
   displayed = false;
-  port.postMessage({
-    "command": MessageCommands.NOTIFY,
-    "tabId": tabId,
-    "frameId": frameId,
-    "notification": notify
-  });
+  showNotification(notify);
   port.postMessage({
     "command": MessageCommands.DISCONNECT,
     "tabId": tabId,
@@ -956,21 +947,12 @@ function stopCapture() {
     }
     createVideoURL(blob);
   } else {
-    port.postMessage({
-      "command": MessageCommands.NOTIFY,
-      "tabId": tabId,
-      "frameUUID": TOP_FRAME_UUID,
-      "notification": "Canvas was removed while it was being recorded."
-    });
+    showNotification("Canvas was removed while it was being recorded.");
   }
 
   mediaRecorder = null;
   chunks = null;
-  active.capturing = false;
-  active.index = -1;
-  active.frameUUID = "";
-  active.canvas = null;
-  active.startTS = 0;
+  active.clear();
   numBytes = 0;
 }
 
@@ -996,6 +978,15 @@ function canCaptureStream(canvas) {
   } catch (e) {
     return false;
   }
+}
+
+function showNotification(notification) {
+  port.postMessage({
+    "command": MessageCommands.NOTIFY,
+    "tabId": tabId,
+    "frameUUID": TOP_FRAME_UUID,
+    "notification": notification
+  });
 }
 
 function freeObjectURLs() {
