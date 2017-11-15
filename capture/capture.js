@@ -43,10 +43,10 @@ const MessageCommands = Object.freeze({
   "UPDATE_CANVASES": "update-canvases"
 });
 
-const MIME_TYPE_MAP = {
+const MIME_TYPE_MAP = Object.freeze({
   "mp4": "video/mp4",
   "webm": "video/webm"
-};
+});
 const DEFAULT_MIME_TYPE = "webm";
 const CAPTURE_INTERVAL = 1000;
 const DEFAULT_FPS = 30;
@@ -177,6 +177,7 @@ function handleMessageCaptureStop(msg) {
   active.capturing = false;
   active.index = -1;
   active.frameUUID = "";
+  active.canvas = null;
 
   if (msg.success) {
     let link = document.createElement("a");
@@ -219,6 +220,12 @@ function handleMessageDisconnect(msg) {
       "frameUUID": active.frameUUID,
       "targetFrameUUID": TOP_FRAME_UUID,
       "success": false
+    });
+    port.postMessage({
+      "command": MessageCommands.NOTIFY,
+      "tabId": tabId,
+      "frameUUID": TOP_FRAME_UUID,
+      "notification": "Iframe was removed while one of its canvases was being recorded."
     });
   }
 
