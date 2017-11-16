@@ -517,8 +517,6 @@ function handleDisplay(msg) {
     handleDisable(e.message);
   }
 
-  listCanvases = document.getElementById(LIST_CANVASES_ID);
-
   for (let prop in highlighter) {
     if (Object.prototype.hasOwnProperty.call(highlighter, prop) && prop !== "current") {
       highlighter[prop] = document.createElement("div");
@@ -564,6 +562,7 @@ function setupDisplay(html) {
   document.body.appendChild(wrapper);
   wrapper.outerHTML = html;
   wrapper = document.getElementById(WRAPPER_ID);
+  listCanvases = document.getElementById(LIST_CANVASES_ID);
 
   positionWrapper();
   setupWrapperEvents();
