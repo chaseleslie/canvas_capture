@@ -75,8 +75,9 @@ const active = Object.seal({
 });
 var chunks = null;
 var objectURLs = [];
-var frames = {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}};
+const frames = {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}};
 var frameElementsTS = 0;
+const frameElementsKeys = [];
 var numBytes = 0;
 var wrapperMouseHover = false;
 const bodyMutObs = new MutationObserver(observeBodyMutations);
@@ -104,25 +105,37 @@ bodyMutObs.observe(document.body, {
 function handleWindowMessage(evt) {
   var msg = evt.data;
   var frameElements = Array.from(document.querySelectorAll("iframe"));
+  var key = msg.key;
+  var keyPos = frameElementsKeys.indexOf(key);
 
-  if (!("command" in msg) || msg.command !== "identify") {
+  if (!key || keyPos < 0) {
     return;
   } else if (msg.ts < frameElementsTS) {
-    frameElementsTS = Date.now();
-    for (let k = 0, n = frameElements.length; k < n; k += 1) {
-      let frame = frameElements[k];
-      frame.contentWindow.postMessage({
-        "command": "identify",
-        "ts": Date.now(),
-        "index": k
-      }, "*");
-    }
+    identifyFrames();
+    frameElementsKeys.splice(keyPos, 1);
     evt.stopPropagation();
     return;
   }
 
+  frameElementsKeys.splice(keyPos, 1);
   frames[msg.frameUUID].node = frameElements[msg.index];
   evt.stopPropagation();
+}
+
+function identifyFrames() {
+  var frameElements = Array.from(document.querySelectorAll("iframe"));
+  frameElementsTS = Date.now();
+  for (let k = 0, n = frameElements.length; k < n; k += 1) {
+    let frame = frameElements[k];
+    let key = genUUIDv4();
+    frameElementsKeys.push(key);
+    frame.contentWindow.postMessage({
+      "command": "identify",
+      "key": key,
+      "ts": Date.now(),
+      "index": k
+    }, "*");
+  }
 }
 
 function onMessage(msg) {
@@ -334,16 +347,7 @@ function handleMessageUpdateCanvases(msg) {
     }
   }
 
-  var frameElements = Array.from(document.querySelectorAll("iframe"));
-  frameElementsTS = Date.now();
-  for (let k = 0, n = frameElements.length; k < n; k += 1) {
-    let frame = frameElements[k];
-    frame.contentWindow.postMessage({
-      "command": "identify",
-      "ts": Date.now(),
-      "index": k
-    }, "*");
-  }
+  identifyFrames();
 }
 
 function observeBodyMutations(mutations) {
@@ -1009,4 +1013,14 @@ function prettyFileSize(nBytes, useSI) {
 
   return `${nBytes.toFixed(Boolean(index))} ${units[index]}`;
 }
+
+function genUUIDv4() {
+  /* https://stackoverflow.com/a/2117523/1031545 */
+  /* eslint-disable no-bitwise, id-length, no-mixed-operators */
+  return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
+    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+  );
+  /* eslint-enable no-bitwise, id-length, no-mixed-operators */
+}
+
 }());
