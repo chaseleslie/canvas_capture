@@ -263,16 +263,16 @@ function handleMessageHighlight(msg, node) {
     let bottom = nodeRect.top + rect.top + rect.height + borderWidthTop;
     bottom = Math.min(document.documentElement.clientHeight - horizTracerWidth, bottom);
 
-    if (left >= 0 && left <= window.screen.availWidth) {
+    if (left >= 0 && left <= window.innerWidth) {
       highlighter.left.classList.remove("hidden");
     }
-    if (top >= 0 && top <= window.screen.availHeight) {
+    if (top >= 0 && top <= window.innerHeight) {
       highlighter.top.classList.remove("hidden");
     }
-    if (right >= 0 && right <= window.screen.availWidth) {
+    if (right >= 0 && right <= window.innerWidth) {
       highlighter.right.classList.remove("hidden");
     }
-    if (bottom >= 0 && bottom <= window.screen.availHeight) {
+    if (bottom >= 0 && bottom <= window.innerHeight) {
       highlighter.bottom.classList.remove("hidden");
     }
 
