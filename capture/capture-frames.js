@@ -155,7 +155,8 @@ function handleMessageDownload(msg) {
 
 function handleMessageHighlight(msg) {
   var canvasIndex = msg.canvasIndex;
-  var rect = frames[FRAME_UUID].canvases[canvasIndex].getBoundingClientRect();
+  var canvas = frames[FRAME_UUID].canvases[canvasIndex];
+  var rect = canvas.getBoundingClientRect();
 
   port.postMessage({
     "command": MessageCommands.HIGHLIGHT,
@@ -172,7 +173,8 @@ function handleMessageHighlight(msg) {
       "height": rect.height,
       "x": rect.x,
       "y": rect.y
-    }
+    },
+    "canCapture": canCaptureStream(canvas)
   });
 }
 

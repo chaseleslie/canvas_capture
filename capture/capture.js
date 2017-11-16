@@ -281,6 +281,10 @@ function handleMessageHighlight(msg, node) {
     highlighter.right.style.left = `${right}px`;
     highlighter.bottom.style.top = `${bottom}px`;
   }
+
+  if (!msg.canCapture) {
+    highlighter.current.classList.add("highlighter_unavailable");
+  }
 }
 
 function handleMessageUpdateCanvases(msg) {
@@ -710,7 +714,8 @@ function highlightCanvas(evt) {
   highlighter.current = el;
 
   if (JSON.parse(el.dataset.canvasIsLocal)) {
-    let rect = frames[TOP_FRAME_UUID].canvases[el.dataset.index].getBoundingClientRect();
+    let canvas = frames[TOP_FRAME_UUID].canvases[el.dataset.index];
+    let rect = canvas.getBoundingClientRect();
 
     handleMessageHighlight({
       "frameUUID": TOP_FRAME_UUID,
@@ -723,7 +728,8 @@ function highlightCanvas(evt) {
         "bottom": 0,
         "x": 0,
         "y": 0
-      }
+      },
+      "canCapture": canCaptureStream(canvas)
     }, frames[TOP_FRAME_UUID].canvases[el.dataset.index]);
   } else {
     port.postMessage({
@@ -752,6 +758,7 @@ function unhighlightCanvas(evt) {
     }
   }
 
+  el.classList.remove("highlighter_unavailable");
   highlighter.current = null;
 }
 
