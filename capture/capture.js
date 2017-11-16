@@ -771,12 +771,14 @@ function setRowActive(index) {
   var buttons = Array.from(listCanvases.querySelectorAll("button.canvas_capture_button"));
   var rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
   var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
+  var linkRow = null;
 
   for (let k = 0; k < rows.length; k += 1) {
     let row = rows[k];
 
     if (parseInt(row.dataset.index, 10) === index) {
       row.classList.add("canvas_capture_selected");
+      linkRow = row;
     } else {
       row.classList.add("canvas_capture_inactive");
     }
@@ -793,6 +795,7 @@ function setRowActive(index) {
   }
 
   linkCol.classList.add("capturing");
+  linkRow.scrollIntoView({"block": "center", "behavior": "smooth", "inline": "center"});
 }
 
 function preStartCapture(button) {
