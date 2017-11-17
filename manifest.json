@@ -38,8 +38,9 @@
   },
 
   "web_accessible_resources": [
-    "/capture/capture.html",
-    "/capture/capture.css"
+    "/capture/*.html",
+    "/capture/*.css",
+    "/capture/img/*"
   ]
 
 }
