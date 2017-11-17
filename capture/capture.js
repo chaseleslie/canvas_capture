@@ -26,7 +26,7 @@ const ALL_FRAMES_UUID = "*";
 
 var tabId = null;
 var frameId = null;
-var port = browser.runtime.connect({
+const port = browser.runtime.connect({
   "name": TOP_FRAME_UUID
 });
 
@@ -43,10 +43,10 @@ const MessageCommands = Object.freeze({
   "UPDATE_CANVASES": "update-canvases"
 });
 
-const MIME_TYPE_MAP = {
+const MIME_TYPE_MAP = Object.freeze({
   "mp4": "video/mp4",
   "webm": "video/webm"
-};
+});
 const DEFAULT_MIME_TYPE = "webm";
 const CAPTURE_INTERVAL = 1000;
 const DEFAULT_FPS = 30;
@@ -59,24 +59,41 @@ const HTML_FILE_PATH = "/capture/capture.html";
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
 var displayed = false;
 var mediaRecorder = null;
-var capturing = false;
-var activeIndex = -1;
-var activeFrameId = null;
+const active = Object.seal({
+  "capturing": false,
+  "index": -1,
+  "frameUUID": "",
+  "canvas": null,
+  "startTS": 0,
+  "clear": function() {
+    this.capturing = false;
+    this.index = -1;
+    this.frameUUID = "";
+    this.canvas = null;
+    this.startTS = 0;
+  }
+});
+var listCanvases = null;
 var chunks = null;
-var frames = {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}};
-var frameElementsTS = 0;
-var numBytes = 0;
 var objectURLs = [];
+const frames = {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}};
+var frameElementsTS = 0;
+const frameElementsKeys = [];
+var numBytes = 0;
 var wrapperMouseHover = false;
-var bodyMutObs = new MutationObserver(observeBodyMutations);
-var canvasMutObs = new MutationObserver(observeCanvasMutations);
-var highlighter = {
+const bodyMutObs = new MutationObserver(observeBodyMutations);
+const canvasMutObs = new MutationObserver(observeCanvasMutations);
+const CANVAS_OBSERVER_OPS = Object.freeze({
+  "attributes": true,
+  "attributeFilter": ["id", "width", "height"]
+});
+const highlighter = Object.seal({
   "left": null,
   "top": null,
   "right": null,
   "bottom": null,
   "current": null
-};
+});
 
 port.onMessage.addListener(onMessage);
 window.addEventListener("message", handleWindowMessage, true);
@@ -89,25 +106,37 @@ bodyMutObs.observe(document.body, {
 function handleWindowMessage(evt) {
   var msg = evt.data;
   var frameElements = Array.from(document.querySelectorAll("iframe"));
+  var key = msg.key;
+  var keyPos = frameElementsKeys.indexOf(key);
 
-  if (msg.ts < frameElementsTS) {
-    frameElementsTS = Date.now();
-    for (let k = 0, n = frameElements.length; k < n; k += 1) {
-      let frame = frameElements[k];
-      frame.contentWindow.postMessage({
-        "command": "identify",
-        "ts": Date.now(),
-        "index": k
-      }, "*");
-    }
-    evt.stopPropagation();
+  if (!key || keyPos < 0) {
     return;
-  } else if (!("command" in msg) || msg.command !== "identify") {
+  } else if (msg.ts < frameElementsTS) {
+    identifyFrames();
+    frameElementsKeys.splice(keyPos, 1);
+    evt.stopPropagation();
     return;
   }
 
+  frameElementsKeys.splice(keyPos, 1);
   frames[msg.frameUUID].node = frameElements[msg.index];
   evt.stopPropagation();
+}
+
+function identifyFrames() {
+  var frameElements = Array.from(document.querySelectorAll("iframe"));
+  frameElementsTS = Date.now();
+  for (let k = 0, n = frameElements.length; k < n; k += 1) {
+    let frame = frameElements[k];
+    let key = genUUIDv4();
+    frameElementsKeys.push(key);
+    frame.contentWindow.postMessage({
+      "command": "identify",
+      "key": key,
+      "ts": Date.now(),
+      "index": k
+    }, "*");
+  }
 }
 
 function onMessage(msg) {
@@ -118,10 +147,7 @@ function onMessage(msg) {
   } else if (msg.command === MessageCommands.DISABLE) {
     handleDisable();
   } else if (msg.command === MessageCommands.DISCONNECT) {
-    let frameUUID = msg.frameUUID;
-    delete frames[frameUUID];
-    updateCanvases();
-    frameElementsTS = Date.now();
+    handleMessageDisconnect(msg);
   } else if (msg.command === MessageCommands.DISPLAY) {
     if (!displayed) {
       handleDisplay(msg);
@@ -138,29 +164,33 @@ function onMessage(msg) {
 }
 
 function handleMessageCaptureStart(msg) {
-  let parent = document.getElementById(LIST_CANVASES_ID);
-  let rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
+  let rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
   if (msg.success) {
-    let linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
+    let linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
     linkCol.classList.add("capturing");
-    capturing = true;
+    active.capturing = true;
+    active.startTS = Date.now();
   } else {
     for (let k = 0, n = rows.length; k < n; k += 1) {
       let row = rows[k];
       let button = row.querySelector("button");
+      let linkCol = row.querySelector("span.canvas_capture_link_container");
       button.textContent = "Capture";
       button.addEventListener("click", onToggleCapture, false);
+      linkCol.classList.remove("capturing");
+      row.classList.remove("canvas_capture_selected");
+      row.classList.remove("canvas_capture_inactive");
     }
-    capturing = false;
+
+    active.clear();
   }
 }
 
 function handleMessageCaptureStop(msg) {
-  capturing = false;
-  var parent = document.getElementById(LIST_CANVASES_ID);
-  var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
-  var linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
-  linkCol.classList.remove("capturing");
+  var rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
+  var linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
+
+  active.clear();
 
   if (msg.success) {
     let link = document.createElement("a");
@@ -192,6 +222,26 @@ function handleMessageCaptureStop(msg) {
   }
 }
 
+function handleMessageDisconnect(msg) {
+  let frameUUID = msg.frameUUID;
+
+  if (active.capturing && active.frameUUID === frameUUID) {
+    preStopCapture();
+    handleMessageCaptureStop({
+      "command": MessageCommands.CAPTURE_STOP,
+      "tabId": tabId,
+      "frameUUID": active.frameUUID,
+      "targetFrameUUID": TOP_FRAME_UUID,
+      "success": false
+    });
+    showNotification("Iframe was removed while one of its canvases was being recorded.");
+  }
+
+  delete frames[frameUUID];
+  updateCanvases();
+  frameElementsTS = Date.now();
+}
+
 function handleMessageHighlight(msg, node) {
   var frame = frames[msg.frameUUID];
   node = node || frame.node;
@@ -213,16 +263,16 @@ function handleMessageHighlight(msg, node) {
     let bottom = nodeRect.top + rect.top + rect.height + borderWidthTop;
     bottom = Math.min(document.documentElement.clientHeight - horizTracerWidth, bottom);
 
-    if (left >= 0 && left <= window.screen.availWidth) {
+    if (left >= 0 && left <= window.innerWidth) {
       highlighter.left.classList.remove("hidden");
     }
-    if (top >= 0 && top <= window.screen.availHeight) {
+    if (top >= 0 && top <= window.innerHeight) {
       highlighter.top.classList.remove("hidden");
     }
-    if (right >= 0 && right <= window.screen.availWidth) {
+    if (right >= 0 && right <= window.innerWidth) {
       highlighter.right.classList.remove("hidden");
     }
-    if (bottom >= 0 && bottom <= window.screen.availHeight) {
+    if (bottom >= 0 && bottom <= window.innerHeight) {
       highlighter.bottom.classList.remove("hidden");
     }
 
@@ -230,6 +280,10 @@ function handleMessageHighlight(msg, node) {
     highlighter.top.style.top = `${top}px`;
     highlighter.right.style.left = `${right}px`;
     highlighter.bottom.style.top = `${bottom}px`;
+  }
+
+  if (!msg.canCapture) {
+    highlighter.current.classList.add("highlighter_unavailable");
   }
 }
 
@@ -255,18 +309,46 @@ function handleMessageUpdateCanvases(msg) {
     };
   }
 
+  var canvasIndex = -1;
+  var canvasFrameUUID = frameUUID;
+  if (active.capturing) {
+    let row = listCanvases.querySelector(".list_canvases_row.canvas_capture_selected");
+    let canvasIsLocal = active.frameUUID === TOP_FRAME_UUID;
+
+    if (canvasIsLocal) {
+      canvasIndex = parseInt(active.index, 10);
+    } else if (frameUUID === active.frameUUID) {
+      canvasIndex = parseInt(msg.activeCanvasIndex, 10);
+    } else {
+      canvasIndex = parseInt(row.dataset.canvasIndex, 10);
+      canvasFrameUUID = row.dataset.frameUUID;
+    }
+  }
+
   updateCanvases();
 
-  var frameElements = Array.from(document.querySelectorAll("iframe"));
-  frameElementsTS = Date.now();
-  for (let k = 0, n = frameElements.length; k < n; k += 1) {
-    let frame = frameElements[k];
-    frame.contentWindow.postMessage({
-      "command": "identify",
-      "ts": Date.now(),
-      "index": k
-    }, "*");
+  if (active.capturing) {
+    let canvasIsLocal = active.frameUUID === TOP_FRAME_UUID;
+
+    if (canvasIsLocal) {
+      setRowActive(canvasIndex);
+    } else {
+      let row = null;
+      let rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
+      let frameRows = rows.filter((el) => el.dataset.frameUUID === canvasFrameUUID);
+      row = frameRows[canvasIndex];
+      for (let k = 0, n = rows.length; k < n; k += 1) {
+        if (row === rows[k]) {
+          canvasIndex = k;
+          break;
+        }
+      }
+      setRowActive(canvasIndex);
+      active.index = canvasIndex;
+    }
   }
+
+  identifyFrames();
 }
 
 function observeBodyMutations(mutations) {
@@ -290,23 +372,68 @@ function observeBodyMutations(mutations) {
       let node = removedNodes[iK];
       if (node.nodeName.toLowerCase() === "canvas") {
         canvasesChanged = true;
-        break;
+        if (active.capturing && node === active.canvas) {
+          active.capturing = false;
+          active.canvas = null;
+          preStopCapture();
+          break;
+        }
       }
     }
   }
 
-  var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  frames[TOP_FRAME_UUID].canvases = canvases;
-
   if (canvasesChanged) {
+    let activeCanvas = active.canvas;
+    let activeFrameUUID = active.frameUUID;
+    let row = null;
+    let canvasIsLocal = true;
+    let canvasIndex = -1;
+    let canvases = Array.from(document.body.querySelectorAll("canvas"));
+
+    if (active.capturing) {
+      row = listCanvases.querySelector(".list_canvases_row.canvas_capture_selected");
+      canvasIsLocal = JSON.parse(row.dataset.canvasIsLocal);
+      if (!canvasIsLocal) {
+        canvasIndex = parseInt(row.dataset.canvasIndex, 10);
+      }
+    }
+
+    frames[TOP_FRAME_UUID].canvases = canvases;
+
     updateCanvases();
+
+    if (active.capturing && canvasIsLocal) {
+      for (let k = 0, n = canvases.length; k < n; k += 1) {
+        if (canvases[k] === activeCanvas) {
+          canvasIndex = k;
+          break;
+        }
+      }
+
+      setRowActive(canvasIndex);
+      active.index = canvasIndex;
+    } else if (active.capturing && !canvasIsLocal) {
+      let rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
+      let index = -1;
+
+      for (let k = 0, n = rows.length; k < n; k += 1) {
+        if (
+          parseInt(rows[k].dataset.canvasIndex, 10) === canvasIndex &&
+          rows[k].dataset.frameUUID === activeFrameUUID
+        ) {
+          index = k;
+        }
+      }
+
+      setRowActive(index);
+      active.index = index;
+    }
   }
 }
 
 function observeCanvasMutations(mutations) {
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  var parent = document.getElementById(LIST_CANVASES_ID);
-  var rows = Array.from(parent.querySelectorAll(".list_canvases_row"));
+  var rows = Array.from(listCanvases.querySelectorAll(".list_canvases_row"));
   mutations = mutations.filter((el) => el.type === "attributes");
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
@@ -349,18 +476,15 @@ function handleDisable(notify) {
 
   freeObjectURLs();
   displayed = false;
-  port.postMessage({
-    "command": MessageCommands.NOTIFY,
-    "tabId": tabId,
-    "frameId": frameId,
-    "notification": notify
-  });
+  showNotification(notify);
   port.postMessage({
     "command": MessageCommands.DISCONNECT,
     "tabId": tabId,
     "frameId": frameId,
     "frameUUID": TOP_FRAME_UUID
   });
+
+  listCanvases = null;
 }
 
 function handleDisplay(msg) {
@@ -442,6 +566,7 @@ function setupDisplay(html) {
   document.body.appendChild(wrapper);
   wrapper.outerHTML = html;
   wrapper = document.getElementById(WRAPPER_ID);
+  listCanvases = document.getElementById(LIST_CANVASES_ID);
 
   positionWrapper();
   setupWrapperEvents();
@@ -493,20 +618,15 @@ function getAllCanvases() {
 }
 
 function updateCanvases() {
-  var parent = document.getElementById(LIST_CANVASES_ID);
   var docFrag = document.createDocumentFragment();
-  var headerKeys = ["id", "width", "height"];
-  var oldRows = Array.from(parent.querySelectorAll(".list_canvases_row"));
+  var attrKeys = ["id", "width", "height"];
+  var oldRows = Array.from(listCanvases.querySelectorAll(".list_canvases_row"));
   var canvases = getAllCanvases();
-  var canvasObsOps = {
-    "attributes": true,
-    "attributeFilter": ["id", "width", "height"]
-  };
 
   oldRows.forEach((row) => row.parentElement.removeChild(row));
   canvases.forEach(function(canvas) {
     if (canvas.local) {
-      canvasMutObs.observe(canvas.element, canvasObsOps);
+      canvasMutObs.observe(canvas.element, CANVAS_OBSERVER_OPS);
     }
   });
 
@@ -514,7 +634,7 @@ function updateCanvases() {
     let row = document.createElement("span");
     let canvasIsLocal = true;
     let canvas = canvases[k];
-    for (let iK = 0; iK < headerKeys.length; iK += 1) {
+    for (let iK = 0; iK < attrKeys.length; iK += 1) {
       if (canvas.local) {
         canvasIsLocal = true;
         row.classList.add("local_canvas");
@@ -523,10 +643,10 @@ function updateCanvases() {
         row.classList.add("remote_canvas");
       }
       let col = document.createElement("span");
-      col.textContent = canvas[headerKeys[iK]];
+      col.textContent = canvas[attrKeys[iK]];
       col.classList.add("middle_centered");
-      col.classList.add(`list_canvases_canvas_${headerKeys[iK]}`);
-      if (headerKeys[iK] === "id") {
+      col.classList.add(`list_canvases_canvas_${attrKeys[iK]}`);
+      if (attrKeys[iK] === "id") {
         col.title = canvas.id;
       }
       row.appendChild(col);
@@ -581,7 +701,7 @@ function updateCanvases() {
     docFrag.appendChild(row);
   }
 
-  parent.appendChild(docFrag);
+  listCanvases.appendChild(docFrag);
 }
 
 function highlightCanvas(evt) {
@@ -594,7 +714,8 @@ function highlightCanvas(evt) {
   highlighter.current = el;
 
   if (JSON.parse(el.dataset.canvasIsLocal)) {
-    let rect = frames[TOP_FRAME_UUID].canvases[el.dataset.index].getBoundingClientRect();
+    let canvas = frames[TOP_FRAME_UUID].canvases[el.dataset.index];
+    let rect = canvas.getBoundingClientRect();
 
     handleMessageHighlight({
       "frameUUID": TOP_FRAME_UUID,
@@ -607,7 +728,8 @@ function highlightCanvas(evt) {
         "bottom": 0,
         "x": 0,
         "y": 0
-      }
+      },
+      "canCapture": canCaptureStream(canvas)
     }, frames[TOP_FRAME_UUID].canvases[el.dataset.index]);
   } else {
     port.postMessage({
@@ -636,30 +758,61 @@ function unhighlightCanvas(evt) {
     }
   }
 
+  el.classList.remove("highlighter_unavailable");
   highlighter.current = null;
 }
 
 function onToggleCapture(evt) {
   var button = evt.target;
-  activeFrameId = button.dataset.frameUUID;
-  activeIndex = button.dataset.index;
 
   button.blur();
 
-  if (capturing) {
+  if (active.capturing) {
     preStopCapture();
   } else {
     preStartCapture(button);
   }
 }
 
+function setRowActive(index) {
+  var buttons = Array.from(listCanvases.querySelectorAll("button.canvas_capture_button"));
+  var rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
+  var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
+  var linkRow = null;
+
+  for (let k = 0; k < rows.length; k += 1) {
+    let row = rows[k];
+
+    if (parseInt(row.dataset.index, 10) === index) {
+      row.classList.add("canvas_capture_selected");
+      linkRow = row;
+    } else {
+      row.classList.add("canvas_capture_inactive");
+    }
+  }
+
+  for (let k = 0; k < buttons.length; k += 1) {
+    let button = buttons[k];
+
+    if (k === index) {
+      button.textContent = "Stop";
+    } else {
+      button.removeEventListener("click", onToggleCapture);
+    }
+  }
+
+  linkCol.classList.add("capturing");
+  linkRow.scrollIntoView({"block": "center", "behavior": "smooth", "inline": "center"});
+}
+
 function preStartCapture(button) {
-  var parent = document.getElementById(LIST_CANVASES_ID);
-  var buttons = Array.from(parent.querySelectorAll("button.canvas_capture_button"));
-  var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
+  var rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
   var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
-  var index = activeIndex;
-  var canvas = frames[activeFrameId].canvases[index];
+  active.index = button.dataset.index;
+  active.frameUUID = button.dataset.frameUUID;
+  var index = active.index;
+  var frame = frames[active.frameUUID];
+  var canvas = canvasIsLocal ? frame.canvases[index] : frame.canvases[button.dataset.canvasIndex];
   var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
   linkCol.textContent = "";
 
@@ -667,25 +820,7 @@ function preStartCapture(button) {
     return;
   }
 
-  for (let k = 0; k < rows.length; k += 1) {
-    let ro = rows[k];
-
-    if (ro.dataset.index === index) {
-      ro.classList.add("canvas_capture_selected");
-    } else {
-      ro.classList.add("canvas_capture_inactive");
-    }
-  }
-
-  for (let k = 0; k < buttons.length; k += 1) {
-    let but = buttons[k];
-
-    if (but === button) {
-      but.textContent = "Stop";
-    } else {
-      but.removeEventListener("click", onToggleCapture);
-    }
-  }
+  setRowActive(parseInt(index, 10));
 
   var fpsInput = document.getElementById(button.dataset.fpsInput);
   var fps = parseFloat(fpsInput.value);
@@ -696,8 +831,8 @@ function preStartCapture(button) {
 
   if (canvasIsLocal) {
     let ret = startCapture(canvas, fps, bps);
-    if (ret) {
-      linkCol.classList.add("capturing");
+    if (!ret) {
+      linkCol.classList.remove("capturing");
     }
   } else {
     port.postMessage({
@@ -710,6 +845,7 @@ function preStartCapture(button) {
       "fps": fps,
       "bps": bps
     });
+    active.canvas = canvas;
   }
 }
 
@@ -738,18 +874,17 @@ function startCapture(canvas, fps, bps) {
   mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
   mediaRecorder.addEventListener("stop", stopCapture, false);
   mediaRecorder.start(CAPTURE_INTERVAL);
-  capturing = true;
+  active.capturing = true;
+  active.canvas = canvas;
+  active.startTS = Date.now();
 
   return true;
 }
 
-function preStopCapture() {
-  var parent = document.getElementById(LIST_CANVASES_ID);
-  var buttons = Array.from(parent.querySelectorAll("button.canvas_capture_button"));
-  var button = buttons[activeIndex];
-  var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
-  var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
-  var linkCol = rows[activeIndex].querySelector("span.canvas_capture_link_container");
+function clearActiveRows() {
+  var buttons = Array.from(listCanvases.querySelectorAll("button.canvas_capture_button"));
+  var rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
+  var linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
 
   for (let k = 0; k < rows.length; k += 1) {
     let row = rows[k];
@@ -762,9 +897,18 @@ function preStopCapture() {
     but.textContent = "Capture";
   }
 
+  linkCol.classList.remove("capturing");
+}
+
+function preStopCapture() {
+  var buttons = Array.from(listCanvases.querySelectorAll("button.canvas_capture_button"));
+  var button = buttons[active.index];
+  var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
+
+  clearActiveRows();
+
   if (canvasIsLocal) {
     mediaRecorder.stop();
-    linkCol.classList.remove("capturing");
   } else {
     port.postMessage({
       "command": MessageCommands.CAPTURE_STOP,
@@ -778,9 +922,8 @@ function preStopCapture() {
 }
 
 function createVideoURL(blob) {
-  var parent = document.getElementById(LIST_CANVASES_ID);
-  var rows = Array.from(parent.querySelectorAll("span.list_canvases_row"));
-  var row = rows[activeIndex];
+  var rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
+  var row = rows[active.index];
   var col = row.querySelector("span.canvas_capture_link_container");
   var videoURL = "";
   var link = document.createElement("a");
@@ -804,15 +947,18 @@ function createVideoURL(blob) {
 
 function stopCapture() {
   var blob = null;
-  if (chunks.length) {
-    blob = new Blob(chunks, {"type": chunks[0].type});
+  if (active.capturing) {
+    if (chunks.length) {
+      blob = new Blob(chunks, {"type": chunks[0].type});
+    }
+    createVideoURL(blob);
+  } else {
+    showNotification("Canvas was removed while it was being recorded.");
   }
-  createVideoURL(blob);
 
-  capturing = false;
   mediaRecorder = null;
   chunks = null;
-  activeIndex = -1;
+  active.clear();
   numBytes = 0;
 }
 
@@ -840,6 +986,15 @@ function canCaptureStream(canvas) {
   }
 }
 
+function showNotification(notification) {
+  port.postMessage({
+    "command": MessageCommands.NOTIFY,
+    "tabId": tabId,
+    "frameUUID": TOP_FRAME_UUID,
+    "notification": notification
+  });
+}
+
 function freeObjectURLs() {
   for (let k = 0; k < objectURLs.length; k += 1) {
     window.URL.revokeObjectURL(objectURLs[k]);
@@ -860,4 +1015,14 @@ function prettyFileSize(nBytes, useSI) {
 
   return `${nBytes.toFixed(Boolean(index))} ${units[index]}`;
 }
+
+function genUUIDv4() {
+  /* https://stackoverflow.com/a/2117523/1031545 */
+  /* eslint-disable no-bitwise, id-length, no-mixed-operators */
+  return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
+    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+  );
+  /* eslint-enable no-bitwise, id-length, no-mixed-operators */
+}
+
 }());
