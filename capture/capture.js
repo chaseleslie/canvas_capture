@@ -54,8 +54,28 @@ const DEFAULT_BPS = 2500000;
 const CSS_STYLE_ID = "capture_list_container_css";
 const WRAPPER_ID = "capture_list_container";
 const LIST_CANVASES_ID = "list_canvases";
+const MODIFY_TIMER_CONTAINER_ID = "modify_timer_container";
+const MODIFY_TIMER_HOURS_ID = "modify_timer_hours";
+const MODIFY_TIMER_MINUTES_ID = "modify_timer_minutes";
+const MODIFY_TIMER_SECONDS_ID = "modify_timer_seconds";
 const CSS_FILE_PATH = "/capture/capture.css";
 const HTML_FILE_PATH = "/capture/capture.html";
+const HTML_ROW_FILE_PATH = "/capture/capture-row.html";
+
+const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
+const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
+const LIST_CANVASES_CAPTURE_TIMER_IMG = "list_canvases_capture_timer_img";
+const LIST_CANVASES_CANVAS_ID = "list_canvases_canvas_id";
+const LIST_CANVASES_CANVAS_DIMENS = "list_canvases_canvas_dimens";
+const LIST_CANVASES_CANVAS_WIDTH = "list_canvases_canvas_width";
+const LIST_CANVASES_CANVAS_HEIGHT = "list_canvases_canvas_height";
+const LIST_CANVASES_CAPTURE_FPS_CLASS = "list_canvases_capture_fps";
+const LIST_CANVASES_CAPTURE_BPS_CLASS = "list_canvases_capture_bps";
+const CANVAS_CAPTURE_LINK_CONTAINER_CLASS = "canvas_capture_link_container";
+const CANVAS_CAPTURE_SELECTED_CLASS = "canvas_capture_selected";
+const CANVAS_CAPTURE_INACTIVE_CLASS = "canvas_capture_inactive";
+
+var rowTemplate = null;
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
 var displayed = false;
 var mediaRecorder = null;
@@ -65,12 +85,14 @@ const active = Object.seal({
   "frameUUID": "",
   "canvas": null,
   "startTS": 0,
+  "updateTS": 0,
   "clear": function() {
     this.capturing = false;
     this.index = -1;
     this.frameUUID = "";
     this.canvas = null;
     this.startTS = 0;
+    this.updateTS = 0;
   }
 });
 var listCanvases = null;
@@ -164,9 +186,9 @@ function onMessage(msg) {
 }
 
 function handleMessageCaptureStart(msg) {
-  let rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
+  let rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   if (msg.success) {
-    let linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
+    let linkCol = rows[active.index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
     linkCol.classList.add("capturing");
     active.capturing = true;
     active.startTS = Date.now();
@@ -174,12 +196,12 @@ function handleMessageCaptureStart(msg) {
     for (let k = 0, n = rows.length; k < n; k += 1) {
       let row = rows[k];
       let button = row.querySelector("button");
-      let linkCol = row.querySelector("span.canvas_capture_link_container");
+      let linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
       button.textContent = "Capture";
       button.addEventListener("click", onToggleCapture, false);
       linkCol.classList.remove("capturing");
-      row.classList.remove("canvas_capture_selected");
-      row.classList.remove("canvas_capture_inactive");
+      row.classList.remove(CANVAS_CAPTURE_SELECTED_CLASS);
+      row.classList.remove(CANVAS_CAPTURE_INACTIVE_CLASS);
     }
 
     active.clear();
@@ -187,8 +209,8 @@ function handleMessageCaptureStart(msg) {
 }
 
 function handleMessageCaptureStop(msg) {
-  var rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
-  var linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
+  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  var linkCol = rows[active.index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
 
   active.clear();
 
@@ -282,7 +304,7 @@ function handleMessageHighlight(msg, node) {
     highlighter.bottom.style.top = `${bottom}px`;
   }
 
-  if (!msg.canCapture) {
+  if (!msg.canCapture && highlighter.current) {
     highlighter.current.classList.add("highlighter_unavailable");
   }
 }
@@ -312,7 +334,7 @@ function handleMessageUpdateCanvases(msg) {
   var canvasIndex = -1;
   var canvasFrameUUID = frameUUID;
   if (active.capturing) {
-    let row = listCanvases.querySelector(".list_canvases_row.canvas_capture_selected");
+    let row = listCanvases.querySelector(`.${LIST_CANVASES_ROW_CLASS}.${CANVAS_CAPTURE_SELECTED_CLASS}`);
     let canvasIsLocal = active.frameUUID === TOP_FRAME_UUID;
 
     if (canvasIsLocal) {
@@ -334,7 +356,7 @@ function handleMessageUpdateCanvases(msg) {
       setRowActive(canvasIndex);
     } else {
       let row = null;
-      let rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
+      let rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
       let frameRows = rows.filter((el) => el.dataset.frameUUID === canvasFrameUUID);
       row = frameRows[canvasIndex];
       for (let k = 0, n = rows.length; k < n; k += 1) {
@@ -391,7 +413,7 @@ function observeBodyMutations(mutations) {
     let canvases = Array.from(document.body.querySelectorAll("canvas"));
 
     if (active.capturing) {
-      row = listCanvases.querySelector(".list_canvases_row.canvas_capture_selected");
+      row = listCanvases.querySelector(`.${LIST_CANVASES_ROW_CLASS}.${CANVAS_CAPTURE_SELECTED_CLASS}`);
       canvasIsLocal = JSON.parse(row.dataset.canvasIsLocal);
       if (!canvasIsLocal) {
         canvasIndex = parseInt(row.dataset.canvasIndex, 10);
@@ -413,7 +435,7 @@ function observeBodyMutations(mutations) {
       setRowActive(canvasIndex);
       active.index = canvasIndex;
     } else if (active.capturing && !canvasIsLocal) {
-      let rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
+      let rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
       let index = -1;
 
       for (let k = 0, n = rows.length; k < n; k += 1) {
@@ -433,7 +455,7 @@ function observeBodyMutations(mutations) {
 
 function observeCanvasMutations(mutations) {
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  var rows = Array.from(listCanvases.querySelectorAll(".list_canvases_row"));
+  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   mutations = mutations.filter((el) => el.type === "attributes");
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
@@ -443,9 +465,9 @@ function observeCanvasMutations(mutations) {
     canvases.forEach((el, index) => el === canvas && (canvasIndex = index));
     if (canvasIndex >= 0) {
       let row = rows[canvasIndex];
-      let colId = row.querySelector(".list_canvases_canvas_id");
-      let colWidth = row.querySelector(".list_canvases_canvas_width");
-      let colHeight = row.querySelector(".list_canvases_canvas_height");
+      let colId = row.querySelector(`.${LIST_CANVASES_CANVAS_ID}`);
+      let colWidth = row.querySelector(`.${LIST_CANVASES_CANVAS_WIDTH}`);
+      let colHeight = row.querySelector(`.${LIST_CANVASES_CANVAS_HEIGHT}`);
       colId.textContent = canvas.id;
       colWidth.textContent = canvas.width;
       colHeight.textContent = canvas.height;
@@ -493,7 +515,20 @@ function handleDisplay(msg) {
   try {
     var cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
     var htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
-    fetch(cssUrl).then(function(response) {
+    var htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
+
+    fetch(htmlRowUrl).then(function(response) {
+      if (response.ok) {
+        return response.text();
+      }
+      throw new Error(`Received ${response.status} ${response.statusText} fetching ${response.url}`);
+    }).then(function(text) {
+      rowTemplate = document.createElement("template");
+      rowTemplate.innerHTML = text;
+      rowTemplate = rowTemplate.content.firstElementChild;
+
+      return fetch(cssUrl);
+    }).then(function(response) {
       if (response.ok) {
         return response.text();
       }
@@ -521,14 +556,15 @@ function handleDisplay(msg) {
     handleDisable(e.message);
   }
 
-  for (let prop in highlighter) {
-    if (Object.prototype.hasOwnProperty.call(highlighter, prop) && prop !== "current") {
-      highlighter[prop] = document.createElement("div");
-      highlighter[prop].textContent = " ";
-      highlighter[prop].classList.add("hidden");
-      document.body.appendChild(highlighter[prop]);
+  for (let key of Object.keys(highlighter)) {
+    if (key !== "current") {
+      highlighter[key] = document.createElement("div");
+      highlighter[key].textContent = " ";
+      highlighter[key].classList.add("hidden");
+      document.body.appendChild(highlighter[key]);
     }
   }
+
   highlighter.left.classList.add("highlighter_vertical");
   highlighter.top.classList.add("highlighter_horizontal");
   highlighter.right.classList.add("highlighter_vertical");
@@ -544,13 +580,13 @@ function positionWrapper() {
 
 function setupWrapperEvents() {
   var wrapper = document.getElementById(WRAPPER_ID);
-  wrapper.addEventListener("mouseenter", () => {
+  wrapper.addEventListener("mouseenter", function() {
     wrapperMouseHover = true;
   }, false);
-  wrapper.addEventListener("mouseleave", () => {
+  wrapper.addEventListener("mouseleave", function() {
     wrapperMouseHover = false;
   }, false);
-  window.addEventListener("wheel", (evt) => {
+  window.addEventListener("wheel", function(evt) {
     if (wrapperMouseHover) {
       evt.stopPropagation();
 
@@ -562,11 +598,18 @@ function setupWrapperEvents() {
 }
 
 function setupDisplay(html) {
-  var wrapper = document.createElement("div");
-  document.body.appendChild(wrapper);
-  wrapper.outerHTML = html;
+  var modifyTimerSet = null;
+  var modifyTimerClear = null;
+  var wrapper = document.createElement("template");
+  wrapper.innerHTML = html;
+  document.body.appendChild(wrapper.content);
   wrapper = document.getElementById(WRAPPER_ID);
   listCanvases = document.getElementById(LIST_CANVASES_ID);
+
+  modifyTimerSet = document.getElementById("modify_timer_set");
+  modifyTimerClear = document.getElementById("modify_timer_clear");
+  modifyTimerSet.addEventListener("click", handleRowSetTimer, false);
+  modifyTimerClear.addEventListener("click", handleRowClearTimer, false);
 
   positionWrapper();
   setupWrapperEvents();
@@ -619,9 +662,9 @@ function getAllCanvases() {
 
 function updateCanvases() {
   var docFrag = document.createDocumentFragment();
-  var attrKeys = ["id", "width", "height"];
-  var oldRows = Array.from(listCanvases.querySelectorAll(".list_canvases_row"));
+  var oldRows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var canvases = getAllCanvases();
+  var addTimerImgUrl = browser.runtime.getURL("/capture/img/icon_add_32.svg");
 
   oldRows.forEach((row) => row.parentElement.removeChild(row));
   canvases.forEach(function(canvas) {
@@ -630,68 +673,28 @@ function updateCanvases() {
     }
   });
 
-  for (let k = 0; k < canvases.length; k += 1) {
-    let row = document.createElement("span");
-    let canvasIsLocal = true;
+  listCanvases.appendChild(docFrag);
+
+  for (let k = 0, n = canvases.length; k < n; k += 1) {
+    let row = rowTemplate.cloneNode(true);
     let canvas = canvases[k];
-    for (let iK = 0; iK < attrKeys.length; iK += 1) {
-      if (canvas.local) {
-        canvasIsLocal = true;
-        row.classList.add("local_canvas");
-      } else {
-        canvasIsLocal = false;
-        row.classList.add("remote_canvas");
-      }
-      let col = document.createElement("span");
-      col.textContent = canvas[attrKeys[iK]];
-      col.classList.add("middle_centered");
-      col.classList.add(`list_canvases_canvas_${attrKeys[iK]}`);
-      if (attrKeys[iK] === "id") {
-        col.title = canvas.id;
-      }
-      row.appendChild(col);
-    }
-    let col = document.createElement("span");
-    let fpsInput = document.createElement("input");
-    fpsInput.id = `fps${k}`;
-    fpsInput.type = "text";
-    fpsInput.value = DEFAULT_FPS;
-    fpsInput.size = 3;
-    col.appendChild(fpsInput);
-    col.classList.add("middle_centered");
-    row.appendChild(col);
+    let canvasIsLocal = canvas.local;
 
-    col = document.createElement("span");
-    let bpsInput = document.createElement("input");
-    bpsInput.id = `bps${k}`;
-    bpsInput.type = "text";
-    bpsInput.value = DEFAULT_BPS;
-    bpsInput.size = 8;
-    col.appendChild(bpsInput);
-    col.classList.add("middle_centered");
-    row.appendChild(col);
+    row.querySelector(`.${LIST_CANVASES_CANVAS_ID}`).textContent = canvas.id;
+    row.querySelector(`.${LIST_CANVASES_CANVAS_DIMENS}`).textContent = `${canvas.width}x${canvas.height}`;
+    let addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`);
+    addTimerImg.src = addTimerImgUrl;
+    addTimerImg.addEventListener("click", handleRowTimerModify, false);
+    row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`).value = DEFAULT_FPS;
+    row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`).value = DEFAULT_BPS;
 
-    col = document.createElement("span");
-    let button = document.createElement("button");
+    let button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
     button.dataset.index = k;
-    button.textContent = "Capture";
-    button.dataset.fpsInput = fpsInput.id;
-    button.dataset.bpsInput = bpsInput.id;
     button.dataset.canvasIsLocal = canvasIsLocal;
     button.dataset.frameUUID = canvas.frameUUID;
     button.dataset.canvasIndex = canvas.index;
     button.addEventListener("click", onToggleCapture, false);
-    button.classList.add("canvas_capture_button");
-    col.appendChild(button);
-    col.classList.add("middle_centered");
-    row.appendChild(col);
 
-    col = document.createElement("span");
-    col.classList.add("canvas_capture_link_container");
-    col.classList.add("middle_centered");
-    row.appendChild(col);
-
-    row.classList.add("list_canvases_row");
     row.dataset.index = k;
     row.dataset.canvasIsLocal = canvasIsLocal;
     row.dataset.frameUUID = canvas.frameUUID;
@@ -702,6 +705,91 @@ function updateCanvases() {
   }
 
   listCanvases.appendChild(docFrag);
+  active.updateTS = Date.now();
+}
+
+function handleRowTimerModify(evt) {
+  var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+  var img = evt.target;
+  var hasTimer = "hasTimer" in img.dataset && JSON.parse(img.dataset.hasTimer);
+  var hoursInput = document.getElementById(MODIFY_TIMER_HOURS_ID);
+  var minutesInput = document.getElementById(MODIFY_TIMER_MINUTES_ID);
+  var secondsInput = document.getElementById(MODIFY_TIMER_SECONDS_ID);
+
+  img.dataset.ts = Date.now();
+  img.classList.add("timer_modifying");
+
+  if (hasTimer) {
+    let secs = parseInt(img.dataset.timerSeconds, 10) || 0;
+    let {hours, minutes, seconds} = secondsToHMS(secs);
+    hoursInput.value = hours;
+    minutesInput.value = minutes;
+    secondsInput.value = seconds;
+  } else {
+    hoursInput.value = 0;
+    minutesInput.value = 0;
+    secondsInput.value = 0;
+  }
+
+  container.classList.remove("hidden");
+  var containerRect = container.getBoundingClientRect();
+  container.style.left = `${evt.clientX - parseInt(0.5 * containerRect.width, 10)}px`;
+  container.style.top = `${evt.clientY - containerRect.height - 20}px`;
+}
+
+function handleRowTimerModifyClose(img) {
+  var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+  var hasTimer = img && ("hasTimer" in img.dataset) && JSON.parse(img.dataset.hasTimer);
+  const addImgUrl = browser.runtime.getURL("/capture/img/icon_add_32.svg");
+  const timerImgUrl = browser.runtime.getURL("/capture/img/icon_timer_32.svg");
+
+  if (img) {
+    if (hasTimer) {
+      img.src = timerImgUrl;
+      img.title = "Modify timer";
+    } else {
+      img.src = addImgUrl;
+      img.title = "Add a timer";
+    }
+  }
+
+  container.classList.add("hidden");
+}
+
+function handleRowSetTimer() {
+  var img = listCanvases.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}.timer_modifying`);
+  var ts = (img && parseInt(img.dataset.ts, 10)) || 0;
+
+  if (ts < active.updateTS) {
+    handleRowTimerModifyClose(img);
+    return;
+  }
+
+  var hoursInput = document.getElementById(MODIFY_TIMER_HOURS_ID);
+  var minutesInput = document.getElementById(MODIFY_TIMER_MINUTES_ID);
+  var secondsInput = document.getElementById(MODIFY_TIMER_SECONDS_ID);
+  var hours = parseInt(hoursInput.value, 10) || 0;
+  var minutes = parseInt(minutesInput.value, 10) || 0;
+  var seconds = parseInt(secondsInput.value, 10) || 0;
+  var totalSecs = hmsToSeconds({hours, minutes, seconds});
+
+  img.dataset.hasTimer = Boolean(totalSecs);
+  img.dataset.timerSeconds = totalSecs;
+  handleRowTimerModifyClose(img);
+}
+
+function handleRowClearTimer() {
+  var img = listCanvases.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}.timer_modifying`);
+  var ts = (img && parseInt(img.dataset.ts, 10)) || 0;
+
+  if (ts < active.updateTS) {
+    handleRowTimerModifyClose(img);
+    return;
+  }
+
+  img.dataset.hasTimer = false;
+  img.dataset.timerSeconds = 0;
+  handleRowTimerModifyClose(img);
 }
 
 function highlightCanvas(evt) {
@@ -775,19 +863,19 @@ function onToggleCapture(evt) {
 }
 
 function setRowActive(index) {
-  var buttons = Array.from(listCanvases.querySelectorAll("button.canvas_capture_button"));
-  var rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
-  var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
+  var buttons = Array.from(listCanvases.querySelectorAll(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`));
+  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  var linkCol = rows[index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
   var linkRow = null;
 
   for (let k = 0; k < rows.length; k += 1) {
     let row = rows[k];
 
     if (parseInt(row.dataset.index, 10) === index) {
-      row.classList.add("canvas_capture_selected");
+      row.classList.add(CANVAS_CAPTURE_SELECTED_CLASS);
       linkRow = row;
     } else {
-      row.classList.add("canvas_capture_inactive");
+      row.classList.add(CANVAS_CAPTURE_INACTIVE_CLASS);
     }
   }
 
@@ -806,14 +894,15 @@ function setRowActive(index) {
 }
 
 function preStartCapture(button) {
-  var rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
+  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
   active.index = button.dataset.index;
   active.frameUUID = button.dataset.frameUUID;
   var index = active.index;
-  var frame = frames[active.frameUUID];
-  var canvas = canvasIsLocal ? frame.canvases[index] : frame.canvases[button.dataset.canvasIndex];
-  var linkCol = rows[index].querySelector("span.canvas_capture_link_container");
+  var row = rows[index];
+  var canvases = frames[active.frameUUID].canvases;
+  var canvas = canvasIsLocal ? canvases[index] : canvases[button.dataset.canvasIndex];
+  var linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
   linkCol.textContent = "";
 
   if (canvasIsLocal && !canCaptureStream(canvas)) {
@@ -822,10 +911,10 @@ function preStartCapture(button) {
 
   setRowActive(parseInt(index, 10));
 
-  var fpsInput = document.getElementById(button.dataset.fpsInput);
+  var fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
   var fps = parseFloat(fpsInput.value);
   fps = (isFinite(fps) && !isNaN(fps) && fps >= 0) ? fps : 0;
-  var bpsInput = document.getElementById(button.dataset.bpsInput);
+  var bpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`);
   var bps = parseFloat(bpsInput.value);
   bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : DEFAULT_BPS;
 
@@ -882,13 +971,13 @@ function startCapture(canvas, fps, bps) {
 }
 
 function clearActiveRows() {
-  var buttons = Array.from(listCanvases.querySelectorAll("button.canvas_capture_button"));
-  var rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
-  var linkCol = rows[active.index].querySelector("span.canvas_capture_link_container");
+  var buttons = Array.from(listCanvases.querySelectorAll(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`));
+  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  var linkCol = rows[active.index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
 
   for (let k = 0; k < rows.length; k += 1) {
     let row = rows[k];
-    row.classList.remove("canvas_capture_inactive", "canvas_capture_selected");
+    row.classList.remove(CANVAS_CAPTURE_INACTIVE_CLASS, CANVAS_CAPTURE_SELECTED_CLASS);
   }
 
   for (let k = 0; k < buttons.length; k += 1) {
@@ -901,7 +990,7 @@ function clearActiveRows() {
 }
 
 function preStopCapture() {
-  var buttons = Array.from(listCanvases.querySelectorAll("button.canvas_capture_button"));
+  var buttons = Array.from(listCanvases.querySelectorAll(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`));
   var button = buttons[active.index];
   var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
 
@@ -922,9 +1011,9 @@ function preStopCapture() {
 }
 
 function createVideoURL(blob) {
-  var rows = Array.from(listCanvases.querySelectorAll("span.list_canvases_row"));
+  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var row = rows[active.index];
-  var col = row.querySelector("span.canvas_capture_link_container");
+  var col = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
   var videoURL = "";
   var link = document.createElement("a");
   var size = blob ? blob.size : 0;
@@ -1014,6 +1103,28 @@ function prettyFileSize(nBytes, useSI) {
   }
 
   return `${nBytes.toFixed(Boolean(index))} ${units[index]}`;
+}
+
+function hmsToSeconds({hours, minutes, seconds}) {
+  return (hours * 3600) + (minutes * 60) + seconds;
+}
+
+function secondsToHMS(secs) {
+  var hours = parseInt(secs / 3600, 10);
+  var minutes = parseInt((secs - (hours * 3600)) / 60, 10);
+  var seconds = secs - (hours * 3600) - (minutes * 60);
+
+  if (seconds >= 60) {
+    seconds -= (seconds % 60);
+    minutes += 1;
+  }
+
+  if (minutes >= 60) {
+    minutes -= (minutes % 60);
+    hours += 1;
+  }
+
+  return {hours, minutes, seconds};
 }
 
 function genUUIDv4() {

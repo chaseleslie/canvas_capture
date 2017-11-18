@@ -22,7 +22,7 @@
   bottom: 0px;
   display: grid;
   grid-template-rows: 1fr 4fr;
-  z-index: 100000;
+  z-index: 50000;
   overflow-y: hidden;
   border-radius: 10px;
   background-color: #20202E;
@@ -131,7 +131,7 @@
   min-height: 100%;
   max-height: 100%;
   top: 0px;
-  z-index: 10000;
+  z-index: 20000;
   box-sizing: border-box;
   border: 1px dashed #66A;
 }
@@ -142,7 +142,7 @@
   min-width: 100%;
   max-width: 100%;
   left: 0px;
-  z-index: 10000;
+  z-index: 20000;
   box-sizing: border-box;
   border: 1px dashed #66A;
 }
@@ -161,8 +161,54 @@
   justify-content: center;
   position: absolute;
   left: 0px;
-  z-index: 100000;
+  z-index: 1000;
   background-color: #A24;
+}
+
+#modify_timer_container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-row-gap: 5px;
+  width: 25vw;
+  position: fixed;
+  z-index: 60000;
+  background-color: #20202E;
+}
+
+#modify_timer_container, #modify_timer_container span {
+  text-align: center;
+  font-family: sans-serif;
+  font-size: 16px;
+  color: #D8D8FF;
+}
+
+.modify_timer_heading {
+  font-size: 1.25em;
+  font-weight: 700;
+  background-color: #402230;
+}
+
+#modify_timer_container input {
+  font-family: monospace;
+  border: 3px solid #AAA;
+  transition: border-color 0.3s;
+}
+
+#modify_timer_container input:focus {
+  border-color: #66D;
+}
+
+.span_all {
+  grid-column: 1 / -1;
+}
+
+.list_canvases_capture_timer_img {
+  height: 1.5em;
+  width: 1.5em;
+}
+
+.list_canvases_capture_timer_img:active {
+  opacity: 0.85;
 }
 
 @keyframes cc_spinner {
