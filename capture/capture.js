@@ -485,6 +485,11 @@ function handleDisable(notify) {
     wrapper.parentElement.removeChild(wrapper);
   }
 
+  var modifyTimer = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+  if (modifyTimer) {
+    modifyTimer.parentElement.removeChild(modifyTimer);
+  }
+
   var style = document.getElementById(CSS_STYLE_ID);
   if (style) {
     style.parentElement.removeChild(style);
@@ -684,7 +689,6 @@ function updateCanvases() {
     row.querySelector(`.${LIST_CANVASES_CANVAS_DIMENS}`).textContent = `${canvas.width}x${canvas.height}`;
     let addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`);
     addTimerImg.src = addTimerImgUrl;
-    addTimerImg.addEventListener("click", handleRowTimerModify, false);
     row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`).value = DEFAULT_FPS;
     row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`).value = DEFAULT_BPS;
 
@@ -693,14 +697,12 @@ function updateCanvases() {
     button.dataset.canvasIsLocal = canvasIsLocal;
     button.dataset.frameUUID = canvas.frameUUID;
     button.dataset.canvasIndex = canvas.index;
-    button.addEventListener("click", onToggleCapture, false);
 
     row.dataset.index = k;
     row.dataset.canvasIsLocal = canvasIsLocal;
     row.dataset.frameUUID = canvas.frameUUID;
     row.dataset.canvasIndex = canvas.index;
-    row.addEventListener("mouseenter", highlightCanvas, false);
-    row.addEventListener("mouseleave", unhighlightCanvas, false);
+    setRowEventListeners(row);
     docFrag.appendChild(row);
   }
 
@@ -708,9 +710,30 @@ function updateCanvases() {
   active.updateTS = Date.now();
 }
 
+function setRowEventListeners(row) {
+  var addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`);
+  var button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
+  addTimerImg.addEventListener("click", handleRowTimerModify, false);
+  button.addEventListener("click", onToggleCapture, false);
+  row.addEventListener("mouseenter", highlightCanvas, false);
+  row.addEventListener("mouseleave", unhighlightCanvas, false);
+}
+
+function clearRowEventListeners(row) {
+  var addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`);
+  var button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
+  addTimerImg.removeEventListener("click", handleRowTimerModify, false);
+  button.removeEventListener("click", onToggleCapture, false);
+  row.removeEventListener("mouseenter", highlightCanvas, false);
+  row.removeEventListener("mouseleave", unhighlightCanvas, false);
+}
+
 function handleRowTimerModify(evt) {
   var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+  var containerRect = null;
   var img = evt.target;
+  var rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  var row = img.parentElement;
   var hasTimer = "hasTimer" in img.dataset && JSON.parse(img.dataset.hasTimer);
   var hoursInput = document.getElementById(MODIFY_TIMER_HOURS_ID);
   var minutesInput = document.getElementById(MODIFY_TIMER_MINUTES_ID);
@@ -731,17 +754,33 @@ function handleRowTimerModify(evt) {
     secondsInput.value = 0;
   }
 
+  while (row && !row.classList.contains(LIST_CANVASES_ROW_CLASS)) {
+    row = row.parentElement;
+  }
+
+  for (let k = 0, n = rows.length; k < n; k += 1) {
+    let ro = rows[k];
+    if (row === ro) {
+      ro.classList.add(CANVAS_CAPTURE_SELECTED_CLASS);
+    } else {
+      ro.classList.add(CANVAS_CAPTURE_INACTIVE_CLASS);
+    }
+
+    clearRowEventListeners(ro);
+  }
+
   container.classList.remove("hidden");
-  var containerRect = container.getBoundingClientRect();
+  containerRect = container.getBoundingClientRect();
   container.style.left = `${evt.clientX - parseInt(0.5 * containerRect.width, 10)}px`;
   container.style.top = `${evt.clientY - containerRect.height - 20}px`;
 }
 
 function handleRowTimerModifyClose(img) {
-  var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
-  var hasTimer = img && ("hasTimer" in img.dataset) && JSON.parse(img.dataset.hasTimer);
   const addImgUrl = browser.runtime.getURL("/capture/img/icon_add_32.svg");
   const timerImgUrl = browser.runtime.getURL("/capture/img/icon_timer_32.svg");
+  var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+  var hasTimer = img && ("hasTimer" in img.dataset) && JSON.parse(img.dataset.hasTimer);
+  var rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
 
   if (img) {
     if (hasTimer) {
@@ -751,6 +790,12 @@ function handleRowTimerModifyClose(img) {
       img.src = addImgUrl;
       img.title = "Add a timer";
     }
+  }
+
+  for (let k = 0, n = rows.length; k < n; k += 1) {
+    let row = rows[k];
+    row.classList.remove(CANVAS_CAPTURE_SELECTED_CLASS, CANVAS_CAPTURE_INACTIVE_CLASS);
+    setRowEventListeners(row);
   }
 
   container.classList.add("hidden");
