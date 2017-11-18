@@ -169,8 +169,12 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-row-gap: 5px;
+  grid-column-gap: 5px;
   width: 25vw;
   position: fixed;
+  padding: 10px;
+  border-radius: 10px;
+  border: 10px solid #7878FF;
   z-index: 60000;
   background-color: #282837;
 }

@@ -710,22 +710,44 @@ function updateCanvases() {
   active.updateTS = Date.now();
 }
 
-function setRowEventListeners(row) {
-  var addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`);
-  var button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
-  addTimerImg.addEventListener("click", handleRowTimerModify, false);
-  button.addEventListener("click", onToggleCapture, false);
-  row.addEventListener("mouseenter", highlightCanvas, false);
-  row.addEventListener("mouseleave", unhighlightCanvas, false);
+function setRowEventListeners(
+  ro,
+  {row = true, img = true, button = true} = {"row": true, "img": true, "button": true}
+) {
+  if (img) {
+    ro.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`)
+      .addEventListener("click", handleRowTimerModify, false);
+  }
+
+  if (row) {
+    ro.addEventListener("mouseenter", highlightCanvas, false);
+    ro.addEventListener("mouseleave", unhighlightCanvas, false);
+  }
+
+  if (button) {
+    ro.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`)
+      .addEventListener("click", onToggleCapture, false);
+  }
 }
 
-function clearRowEventListeners(row) {
-  var addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`);
-  var button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
-  addTimerImg.removeEventListener("click", handleRowTimerModify, false);
-  button.removeEventListener("click", onToggleCapture, false);
-  row.removeEventListener("mouseenter", highlightCanvas, false);
-  row.removeEventListener("mouseleave", unhighlightCanvas, false);
+function clearRowEventListeners(
+  ro,
+  {row = true, img = true, button = true} = {"row": true, "img": true, "button": true}
+) {
+  if (img) {
+    ro.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`)
+      .removeEventListener("click", handleRowTimerModify, false);
+  }
+
+  if (row) {
+    ro.removeEventListener("mouseenter", highlightCanvas, false);
+    ro.removeEventListener("mouseleave", unhighlightCanvas, false);
+  }
+
+  if (button) {
+    ro.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`)
+      .removeEventListener("click", onToggleCapture, false);
+  }
 }
 
 function handleRowTimerModify(evt) {
@@ -908,7 +930,6 @@ function onToggleCapture(evt) {
 }
 
 function setRowActive(index) {
-  var buttons = Array.from(listCanvases.querySelectorAll(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`));
   var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var linkCol = rows[index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
   var linkRow = null;
@@ -918,24 +939,31 @@ function setRowActive(index) {
 
     if (parseInt(row.dataset.index, 10) === index) {
       row.classList.add(CANVAS_CAPTURE_SELECTED_CLASS);
+      clearRowEventListeners(row, {"button": false});
+      document.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`).textContent = "Stop";
       linkRow = row;
     } else {
       row.classList.add(CANVAS_CAPTURE_INACTIVE_CLASS);
-    }
-  }
-
-  for (let k = 0; k < buttons.length; k += 1) {
-    let button = buttons[k];
-
-    if (k === index) {
-      button.textContent = "Stop";
-    } else {
-      button.removeEventListener("click", onToggleCapture);
+      clearRowEventListeners(row);
     }
   }
 
   linkCol.classList.add("capturing");
   linkRow.scrollIntoView({"block": "center", "behavior": "smooth", "inline": "center"});
+}
+
+function clearActiveRows() {
+  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  var linkCol = rows[active.index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
+
+  for (let k = 0; k < rows.length; k += 1) {
+    let row = rows[k];
+    row.classList.remove(CANVAS_CAPTURE_INACTIVE_CLASS, CANVAS_CAPTURE_SELECTED_CLASS);
+    setRowEventListeners(row);
+    row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`).textContent = "Capture";
+  }
+
+  linkCol.classList.remove("capturing");
 }
 
 function preStartCapture(button) {
@@ -1013,25 +1041,6 @@ function startCapture(canvas, fps, bps) {
   active.startTS = Date.now();
 
   return true;
-}
-
-function clearActiveRows() {
-  var buttons = Array.from(listCanvases.querySelectorAll(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`));
-  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  var linkCol = rows[active.index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
-
-  for (let k = 0; k < rows.length; k += 1) {
-    let row = rows[k];
-    row.classList.remove(CANVAS_CAPTURE_INACTIVE_CLASS, CANVAS_CAPTURE_SELECTED_CLASS);
-  }
-
-  for (let k = 0; k < buttons.length; k += 1) {
-    let but = buttons[k];
-    but.addEventListener("click", onToggleCapture, false);
-    but.textContent = "Capture";
-  }
-
-  linkCol.classList.remove("capturing");
 }
 
 function preStopCapture() {
