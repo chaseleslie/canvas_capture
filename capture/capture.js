@@ -54,13 +54,17 @@ const DEFAULT_BPS = 2500000;
 const CSS_STYLE_ID = "capture_list_container_css";
 const WRAPPER_ID = "capture_list_container";
 const LIST_CANVASES_ID = "list_canvases";
+const MODIFY_TIMER_CONTAINER_ID = "modify_timer_container";
+const MODIFY_TIMER_HOURS_ID = "modify_timer_hours";
+const MODIFY_TIMER_MINUTES_ID = "modify_timer_minutes";
+const MODIFY_TIMER_SECONDS_ID = "modify_timer_seconds";
 const CSS_FILE_PATH = "/capture/capture.css";
 const HTML_FILE_PATH = "/capture/capture.html";
 const HTML_ROW_FILE_PATH = "/capture/capture-row.html";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
-const LIST_CANVASES_CANVAS_TIMER = "list_canvases_canvas_timer";
+const LIST_CANVASES_CAPTURE_TIMER_IMG = "list_canvases_capture_timer_img";
 const LIST_CANVASES_CANVAS_ID = "list_canvases_canvas_id";
 const LIST_CANVASES_CANVAS_DIMENS = "list_canvases_canvas_dimens";
 const LIST_CANVASES_CANVAS_WIDTH = "list_canvases_canvas_width";
@@ -81,12 +85,14 @@ const active = Object.seal({
   "frameUUID": "",
   "canvas": null,
   "startTS": 0,
+  "updateTS": 0,
   "clear": function() {
     this.capturing = false;
     this.index = -1;
     this.frameUUID = "";
     this.canvas = null;
     this.startTS = 0;
+    this.updateTS = 0;
   }
 });
 var listCanvases = null;
@@ -592,11 +598,18 @@ function setupWrapperEvents() {
 }
 
 function setupDisplay(html) {
-  var wrapper = document.createElement("div");
-  document.body.appendChild(wrapper);
-  wrapper.outerHTML = html;
+  var modifyTimerSet = null;
+  var modifyTimerClear = null;
+  var wrapper = document.createElement("template");
+  wrapper.innerHTML = html;
+  document.body.appendChild(wrapper.content);
   wrapper = document.getElementById(WRAPPER_ID);
   listCanvases = document.getElementById(LIST_CANVASES_ID);
+
+  modifyTimerSet = document.getElementById("modify_timer_set");
+  modifyTimerClear = document.getElementById("modify_timer_clear");
+  modifyTimerSet.addEventListener("click", handleRowSetTimer, false);
+  modifyTimerClear.addEventListener("click", handleRowClearTimer, false);
 
   positionWrapper();
   setupWrapperEvents();
@@ -651,6 +664,7 @@ function updateCanvases() {
   var docFrag = document.createDocumentFragment();
   var oldRows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var canvases = getAllCanvases();
+  var addTimerImgUrl = browser.runtime.getURL("/capture/img/icon_add_32.svg");
 
   oldRows.forEach((row) => row.parentElement.removeChild(row));
   canvases.forEach(function(canvas) {
@@ -668,6 +682,9 @@ function updateCanvases() {
 
     row.querySelector(`.${LIST_CANVASES_CANVAS_ID}`).textContent = canvas.id;
     row.querySelector(`.${LIST_CANVASES_CANVAS_DIMENS}`).textContent = `${canvas.width}x${canvas.height}`;
+    let addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`);
+    addTimerImg.src = addTimerImgUrl;
+    addTimerImg.addEventListener("click", handleRowTimerModify, false);
     row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`).value = DEFAULT_FPS;
     row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`).value = DEFAULT_BPS;
 
@@ -686,7 +703,93 @@ function updateCanvases() {
     row.addEventListener("mouseleave", unhighlightCanvas, false);
     docFrag.appendChild(row);
   }
+
   listCanvases.appendChild(docFrag);
+  active.updateTS = Date.now();
+}
+
+function handleRowTimerModify(evt) {
+  var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+  var img = evt.target;
+  var hasTimer = "hasTimer" in img.dataset && JSON.parse(img.dataset.hasTimer);
+  var hoursInput = document.getElementById(MODIFY_TIMER_HOURS_ID);
+  var minutesInput = document.getElementById(MODIFY_TIMER_MINUTES_ID);
+  var secondsInput = document.getElementById(MODIFY_TIMER_SECONDS_ID);
+
+  img.dataset.ts = Date.now();
+  img.classList.add("timer_modifying");
+
+  if (hasTimer) {
+    let secs = parseInt(img.dataset.timerSeconds, 10) || 0;
+    let {hours, minutes, seconds} = secondsToHMS(secs);
+    hoursInput.value = hours;
+    minutesInput.value = minutes;
+    secondsInput.value = seconds;
+  } else {
+    hoursInput.value = 0;
+    minutesInput.value = 0;
+    secondsInput.value = 0;
+  }
+
+  container.classList.remove("hidden");
+  var containerRect = container.getBoundingClientRect();
+  container.style.left = `${evt.clientX - parseInt(0.5 * containerRect.width, 10)}px`;
+  container.style.top = `${evt.clientY - containerRect.height - 20}px`;
+}
+
+function handleRowTimerModifyClose(img) {
+  var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+  var hasTimer = img && ("hasTimer" in img.dataset) && JSON.parse(img.dataset.hasTimer);
+  const addImgUrl = browser.runtime.getURL("/capture/img/icon_add_32.svg");
+  const timerImgUrl = browser.runtime.getURL("/capture/img/icon_timer_32.svg");
+
+  if (img) {
+    if (hasTimer) {
+      img.src = timerImgUrl;
+      img.title = "Modify timer";
+    } else {
+      img.src = addImgUrl;
+      img.title = "Add a timer";
+    }
+  }
+
+  container.classList.add("hidden");
+}
+
+function handleRowSetTimer() {
+  var img = listCanvases.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}.timer_modifying`);
+  var ts = (img && parseInt(img.dataset.ts, 10)) || 0;
+
+  if (ts < active.updateTS) {
+    handleRowTimerModifyClose(img);
+    return;
+  }
+
+  var hoursInput = document.getElementById(MODIFY_TIMER_HOURS_ID);
+  var minutesInput = document.getElementById(MODIFY_TIMER_MINUTES_ID);
+  var secondsInput = document.getElementById(MODIFY_TIMER_SECONDS_ID);
+  var hours = parseInt(hoursInput.value, 10) || 0;
+  var minutes = parseInt(minutesInput.value, 10) || 0;
+  var seconds = parseInt(secondsInput.value, 10) || 0;
+  var totalSecs = hmsToSeconds({hours, minutes, seconds});
+
+  img.dataset.hasTimer = Boolean(totalSecs);
+  img.dataset.timerSeconds = totalSecs;
+  handleRowTimerModifyClose(img);
+}
+
+function handleRowClearTimer() {
+  var img = listCanvases.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}.timer_modifying`);
+  var ts = (img && parseInt(img.dataset.ts, 10)) || 0;
+
+  if (ts < active.updateTS) {
+    handleRowTimerModifyClose(img);
+    return;
+  }
+
+  img.dataset.hasTimer = false;
+  img.dataset.timerSeconds = 0;
+  handleRowTimerModifyClose(img);
 }
 
 function highlightCanvas(evt) {
@@ -1000,6 +1103,28 @@ function prettyFileSize(nBytes, useSI) {
   }
 
   return `${nBytes.toFixed(Boolean(index))} ${units[index]}`;
+}
+
+function hmsToSeconds({hours, minutes, seconds}) {
+  return (hours * 3600) + (minutes * 60) + seconds;
+}
+
+function secondsToHMS(secs) {
+  var hours = parseInt(secs / 3600, 10);
+  var minutes = parseInt((secs - (hours * 3600)) / 60, 10);
+  var seconds = secs - (hours * 3600) - (minutes * 60);
+
+  if (seconds >= 60) {
+    seconds -= (seconds % 60);
+    minutes += 1;
+  }
+
+  if (minutes >= 60) {
+    minutes -= (minutes % 60);
+    hours += 1;
+  }
+
+  return {hours, minutes, seconds};
 }
 
 function genUUIDv4() {
