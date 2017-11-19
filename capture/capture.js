@@ -788,7 +788,7 @@ function handleRowTimerModify(evt) {
       ro.classList.add(CANVAS_CAPTURE_INACTIVE_CLASS);
     }
 
-    clearRowEventListeners(ro);
+    clearRowEventListeners(ro, {"row": false});
   }
 
   container.classList.remove("hidden");
