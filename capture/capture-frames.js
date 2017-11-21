@@ -57,6 +57,8 @@ const active = Object.seal({
   "canvas": null,
   "startTS": 0,
   "canvasRemoved": false,
+  "error": false,
+  "errorMessage": "",
   "timer": Object.seal({
     "timerId": -1,
     "canvas": null,
@@ -69,6 +71,8 @@ const active = Object.seal({
     this.canvas = null;
     this.startTS = 0;
     this.canvasRemoved = false;
+    this.error = false;
+    this.errorMessage = "";
     this.timer.timerId = -1;
     this.timer.canvas = null;
     this.timer.secs = 0;
@@ -316,6 +320,7 @@ function startCapture(canvas, fps, bps, timerSeconds) {
 
   mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
   mediaRecorder.addEventListener("stop", stopCapture, false);
+  mediaRecorder.addEventListener("error", preStopCapture, false);
   mediaRecorder.start(CAPTURE_INTERVAL);
   active.capturing = true;
   active.canvas = canvas;
@@ -332,11 +337,18 @@ function startCapture(canvas, fps, bps, timerSeconds) {
   return true;
 }
 
-function preStopCapture() {
-  mediaRecorder.stop();
+function preStopCapture(evt) {
+  if (evt && evt.error) {
+    active.error = true;
+    active.errorMessage = evt.error.message;
+  }
+
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
 }
 
-function stopCapture(evt, success) {
+function stopCapture() {
   var blob = null;
   var videoURL = "";
 
@@ -345,17 +357,13 @@ function stopCapture(evt, success) {
     videoURL = window.URL.createObjectURL(blob);
     objectURLs[active.index] = videoURL;
   }
-  success = (typeof success === "boolean") ? success : true;
+  var success = !active.error;
 
   if (active.canvasRemoved) {
-    port.postMessage({
-      "command": MessageCommands.NOTIFY,
-      "tabId": tabId,
-      "frameId": frameId,
-      "frameUUID": FRAME_UUID,
-      "notification": "Canvas was removed while it was being recorded."
-    });
+    showNotification("Canvas was removed while it was being recorded.");
     success = false;
+  } else if (active.error) {
+    showNotification("An error occured while recording.");
   }
 
   port.postMessage({
@@ -398,6 +406,15 @@ function canCaptureStream(canvas) {
   } catch (e) {
     return false;
   }
+}
+
+function showNotification(notification) {
+  port.postMessage({
+    "command": MessageCommands.NOTIFY,
+    "tabId": tabId,
+    "frameUUID": FRAME_UUID,
+    "notification": notification
+  });
 }
 
 function freeObjectURLs() {
