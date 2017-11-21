@@ -992,7 +992,13 @@ function setRowActive(index) {
   }
 
   linkCol.classList.add("capturing");
-  linkRow.scrollIntoView({"block": "center", "behavior": "smooth", "inline": "center"});
+  try {
+    linkRow.scrollIntoView(
+      {"block": "center", "behavior": "smooth", "inline": "center"}
+    );
+  } catch (e) {
+    linkRow.scrollIntoView({"behavior": "smooth", "inline": "center"});
+  }
 }
 
 function clearActiveRows() {
