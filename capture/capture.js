@@ -624,13 +624,13 @@ function handleKeyEventsOnFocus(evt) {
   evt.stopPropagation();
 }
 
-function handleTimerFocus() {
+function handleInputFocus() {
   window.addEventListener("keypress", handleKeyEventsOnFocus, true);
   window.addEventListener("keydown", handleKeyEventsOnFocus, true);
   window.addEventListener("keyup", handleKeyEventsOnFocus, true);
 }
 
-function handleTimerBlur() {
+function handleInputBlur() {
   window.removeEventListener("keypress", handleKeyEventsOnFocus, true);
   window.removeEventListener("keydown", handleKeyEventsOnFocus, true);
   window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
@@ -655,12 +655,12 @@ function setupDisplay(html) {
   modifyTimerSeconds = document.getElementById(MODIFY_TIMER_SECONDS_ID);
   modifyTimerSet.addEventListener("click", handleRowSetTimer, false);
   modifyTimerClear.addEventListener("click", handleRowClearTimer, false);
-  modifyTimerHours.addEventListener("focus", handleTimerFocus, false);
-  modifyTimerHours.addEventListener("blur", handleTimerBlur, false);
-  modifyTimerMinutes.addEventListener("focus", handleTimerFocus, false);
-  modifyTimerMinutes.addEventListener("blur", handleTimerBlur, false);
-  modifyTimerSeconds.addEventListener("focus", handleTimerFocus, false);
-  modifyTimerSeconds.addEventListener("blur", handleTimerBlur, false);
+  modifyTimerHours.addEventListener("focus", handleInputFocus, false);
+  modifyTimerHours.addEventListener("blur", handleInputBlur, false);
+  modifyTimerMinutes.addEventListener("focus", handleInputFocus, false);
+  modifyTimerMinutes.addEventListener("blur", handleInputBlur, false);
+  modifyTimerSeconds.addEventListener("focus", handleInputFocus, false);
+  modifyTimerSeconds.addEventListener("blur", handleInputBlur, false);
 
   positionWrapper();
   setupWrapperEvents();
@@ -734,8 +734,14 @@ function updateCanvases() {
     let addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`);
     addTimerImg.src = addTimerImgUrl;
     addTimerImg.dataset.hasTimer = false;
-    row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`).value = DEFAULT_FPS;
-    row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`).value = DEFAULT_BPS;
+    let fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
+    fpsInput.value = DEFAULT_FPS;
+    fpsInput.addEventListener("focus", handleInputFocus, false);
+    fpsInput.addEventListener("blur", handleInputBlur, false);
+    let bpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`);
+    bpsInput.value = DEFAULT_BPS;
+    bpsInput.addEventListener("focus", handleInputFocus, false);
+    bpsInput.addEventListener("blur", handleInputBlur, false);
 
     let button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
     button.dataset.index = k;
