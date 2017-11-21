@@ -450,6 +450,8 @@ function observeBodyMutations(mutations) {
         break;
       }
     }
+    setRowActive(canvasIndex);
+    active.index = canvasIndex;
   } else if (active.capturing && !canvasIsLocal) {
     let rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
 
@@ -462,9 +464,9 @@ function observeBodyMutations(mutations) {
         break;
       }
     }
+    setRowActive(canvasIndex);
+    active.index = canvasIndex;
   }
-  setRowActive(canvasIndex);
-  active.index = canvasIndex;
 }
 
 function observeCanvasMutations(mutations) {
