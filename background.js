@@ -267,7 +267,7 @@ function onTabNotify(msg) {
   var notifyOpts = {
     "type": "basic",
     "message": msg.notification,
-    "title": "Capture Canvas",
+    "title": "Canvas Capture",
     "iconUrl": ICON_ACTIVE_PATH_MAP["32"]
   };
 
