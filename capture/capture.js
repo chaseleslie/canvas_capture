@@ -89,6 +89,7 @@ const active = Object.seal({
   "canvas": null,
   "startTS": 0,
   "updateTS": 0,
+  "stopped": false,
   "error": false,
   "errorMessage": "",
   "timer": Object.seal({
@@ -103,6 +104,7 @@ const active = Object.seal({
     this.canvas = null;
     this.startTS = 0;
     this.updateTS = 0;
+    this.stopped = false;
     this.error = false;
     this.errorMessage = "";
     this.timer.timerId = -1;
@@ -1111,6 +1113,8 @@ function preStopCapture(evt) {
   if (evt && evt.error) {
     active.error = true;
     active.errorMessage = evt.error.message;
+  } else {
+    active.stopped = true;
   }
 
   clearActiveRows();
@@ -1157,13 +1161,16 @@ function createVideoURL(blob) {
 
 function stopCapture() {
   var blob = null;
-  if (active.capturing && !active.error) {
+  if (active.capturing && !active.error && active.stopped) {
     if (chunks.length) {
       blob = new Blob(chunks, {"type": chunks[0].type});
     }
     createVideoURL(blob);
   } else if (active.error) {
     showNotification("An error occured while recording.");
+  } else if (!active.stopped) {//eslint-disable-line
+    clearActiveRows();
+    showNotification("Recording unexpectedly stopped, likely due to canvas inactivity.");
   } else {
     showNotification("Canvas was removed while it was being recorded.");
   }

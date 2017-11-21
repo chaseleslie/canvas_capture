@@ -57,6 +57,7 @@ const active = Object.seal({
   "canvas": null,
   "startTS": 0,
   "canvasRemoved": false,
+  "stopped": false,
   "error": false,
   "errorMessage": "",
   "timer": Object.seal({
@@ -71,6 +72,7 @@ const active = Object.seal({
     this.canvas = null;
     this.startTS = 0;
     this.canvasRemoved = false;
+    this.stopped = false;
     this.error = false;
     this.errorMessage = "";
     this.timer.timerId = -1;
@@ -341,6 +343,8 @@ function preStopCapture(evt) {
   if (evt && evt.error) {
     active.error = true;
     active.errorMessage = evt.error.message;
+  } else {
+    active.stopped = true;
   }
 
   if (mediaRecorder && mediaRecorder.state !== "inactive") {
@@ -364,6 +368,8 @@ function stopCapture() {
     success = false;
   } else if (active.error) {
     showNotification("An error occured while recording.");
+  } else if (!active.stopped) {
+    showNotification("Recording unexpectedly stopped, likely due to canvas inactivity.");
   }
 
   port.postMessage({
