@@ -56,7 +56,23 @@ const active = Object.seal({
   "frameUUID": FRAME_UUID,
   "canvas": null,
   "startTS": 0,
-  "canvasRemoved": false
+  "canvasRemoved": false,
+  "timer": Object.seal({
+    "timerId": -1,
+    "canvas": null,
+    "secs": 0
+  }),
+  "clear": function() {
+    this.capturing = false;
+    this.index = -1;
+    this.frameUUID = FRAME_UUID;
+    this.canvas = null;
+    this.startTS = 0;
+    this.canvasRemoved = false;
+    this.timer.timerId = -1;
+    this.timer.canvas = null;
+    this.timer.secs = 0;
+  }
 });
 var chunks = null;
 var frames = {[FRAME_UUID]: {"frameUUID": FRAME_UUID, "canvases": []}};
@@ -266,15 +282,16 @@ function preStartCapture(msg) {
   var canvas = frames[FRAME_UUID].canvases[active.index];
   var fps = msg.fps;
   var bps = msg.bps;
+  var timerSeconds = parseInt(msg.timerSeconds, 10) || 0;
 
   if (!canCaptureStream(canvas)) {
     return false;
   }
 
-  return startCapture(canvas, fps, bps);
+  return startCapture(canvas, fps, bps, timerSeconds);
 }
 
-function startCapture(canvas, fps, bps) {
+function startCapture(canvas, fps, bps, timerSeconds) {
   chunks = [];
   var stream = null;
 
@@ -301,9 +318,16 @@ function startCapture(canvas, fps, bps) {
   mediaRecorder.addEventListener("stop", stopCapture, false);
   mediaRecorder.start(CAPTURE_INTERVAL);
   active.capturing = true;
-  active.startTS = Date.now();
   active.canvas = canvas;
+  active.startTS = Date.now();
   canvas.classList.add("canvas_active_capturing");
+  if (timerSeconds) {
+    active.timer.secs = timerSeconds;
+    active.timer.canvas = canvas;
+    active.timer.timerId = setTimeout(function() {
+      preStopCapture();
+    }, timerSeconds * 1000);
+  }
 
   return true;
 }
@@ -347,11 +371,7 @@ function stopCapture(evt, success) {
     "startTS": active.startTS
   });
 
-  active.capturing = false;
-  active.index = -1;
-  active.canvas = null;
-  active.startTS = 0;
-  active.canvasRemoved = false;
+  active.clear();
   mediaRecorder = null;
   chunks = null;
 }
