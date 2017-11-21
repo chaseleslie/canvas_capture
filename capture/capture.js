@@ -51,24 +51,27 @@ const DEFAULT_MIME_TYPE = "webm";
 const CAPTURE_INTERVAL = 1000;
 const DEFAULT_FPS = 30;
 const DEFAULT_BPS = 2500000;
-const CSS_STYLE_ID = "capture_list_container_css";
-const WRAPPER_ID = "capture_list_container";
-const LIST_CANVASES_ID = "list_canvases";
-const MODIFY_TIMER_CONTAINER_ID = "modify_timer_container";
-const MODIFY_TIMER_HOURS_ID = "modify_timer_hours";
-const MODIFY_TIMER_MINUTES_ID = "modify_timer_minutes";
-const MODIFY_TIMER_SECONDS_ID = "modify_timer_seconds";
 const CSS_FILE_PATH = "/capture/capture.css";
 const HTML_FILE_PATH = "/capture/capture.html";
 const HTML_ROW_FILE_PATH = "/capture/capture-row.html";
 
+const CSS_STYLE_ID = "capture_list_container_css";
+const WRAPPER_ID = "capture_list_container";
+const LIST_CANVASES_ID = "list_canvases";
+const MODIFY_TIMER_CONTAINER_ID = "modify_timer_container";
+const MODIFY_TIMER_SET_ID = "modify_timer_set";
+const MODIFY_TIMER_CLEAR_ID = "modify_timer_clear";
+const MODIFY_TIMER_HOURS_ID = "modify_timer_hours";
+const MODIFY_TIMER_MINUTES_ID = "modify_timer_minutes";
+const MODIFY_TIMER_SECONDS_ID = "modify_timer_seconds";
+
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
 const LIST_CANVASES_CAPTURE_TIMER_IMG = "list_canvases_capture_timer_img";
-const LIST_CANVASES_CANVAS_ID = "list_canvases_canvas_id";
-const LIST_CANVASES_CANVAS_DIMENS = "list_canvases_canvas_dimens";
-const LIST_CANVASES_CANVAS_WIDTH = "list_canvases_canvas_width";
-const LIST_CANVASES_CANVAS_HEIGHT = "list_canvases_canvas_height";
+const LIST_CANVASES_CANVAS_ID_CLASS = "list_canvases_canvas_id";
+const LIST_CANVASES_CANVAS_DIMENS_CLASS = "list_canvases_canvas_dimens";
+const LIST_CANVASES_CANVAS_WIDTH_CLASS = "list_canvases_canvas_width";
+const LIST_CANVASES_CANVAS_HEIGHT_CLASS = "list_canvases_canvas_height";
 const LIST_CANVASES_CAPTURE_FPS_CLASS = "list_canvases_capture_fps";
 const LIST_CANVASES_CAPTURE_BPS_CLASS = "list_canvases_capture_bps";
 const CANVAS_CAPTURE_LINK_CONTAINER_CLASS = "canvas_capture_link_container";
@@ -476,9 +479,9 @@ function observeCanvasMutations(mutations) {
     canvases.forEach((el, index) => el === canvas && (canvasIndex = index));
     if (canvasIndex >= 0) {
       let row = rows[canvasIndex];
-      let colId = row.querySelector(`.${LIST_CANVASES_CANVAS_ID}`);
-      let colWidth = row.querySelector(`.${LIST_CANVASES_CANVAS_WIDTH}`);
-      let colHeight = row.querySelector(`.${LIST_CANVASES_CANVAS_HEIGHT}`);
+      let colId = row.querySelector(`.${LIST_CANVASES_CANVAS_ID_CLASS}`);
+      let colWidth = row.querySelector(`.${LIST_CANVASES_CANVAS_WIDTH_CLASS}`);
+      let colHeight = row.querySelector(`.${LIST_CANVASES_CANVAS_HEIGHT_CLASS}`);
       colId.textContent = canvas.id;
       colWidth.textContent = canvas.width;
       colHeight.textContent = canvas.height;
@@ -613,19 +616,47 @@ function setupWrapperEvents() {
   }, true);
 }
 
+function handleKeyEventsOnFocus(evt) {
+  evt.stopPropagation();
+}
+
+function handleTimerFocus() {
+  window.addEventListener("keypress", handleKeyEventsOnFocus, true);
+  window.addEventListener("keydown", handleKeyEventsOnFocus, true);
+  window.addEventListener("keyup", handleKeyEventsOnFocus, true);
+}
+
+function handleTimerBlur() {
+  window.removeEventListener("keypress", handleKeyEventsOnFocus, true);
+  window.removeEventListener("keydown", handleKeyEventsOnFocus, true);
+  window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
+}
+
 function setupDisplay(html) {
   var modifyTimerSet = null;
   var modifyTimerClear = null;
+  var modifyTimerHours = null;
+  var modifyTimerMinutes = null;
+  var modifyTimerSeconds = null;
   var wrapper = document.createElement("template");
   wrapper.innerHTML = html;
   document.body.appendChild(wrapper.content);
   wrapper = document.getElementById(WRAPPER_ID);
   listCanvases = document.getElementById(LIST_CANVASES_ID);
 
-  modifyTimerSet = document.getElementById("modify_timer_set");
-  modifyTimerClear = document.getElementById("modify_timer_clear");
+  modifyTimerSet = document.getElementById(MODIFY_TIMER_SET_ID);
+  modifyTimerClear = document.getElementById(MODIFY_TIMER_CLEAR_ID);
+  modifyTimerHours = document.getElementById(MODIFY_TIMER_HOURS_ID);
+  modifyTimerMinutes = document.getElementById(MODIFY_TIMER_MINUTES_ID);
+  modifyTimerSeconds = document.getElementById(MODIFY_TIMER_SECONDS_ID);
   modifyTimerSet.addEventListener("click", handleRowSetTimer, false);
   modifyTimerClear.addEventListener("click", handleRowClearTimer, false);
+  modifyTimerHours.addEventListener("focus", handleTimerFocus, false);
+  modifyTimerHours.addEventListener("blur", handleTimerBlur, false);
+  modifyTimerMinutes.addEventListener("focus", handleTimerFocus, false);
+  modifyTimerMinutes.addEventListener("blur", handleTimerBlur, false);
+  modifyTimerSeconds.addEventListener("focus", handleTimerFocus, false);
+  modifyTimerSeconds.addEventListener("blur", handleTimerBlur, false);
 
   positionWrapper();
   setupWrapperEvents();
@@ -694,8 +725,8 @@ function updateCanvases() {
     let canvas = canvases[k];
     let canvasIsLocal = canvas.local;
 
-    row.querySelector(`.${LIST_CANVASES_CANVAS_ID}`).textContent = canvas.id;
-    row.querySelector(`.${LIST_CANVASES_CANVAS_DIMENS}`).textContent = `${canvas.width}x${canvas.height}`;
+    row.querySelector(`.${LIST_CANVASES_CANVAS_ID_CLASS}`).textContent = canvas.id;
+    row.querySelector(`.${LIST_CANVASES_CANVAS_DIMENS_CLASS}`).textContent = `${canvas.width}x${canvas.height}`;
     let addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`);
     addTimerImg.src = addTimerImgUrl;
     addTimerImg.dataset.hasTimer = false;
