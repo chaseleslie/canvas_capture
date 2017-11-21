@@ -56,7 +56,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
   z-index: 100;
-  background-color: #402230;
+  background-color: #372850;
   font-weight: 600;
   cursor: default;
 }
@@ -169,10 +169,14 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-row-gap: 5px;
+  grid-column-gap: 5px;
   width: 25vw;
   position: fixed;
+  padding: 10px;
+  border-radius: 10px;
+  border: 10px solid #7878FF;
   z-index: 60000;
-  background-color: #20202E;
+  background-color: #282837;
 }
 
 #modify_timer_container, #modify_timer_container span {
@@ -182,10 +186,10 @@
   color: #D8D8FF;
 }
 
-.modify_timer_heading {
+#modify_timer_container .modify_timer_heading {
   font-size: 1.25em;
   font-weight: 700;
-  background-color: #402230;
+  background-color: #372850;
 }
 
 #modify_timer_container input {

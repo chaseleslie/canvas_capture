@@ -56,7 +56,29 @@ const active = Object.seal({
   "frameUUID": FRAME_UUID,
   "canvas": null,
   "startTS": 0,
-  "canvasRemoved": false
+  "canvasRemoved": false,
+  "stopped": false,
+  "error": false,
+  "errorMessage": "",
+  "timer": Object.seal({
+    "timerId": -1,
+    "canvas": null,
+    "secs": 0
+  }),
+  "clear": function() {
+    this.capturing = false;
+    this.index = -1;
+    this.frameUUID = FRAME_UUID;
+    this.canvas = null;
+    this.startTS = 0;
+    this.canvasRemoved = false;
+    this.stopped = false;
+    this.error = false;
+    this.errorMessage = "";
+    this.timer.timerId = -1;
+    this.timer.canvas = null;
+    this.timer.secs = 0;
+  }
 });
 var chunks = null;
 var frames = {[FRAME_UUID]: {"frameUUID": FRAME_UUID, "canvases": []}};
@@ -266,15 +288,16 @@ function preStartCapture(msg) {
   var canvas = frames[FRAME_UUID].canvases[active.index];
   var fps = msg.fps;
   var bps = msg.bps;
+  var timerSeconds = parseInt(msg.timerSeconds, 10) || 0;
 
   if (!canCaptureStream(canvas)) {
     return false;
   }
 
-  return startCapture(canvas, fps, bps);
+  return startCapture(canvas, fps, bps, timerSeconds);
 }
 
-function startCapture(canvas, fps, bps) {
+function startCapture(canvas, fps, bps, timerSeconds) {
   chunks = [];
   var stream = null;
 
@@ -299,20 +322,37 @@ function startCapture(canvas, fps, bps) {
 
   mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
   mediaRecorder.addEventListener("stop", stopCapture, false);
+  mediaRecorder.addEventListener("error", preStopCapture, false);
   mediaRecorder.start(CAPTURE_INTERVAL);
   active.capturing = true;
-  active.startTS = Date.now();
   active.canvas = canvas;
+  active.startTS = Date.now();
   canvas.classList.add("canvas_active_capturing");
+  if (timerSeconds) {
+    active.timer.secs = timerSeconds;
+    active.timer.canvas = canvas;
+    active.timer.timerId = setTimeout(function() {
+      preStopCapture();
+    }, timerSeconds * 1000);
+  }
 
   return true;
 }
 
-function preStopCapture() {
-  mediaRecorder.stop();
+function preStopCapture(evt) {
+  if (evt && evt.error) {
+    active.error = true;
+    active.errorMessage = evt.error.message;
+  } else {
+    active.stopped = true;
+  }
+
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
 }
 
-function stopCapture(evt, success) {
+function stopCapture() {
   var blob = null;
   var videoURL = "";
 
@@ -321,17 +361,15 @@ function stopCapture(evt, success) {
     videoURL = window.URL.createObjectURL(blob);
     objectURLs[active.index] = videoURL;
   }
-  success = (typeof success === "boolean") ? success : true;
+  var success = !active.error;
 
   if (active.canvasRemoved) {
-    port.postMessage({
-      "command": MessageCommands.NOTIFY,
-      "tabId": tabId,
-      "frameId": frameId,
-      "frameUUID": FRAME_UUID,
-      "notification": "Canvas was removed while it was being recorded."
-    });
+    showNotification("Canvas was removed while it was being recorded.");
     success = false;
+  } else if (active.error) {
+    showNotification("An error occured while recording.");
+  } else if (!active.stopped) {
+    showNotification("Recording unexpectedly stopped, likely due to canvas inactivity.");
   }
 
   port.postMessage({
@@ -347,11 +385,7 @@ function stopCapture(evt, success) {
     "startTS": active.startTS
   });
 
-  active.capturing = false;
-  active.index = -1;
-  active.canvas = null;
-  active.startTS = 0;
-  active.canvasRemoved = false;
+  active.clear();
   mediaRecorder = null;
   chunks = null;
 }
@@ -378,6 +412,15 @@ function canCaptureStream(canvas) {
   } catch (e) {
     return false;
   }
+}
+
+function showNotification(notification) {
+  port.postMessage({
+    "command": MessageCommands.NOTIFY,
+    "tabId": tabId,
+    "frameUUID": FRAME_UUID,
+    "notification": notification
+  });
 }
 
 function freeObjectURLs() {
