@@ -230,6 +230,10 @@ function observeBodyMutations(mutations) {
   for (let k = 0, n = removedCanvases.length; k < n; k += 1) {
     let node = removedCanvases[k];
     if (active.capturing && node.classList.contains("canvas_active_capturing")) {
+      if (active.timer.timerId >= 0) {
+        clearTimeout(active.timer.timerId);
+        active.timer.timerId = -1;
+      }
       active.canvasRemoved = true;
       preStopCapture();
       break;
