@@ -18,6 +18,8 @@
 
 /* global browser */
 
+const APP_NAME = browser.runtime.getManifest().name;
+
 var activeTabs = {};
 
 const ICON_PATH_MAP = {
@@ -267,7 +269,7 @@ function onTabNotify(msg) {
   var notifyOpts = {
     "type": "basic",
     "message": msg.notification,
-    "title": "Canvas Capture",
+    "title": APP_NAME,
     "iconUrl": ICON_ACTIVE_PATH_MAP["32"]
   };
 
@@ -295,7 +297,7 @@ function onBrowserAction(tab) {
   var tabId = tab.id;
 
   if (tabId in activeTabs) {
-    var topFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === "top");
+    var topFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
     topFrame.port.postMessage({
       "command": MessageCommands.DISABLE,
       "tabId": tabId
