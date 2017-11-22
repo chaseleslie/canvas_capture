@@ -687,6 +687,8 @@ function setupDisplay(html) {
   wrapper = document.getElementById(WRAPPER_ID);
   listCanvases = document.getElementById(LIST_CANVASES_ID);
 
+  window.addEventListener("resize", positionWrapper, false);
+
   modifyTimerSet = document.getElementById(MODIFY_TIMER_SET_ID);
   modifyTimerClear = document.getElementById(MODIFY_TIMER_CLEAR_ID);
   modifyTimerHours = document.getElementById(MODIFY_TIMER_HOURS_ID);
