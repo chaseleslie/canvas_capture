@@ -736,8 +736,8 @@ function getAllCanvases() {
     };
   });
 
-  for (let key in frames) {
-    if (Object.prototype.hasOwnProperty.call(frames, key) && key !== TOP_FRAME_UUID) {
+  for (let key of Object.keys(frames)) {
+    if (key !== TOP_FRAME_UUID) {
       let frameCanvases = frames[key].canvases;
       frameCanvases = frameCanvases.map(function(el, index) {
         var obj = JSON.parse(JSON.stringify(el));
