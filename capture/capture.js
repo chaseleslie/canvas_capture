@@ -393,20 +393,25 @@ function handleMessageUpdateCanvases(msg) {
 
 function observeBodyMutations(mutations) {
   mutations = mutations.filter((el) => el.type === "childList");
-  var addedCanvases = [];
+  var addedCanvases = false;
   var removedCanvases = [];
+  var isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
     let mutation = mutations[k];
-    let added = Array.from(mutation.addedNodes);
-    let removed = Array.from(mutation.removedNodes);
-    added = added.filter((el) => el.nodeName.toLowerCase() === "canvas");
-    removed = removed.filter((el) => el.nodeName.toLowerCase() === "canvas");
-    addedCanvases = addedCanvases.concat(added);
-    removedCanvases = removedCanvases.concat(removed);
+    for (let iK = 0, iN = mutation.addedNodes.length; iK < iN; iK += 1) {
+      if (isCanvas(mutation.addedNodes[iK])) {
+        addedCanvases = true;
+        break;
+      }
+    }
+
+    removedCanvases = removedCanvases.concat(
+      Array.from(mutation.removedNodes).filter(isCanvas)
+    );
   }
 
-  const canvasesChanged = addedCanvases.length || removedCanvases.length;
+  const canvasesChanged = addedCanvases || removedCanvases.length;
 
   if (!canvasesChanged) {
     return;

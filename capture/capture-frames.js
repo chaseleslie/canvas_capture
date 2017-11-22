@@ -201,32 +201,38 @@ function handleMessageHighlight(msg) {
 }
 
 function observeBodyMutations(mutations) {
-  var canvasesChanged = false;
   mutations = mutations.filter((el) => el.type === "childList");
+
+  var addedCanvases = false;
+  var removedCanvases = [];
+  var isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
     let mutation = mutations[k];
-
-    let addedNodes = Array.from(mutation.addedNodes);
-    for (let iK = 0, iN = addedNodes.length; iK < iN; iK += 1) {
-      let node = addedNodes[iK];
-      if (node.nodeName.toLowerCase() === "canvas") {
-        canvasesChanged = true;
+    for (let iK = 0, iN = mutation.addedNodes.length; iK < iN; iK += 1) {
+      if (isCanvas(mutation.addedNodes[iK])) {
+        addedCanvases = true;
         break;
       }
     }
 
-    let removedNodes = Array.from(mutation.removedNodes);
-    for (let iK = 0, iN = removedNodes.length; iK < iN; iK += 1) {
-      let node = removedNodes[iK];
-      if (node.nodeName.toLowerCase() === "canvas") {
-        canvasesChanged = true;
-        if (active.capturing && node.classList.contains("canvas_active_capturing")) {
-          active.canvasRemoved = true;
-          preStopCapture();
-          break;
-        }
-      }
+    removedCanvases = removedCanvases.concat(
+      Array.from(mutation.removedNodes).filter(isCanvas)
+    );
+  }
+
+  const canvasesChanged = addedCanvases || removedCanvases.length;
+
+  if (!canvasesChanged) {
+    return;
+  }
+
+  for (let k = 0, n = removedCanvases.length; k < n; k += 1) {
+    let node = removedCanvases[k];
+    if (active.capturing && node.classList.contains("canvas_active_capturing")) {
+      active.canvasRemoved = true;
+      preStopCapture();
+      break;
     }
   }
 
