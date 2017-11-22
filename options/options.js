@@ -19,11 +19,12 @@
 /* global browser */
 
 const MAX_VIDEO_SIZE_KEY = "maxVideoSize";
+const OPTION_MAX_VIDEO_SIZE_ID = "option_max_video_size";
 
 window.addEventListener("load", initOptions, false);
 
 function initOptions() {
-  var inputMaxSize = document.getElementById("option_max_video_size");
+  var inputMaxSize = document.getElementById(OPTION_MAX_VIDEO_SIZE_ID);
   inputMaxSize.addEventListener("blur", updateMaxVideoSize, false);
 
   var inputMaxSizeSetting = browser.storage.local.get(MAX_VIDEO_SIZE_KEY);
@@ -44,7 +45,7 @@ function updateMaxVideoSize(e) {
     return;
   }
 
-  var obj = {};
+  var obj = Object.create(null, {});
   obj[MAX_VIDEO_SIZE_KEY] = size;
   browser.storage.local.set(obj);
 }
