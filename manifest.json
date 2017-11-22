@@ -2,7 +2,7 @@
 
   "manifest_version": 2,
   "name": "Canvas Capture",
-  "version": "1.0.1",
+  "version": "1.0.1.1",
   "description": "Capture video from canvas elements",
   "icons": {
     "16": "/img/png/icon_16.png",

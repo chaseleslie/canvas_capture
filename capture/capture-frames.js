@@ -47,7 +47,9 @@ const MIME_TYPE_MAP = {
   "webm": "video/webm"
 };
 const DEFAULT_MIME_TYPE = "webm";
-const CAPTURE_INTERVAL = 1000;
+const CAPTURE_INTERVAL_MS = 1000;
+
+const CANVAS_ACTIVE_CAPTURING_CLASS = "canvas_active_capturing";
 
 var mediaRecorder = null;
 const active = Object.seal({
@@ -201,32 +203,42 @@ function handleMessageHighlight(msg) {
 }
 
 function observeBodyMutations(mutations) {
-  var canvasesChanged = false;
   mutations = mutations.filter((el) => el.type === "childList");
+
+  var addedCanvases = false;
+  var removedCanvases = [];
+  var isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
     let mutation = mutations[k];
-
-    let addedNodes = Array.from(mutation.addedNodes);
-    for (let iK = 0, iN = addedNodes.length; iK < iN; iK += 1) {
-      let node = addedNodes[iK];
-      if (node.nodeName.toLowerCase() === "canvas") {
-        canvasesChanged = true;
+    for (let iK = 0, iN = mutation.addedNodes.length; iK < iN; iK += 1) {
+      if (isCanvas(mutation.addedNodes[iK])) {
+        addedCanvases = true;
         break;
       }
     }
 
-    let removedNodes = Array.from(mutation.removedNodes);
-    for (let iK = 0, iN = removedNodes.length; iK < iN; iK += 1) {
-      let node = removedNodes[iK];
-      if (node.nodeName.toLowerCase() === "canvas") {
-        canvasesChanged = true;
-        if (active.capturing && node.classList.contains("canvas_active_capturing")) {
-          active.canvasRemoved = true;
-          preStopCapture();
-          break;
-        }
+    removedCanvases = removedCanvases.concat(
+      Array.from(mutation.removedNodes).filter(isCanvas)
+    );
+  }
+
+  const canvasesChanged = addedCanvases || removedCanvases.length;
+
+  if (!canvasesChanged) {
+    return;
+  }
+
+  for (let k = 0, n = removedCanvases.length; k < n; k += 1) {
+    let node = removedCanvases[k];
+    if (active.capturing && node.classList.contains(CANVAS_ACTIVE_CAPTURING_CLASS)) {
+      if (active.timer.timerId >= 0) {
+        clearTimeout(active.timer.timerId);
+        active.timer.timerId = -1;
       }
+      active.canvasRemoved = true;
+      preStopCapture();
+      break;
     }
   }
 
@@ -236,7 +248,7 @@ function observeBodyMutations(mutations) {
   if (canvasesChanged) {
     if (active.capturing && !active.canvasRemoved) {
       for (let k = 0, n = canvases.length; k < n; k += 1) {
-        if (canvases[k].classList.contains("canvas_active_capturing")) {
+        if (canvases[k].classList.contains(CANVAS_ACTIVE_CAPTURING_CLASS)) {
           active.index = k;
           active.canvas = canvases[k];
           break;
@@ -323,11 +335,11 @@ function startCapture(canvas, fps, bps, timerSeconds) {
   mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
   mediaRecorder.addEventListener("stop", stopCapture, false);
   mediaRecorder.addEventListener("error", preStopCapture, false);
-  mediaRecorder.start(CAPTURE_INTERVAL);
+  mediaRecorder.start(CAPTURE_INTERVAL_MS);
   active.capturing = true;
   active.canvas = canvas;
   active.startTS = Date.now();
-  canvas.classList.add("canvas_active_capturing");
+  canvas.classList.add(CANVAS_ACTIVE_CAPTURING_CLASS);
   if (timerSeconds) {
     active.timer.secs = timerSeconds;
     active.timer.canvas = canvas;

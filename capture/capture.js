@@ -48,12 +48,14 @@ const MIME_TYPE_MAP = Object.freeze({
   "webm": "video/webm"
 });
 const DEFAULT_MIME_TYPE = "webm";
-const CAPTURE_INTERVAL = 1000;
+const CAPTURE_INTERVAL_MS = 1000;
 const DEFAULT_FPS = 30;
 const DEFAULT_BPS = 2500000;
 const CSS_FILE_PATH = "/capture/capture.css";
 const HTML_FILE_PATH = "/capture/capture.html";
 const HTML_ROW_FILE_PATH = "/capture/capture-row.html";
+const ICON_ADD_PATH = "/capture/img/icon_add_32.svg";
+const ICON_TIMER_PATH = "/capture/img/icon_timer_32.svg";
 
 const CSS_STYLE_ID = "capture_list_container_css";
 const WRAPPER_ID = "capture_list_container";
@@ -67,7 +69,7 @@ const MODIFY_TIMER_SECONDS_ID = "modify_timer_seconds";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
-const LIST_CANVASES_CAPTURE_TIMER_IMG = "list_canvases_capture_timer_img";
+const LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS = "list_canvases_capture_timer_img";
 const LIST_CANVASES_CANVAS_ID_CLASS = "list_canvases_canvas_id";
 const LIST_CANVASES_CANVAS_DIMENS_CLASS = "list_canvases_canvas_dimens";
 const LIST_CANVASES_CANVAS_WIDTH_CLASS = "list_canvases_canvas_width";
@@ -77,6 +79,12 @@ const LIST_CANVASES_CAPTURE_BPS_CLASS = "list_canvases_capture_bps";
 const CANVAS_CAPTURE_LINK_CONTAINER_CLASS = "canvas_capture_link_container";
 const CANVAS_CAPTURE_SELECTED_CLASS = "canvas_capture_selected";
 const CANVAS_CAPTURE_INACTIVE_CLASS = "canvas_capture_inactive";
+const TIMER_MODIFYING_CLASS = "timer_modifying";
+const CAPTURING_CLASS = "capturing";
+const HIDDEN_CLASS = "hidden";
+const HIGHLIGHTER_UNAVAILABLE_CLASS = "highlighter_unavailable";
+const HIGHLIGHTER_HORIZONTAL_CLASS = "highlighter_horizontal";
+const HIGHLIGHTER_VERTICAL_CLASS = "highlighter_vertical";
 
 var rowTemplate = null;
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
@@ -205,8 +213,9 @@ function onMessage(msg) {
 function handleMessageCaptureStart(msg) {
   let rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   if (msg.success) {
-    let linkCol = rows[active.index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
-    linkCol.classList.add("capturing");
+    let row = rows[active.index];
+    let linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
+    linkCol.classList.add(CAPTURING_CLASS);
     active.capturing = true;
     active.startTS = Date.now();
   } else {
@@ -216,9 +225,11 @@ function handleMessageCaptureStart(msg) {
       let linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
       button.textContent = "Capture";
       button.addEventListener("click", onToggleCapture, false);
-      linkCol.classList.remove("capturing");
-      row.classList.remove(CANVAS_CAPTURE_SELECTED_CLASS);
-      row.classList.remove(CANVAS_CAPTURE_INACTIVE_CLASS);
+      linkCol.classList.remove(CAPTURING_CLASS);
+      row.classList.remove(
+        CANVAS_CAPTURE_SELECTED_CLASS,
+        CANVAS_CAPTURE_INACTIVE_CLASS
+      );
     }
 
     active.clear();
@@ -227,7 +238,8 @@ function handleMessageCaptureStart(msg) {
 
 function handleMessageCaptureStop(msg) {
   var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  var linkCol = rows[active.index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
+  let row = rows[active.index];
+  var linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
 
   clearActiveRows();
   active.clear();
@@ -294,26 +306,38 @@ function handleMessageHighlight(msg, node) {
     let borderWidthTop = parseInt(nodeStyle.borderTopWidth, 10);
     let vertTracerStyle = window.getComputedStyle(highlighter.left);
     let horizTracerStyle = window.getComputedStyle(highlighter.top);
-    let vertTracerWidth = highlighter.left.offsetWidth + (2 * parseInt(vertTracerStyle.borderLeftWidth, 10) || 0);
-    let horizTracerWidth = highlighter.top.offsetHeight + (2 * parseInt(horizTracerStyle.borderTopWidth, 10) || 0);
+    let vertTracerWidth = (
+      highlighter.left.offsetWidth +
+      (2 * parseInt(vertTracerStyle.borderLeftWidth, 10) || 0)
+    );
+    let horizTracerWidth = (
+      highlighter.top.offsetHeight +
+      (2 * parseInt(horizTracerStyle.borderTopWidth, 10) || 0)
+    );
     let left = nodeRect.left + rect.left + borderWidthLeft;
     let top = nodeRect.top + rect.top + borderWidthTop;
     let right = nodeRect.left + rect.left + rect.width + borderWidthLeft;
-    right = Math.min(document.documentElement.clientWidth - vertTracerWidth, right);
+    right = Math.min(
+      document.documentElement.clientWidth - vertTracerWidth,
+      right
+    );
     let bottom = nodeRect.top + rect.top + rect.height + borderWidthTop;
-    bottom = Math.min(document.documentElement.clientHeight - horizTracerWidth, bottom);
+    bottom = Math.min(
+      document.documentElement.clientHeight - horizTracerWidth,
+      bottom
+    );
 
     if (left >= 0 && left <= window.innerWidth) {
-      highlighter.left.classList.remove("hidden");
+      highlighter.left.classList.remove(HIDDEN_CLASS);
     }
     if (top >= 0 && top <= window.innerHeight) {
-      highlighter.top.classList.remove("hidden");
+      highlighter.top.classList.remove(HIDDEN_CLASS);
     }
     if (right >= 0 && right <= window.innerWidth) {
-      highlighter.right.classList.remove("hidden");
+      highlighter.right.classList.remove(HIDDEN_CLASS);
     }
     if (bottom >= 0 && bottom <= window.innerHeight) {
-      highlighter.bottom.classList.remove("hidden");
+      highlighter.bottom.classList.remove(HIDDEN_CLASS);
     }
 
     highlighter.left.style.left = `${left}px`;
@@ -323,7 +347,7 @@ function handleMessageHighlight(msg, node) {
   }
 
   if (!msg.canCapture && highlighter.current) {
-    highlighter.current.classList.add("highlighter_unavailable");
+    highlighter.current.classList.add(HIGHLIGHTER_UNAVAILABLE_CLASS);
   }
 }
 
@@ -352,7 +376,9 @@ function handleMessageUpdateCanvases(msg) {
   var canvasIndex = -1;
   var canvasFrameUUID = frameUUID;
   if (active.capturing) {
-    let row = listCanvases.querySelector(`.${LIST_CANVASES_ROW_CLASS}.${CANVAS_CAPTURE_SELECTED_CLASS}`);
+    let row = listCanvases.querySelector(
+      `.${LIST_CANVASES_ROW_CLASS}.${CANVAS_CAPTURE_SELECTED_CLASS}`
+    );
     let canvasIsLocal = active.frameUUID === TOP_FRAME_UUID;
 
     if (canvasIsLocal) {
@@ -393,20 +419,25 @@ function handleMessageUpdateCanvases(msg) {
 
 function observeBodyMutations(mutations) {
   mutations = mutations.filter((el) => el.type === "childList");
-  var addedCanvases = [];
+  var addedCanvases = false;
   var removedCanvases = [];
+  var isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
     let mutation = mutations[k];
-    let added = Array.from(mutation.addedNodes);
-    let removed = Array.from(mutation.removedNodes);
-    added = added.filter((el) => el.nodeName.toLowerCase() === "canvas");
-    removed = removed.filter((el) => el.nodeName.toLowerCase() === "canvas");
-    addedCanvases = addedCanvases.concat(added);
-    removedCanvases = removedCanvases.concat(removed);
+    for (let iK = 0, iN = mutation.addedNodes.length; iK < iN; iK += 1) {
+      if (isCanvas(mutation.addedNodes[iK])) {
+        addedCanvases = true;
+        break;
+      }
+    }
+
+    removedCanvases = removedCanvases.concat(
+      Array.from(mutation.removedNodes).filter(isCanvas)
+    );
   }
 
-  const canvasesChanged = addedCanvases.length || removedCanvases.length;
+  const canvasesChanged = addedCanvases || removedCanvases.length;
 
   if (!canvasesChanged) {
     return;
@@ -434,7 +465,9 @@ function observeBodyMutations(mutations) {
   let canvases = Array.from(document.body.querySelectorAll("canvas"));
 
   if (active.capturing) {
-    row = listCanvases.querySelector(`.${LIST_CANVASES_ROW_CLASS}.${CANVAS_CAPTURE_SELECTED_CLASS}`);
+    row = listCanvases.querySelector(
+      `.${LIST_CANVASES_ROW_CLASS}.${CANVAS_CAPTURE_SELECTED_CLASS}`
+    );
     canvasIsLocal = JSON.parse(row.dataset.canvasIsLocal);
     if (!canvasIsLocal) {
       canvasIndex = parseInt(row.dataset.canvasIndex, 10);
@@ -513,9 +546,9 @@ function handleDisable(notify) {
     style.parentElement.removeChild(style);
   }
 
-  for (let prop in highlighter) {
-    if (Object.prototype.hasOwnProperty.call(highlighter, prop)) {
-      highlighter[prop].parentElement.removeChild(highlighter[prop]);
+  for (let key in Object.keys(highlighter)) {
+    if (key !== "current") {
+      highlighter[key].parentElement.removeChild(highlighter[key]);
     }
   }
 
@@ -544,7 +577,9 @@ function handleDisplay(msg) {
       if (response.ok) {
         return response.text();
       }
-      throw new Error(`Received ${response.status} ${response.statusText} fetching ${response.url}`);
+      throw new Error(
+        `Received ${response.status} ${response.statusText} fetching ${response.url}`
+      );
     }).then(function(text) {
       rowTemplate = document.createElement("template");
       rowTemplate.innerHTML = text;
@@ -555,7 +590,9 @@ function handleDisplay(msg) {
       if (response.ok) {
         return response.text();
       }
-      throw new Error(`Received ${response.status} ${response.statusText} fetching ${response.url}`);
+      throw new Error(
+        `Received ${response.status} ${response.statusText} fetching ${response.url}`
+      );
     }).then(function(text) {
       var css = document.createElement("style");
       css.type = "text/css";
@@ -568,7 +605,9 @@ function handleDisplay(msg) {
       if (response.ok) {
         return response.text();
       }
-      throw new Error(`Received ${response.status} ${response.statusText} fetching ${response.url}`);
+      throw new Error(
+        `Received ${response.status} ${response.statusText} fetching ${response.url}`
+      );
     }).then(function(text) {
       setupDisplay(text);
     }).catch(function(e) {
@@ -583,15 +622,15 @@ function handleDisplay(msg) {
     if (key !== "current") {
       highlighter[key] = document.createElement("div");
       highlighter[key].textContent = " ";
-      highlighter[key].classList.add("hidden");
+      highlighter[key].classList.add(HIDDEN_CLASS);
       document.body.appendChild(highlighter[key]);
     }
   }
 
-  highlighter.left.classList.add("highlighter_vertical");
-  highlighter.top.classList.add("highlighter_horizontal");
-  highlighter.right.classList.add("highlighter_vertical");
-  highlighter.bottom.classList.add("highlighter_horizontal");
+  highlighter.left.classList.add(HIGHLIGHTER_VERTICAL_CLASS);
+  highlighter.top.classList.add(HIGHLIGHTER_HORIZONTAL_CLASS);
+  highlighter.right.classList.add(HIGHLIGHTER_VERTICAL_CLASS);
+  highlighter.bottom.classList.add(HIGHLIGHTER_HORIZONTAL_CLASS);
 }
 
 function positionWrapper() {
@@ -715,7 +754,7 @@ function updateCanvases() {
   var docFrag = document.createDocumentFragment();
   var oldRows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var canvases = getAllCanvases();
-  const addTimerImgUrl = browser.runtime.getURL("/capture/img/icon_add_32.svg");
+  const addTimerImgUrl = browser.runtime.getURL(ICON_ADD_PATH);
 
   oldRows.forEach((row) => row.parentElement.removeChild(row));
   canvases.forEach(function(canvas) {
@@ -729,9 +768,11 @@ function updateCanvases() {
     let canvas = canvases[k];
     let canvasIsLocal = canvas.local;
 
-    row.querySelector(`.${LIST_CANVASES_CANVAS_ID_CLASS}`).textContent = canvas.id;
-    row.querySelector(`.${LIST_CANVASES_CANVAS_DIMENS_CLASS}`).textContent = `${canvas.width}x${canvas.height}`;
-    let addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`);
+    let canvasId = row.querySelector(`.${LIST_CANVASES_CANVAS_ID_CLASS}`);
+    canvasId.textContent = canvas.id;
+    let dimens = row.querySelector(`.${LIST_CANVASES_CANVAS_DIMENS_CLASS}`);
+    dimens.textContent = `${canvas.width}x${canvas.height}`;
+    let addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`);
     addTimerImg.src = addTimerImgUrl;
     addTimerImg.dataset.hasTimer = false;
     let fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
@@ -766,7 +807,7 @@ function setRowEventListeners(
   {row = true, img = true, button = true} = {"row": true, "img": true, "button": true}
 ) {
   if (img) {
-    ro.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`)
+    ro.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`)
       .addEventListener("click", handleRowTimerModify, false);
   }
 
@@ -786,7 +827,7 @@ function clearRowEventListeners(
   {row = true, img = true, button = true} = {"row": true, "img": true, "button": true}
 ) {
   if (img) {
-    ro.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`)
+    ro.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`)
       .removeEventListener("click", handleRowTimerModify, false);
   }
 
@@ -813,7 +854,7 @@ function handleRowTimerModify(evt) {
   var secondsInput = document.getElementById(MODIFY_TIMER_SECONDS_ID);
 
   img.dataset.ts = Date.now();
-  img.classList.add("timer_modifying");
+  img.classList.add(TIMER_MODIFYING_CLASS);
 
   if (hasTimer) {
     let secs = parseInt(img.dataset.timerSeconds, 10) || 0;
@@ -842,15 +883,15 @@ function handleRowTimerModify(evt) {
     clearRowEventListeners(ro, {"row": false});
   }
 
-  container.classList.remove("hidden");
+  container.classList.remove(HIDDEN_CLASS);
   containerRect = container.getBoundingClientRect();
   container.style.left = `${evt.clientX - parseInt(0.5 * containerRect.width, 10)}px`;
   container.style.top = `${evt.clientY - containerRect.height - 20}px`;
 }
 
 function handleRowTimerModifyClose(img) {
-  const addImgUrl = browser.runtime.getURL("/capture/img/icon_add_32.svg");
-  const timerImgUrl = browser.runtime.getURL("/capture/img/icon_timer_32.svg");
+  const addImgUrl = browser.runtime.getURL(ICON_ADD_PATH);
+  const timerImgUrl = browser.runtime.getURL(ICON_TIMER_PATH);
   var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
   var hasTimer = img && ("hasTimer" in img.dataset) && JSON.parse(img.dataset.hasTimer);
   var rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
@@ -867,15 +908,20 @@ function handleRowTimerModifyClose(img) {
 
   for (let k = 0, n = rows.length; k < n; k += 1) {
     let row = rows[k];
-    row.classList.remove(CANVAS_CAPTURE_SELECTED_CLASS, CANVAS_CAPTURE_INACTIVE_CLASS);
+    row.classList.remove(
+      CANVAS_CAPTURE_SELECTED_CLASS,
+      CANVAS_CAPTURE_INACTIVE_CLASS
+    );
     setRowEventListeners(row);
   }
 
-  container.classList.add("hidden");
+  container.classList.add(HIDDEN_CLASS);
 }
 
 function handleRowSetTimer() {
-  var img = listCanvases.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}.timer_modifying`);
+  var img = listCanvases.querySelector(
+    `.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}.${TIMER_MODIFYING_CLASS}`
+  );
   var ts = (img && parseInt(img.dataset.ts, 10)) || 0;
 
   if (ts < active.updateTS) {
@@ -897,7 +943,9 @@ function handleRowSetTimer() {
 }
 
 function handleRowClearTimer() {
-  var img = listCanvases.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}.timer_modifying`);
+  var img = listCanvases.querySelector(
+    `.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}.${TIMER_MODIFYING_CLASS}`
+  );
   var ts = (img && parseInt(img.dataset.ts, 10)) || 0;
 
   if (ts < active.updateTS) {
@@ -913,7 +961,7 @@ function handleRowClearTimer() {
 function highlightCanvas(evt) {
   var el = evt.target;
 
-  if (!el.classList.contains("list_canvases_row")) {
+  if (!el.classList.contains(LIST_CANVASES_ROW_CLASS)) {
     return;
   }
 
@@ -954,17 +1002,20 @@ function highlightCanvas(evt) {
 function unhighlightCanvas(evt) {
   var el = evt.target;
 
-  if (!el.classList.contains("list_canvases_row") || el !== highlighter.current) {
+  if (
+    !el.classList.contains(LIST_CANVASES_ROW_CLASS) ||
+    el !== highlighter.current
+  ) {
     return;
   }
 
-  for (let prop in highlighter) {
-    if (Object.prototype.hasOwnProperty.call(highlighter, prop) && prop !== "current") {
-      highlighter[prop].classList.add("hidden");
+  for (let key of Object.keys(highlighter)) {
+    if (key !== "current") {
+      highlighter[key].classList.add(HIDDEN_CLASS);
     }
   }
 
-  el.classList.remove("highlighter_unavailable");
+  el.classList.remove(HIGHLIGHTER_UNAVAILABLE_CLASS);
   highlighter.current = null;
 }
 
@@ -999,7 +1050,7 @@ function setRowActive(index) {
     }
   }
 
-  linkCol.classList.add("capturing");
+  linkCol.classList.add(CAPTURING_CLASS);
   try {
     linkRow.scrollIntoView(
       {"block": "center", "behavior": "smooth", "inline": "center"}
@@ -1011,16 +1062,20 @@ function setRowActive(index) {
 
 function clearActiveRows() {
   var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  var linkCol = rows[active.index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
+  var row = rows[active.index];
+  var linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
 
   for (let k = 0; k < rows.length; k += 1) {
-    let row = rows[k];
-    row.classList.remove(CANVAS_CAPTURE_INACTIVE_CLASS, CANVAS_CAPTURE_SELECTED_CLASS);
-    setRowEventListeners(row);
-    row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`).textContent = "Capture";
+    let ro = rows[k];
+    ro.classList.remove(
+      CANVAS_CAPTURE_INACTIVE_CLASS,
+      CANVAS_CAPTURE_SELECTED_CLASS
+    );
+    setRowEventListeners(ro);
+    ro.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`).textContent = "Capture";
   }
 
-  linkCol.classList.remove("capturing");
+  linkCol.classList.remove(CAPTURING_CLASS);
 }
 
 function preStartCapture(button) {
@@ -1030,7 +1085,7 @@ function preStartCapture(button) {
   active.frameUUID = button.dataset.frameUUID;
   var index = active.index;
   var row = rows[index];
-  var timerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG}`);
+  var timerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`);
   var hasTimer = JSON.parse(timerImg.dataset.hasTimer || false);
   var timerSeconds = parseInt(timerImg.dataset.timerSeconds, 10) || 0;
   var canvases = frames[active.frameUUID].canvases;
@@ -1054,7 +1109,7 @@ function preStartCapture(button) {
   if (canvasIsLocal) {
     let ret = startCapture(canvas, fps, bps, timerSeconds);
     if (!ret) {
-      linkCol.classList.remove("capturing");
+      linkCol.classList.remove(CAPTURING_CLASS);
     }
   } else {
     port.postMessage({
@@ -1098,7 +1153,7 @@ function startCapture(canvas, fps, bps, timerSeconds) {
   mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
   mediaRecorder.addEventListener("stop", stopCapture, false);
   mediaRecorder.addEventListener("error", preStopCapture, false);
-  mediaRecorder.start(CAPTURE_INTERVAL);
+  mediaRecorder.start(CAPTURE_INTERVAL_MS);
   active.capturing = true;
   active.canvas = canvas;
   active.startTS = Date.now();
