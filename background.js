@@ -47,16 +47,16 @@ const MAX_VIDEO_SIZE_KEY = "maxVideoSize";
 const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
 
 const MessageCommands = Object.freeze({
-  "CAPTURE_START": "capture-start",
-  "CAPTURE_STOP": "capture-stop",
-  "DISABLE": "disable",
-  "DISCONNECT": "disconnect",
-  "DISPLAY": "display",
-  "DOWNLOAD": "download",
-  "HIGHLIGHT": "highlight",
-  "NOTIFY": "notify",
-  "REGISTER": "register",
-  "UPDATE_CANVASES": "update-canvases"
+  "CAPTURE_START": 0,
+  "CAPTURE_STOP": 1,
+  "DISABLE": 2,
+  "DISCONNECT": 3,
+  "DISPLAY": 4,
+  "DOWNLOAD": 5,
+  "HIGHLIGHT": 6,
+  "NOTIFY": 7,
+  "REGISTER": 8,
+  "UPDATE_CANVASES": 9
 });
 
 const NOTIFICATION_DURATION = 10000;
@@ -284,7 +284,8 @@ function onMessage(msg) {
     case MessageCommands.DOWNLOAD:
     case MessageCommands.HIGHLIGHT: {
       let tabId = msg.tabId;
-      let targetFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === msg.targetFrameUUID);
+      let frames = activeTabs[tabId].frames;
+      let targetFrame = frames.find((el) => el.frameUUID === msg.targetFrameUUID);
 
       if (targetFrame) {
         targetFrame.port.postMessage(msg);
@@ -295,9 +296,9 @@ function onMessage(msg) {
     case MessageCommands.DISPLAY:
     case MessageCommands.UPDATE_CANVASES: {
       let tabId = msg.tabId;
-      let targetFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === msg.targetFrameUUID);
+      let frames = activeTabs[tabId].frames;
+      let targetFrame = frames.find((el) => el.frameUUID === msg.targetFrameUUID);
       if (msg.targetFrameUUID === ALL_FRAMES_UUID && msg.frameUUID === TOP_FRAME_UUID) {
-        let frames = activeTabs[tabId].frames;
         for (let k = 0, n = frames.length; k < n; k += 1) {
           let frame = frames[k];
           if (frame.frameUUID !== TOP_FRAME_UUID) {

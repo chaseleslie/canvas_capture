@@ -24,16 +24,16 @@ const FRAME_UUID = genUUIDv4();
 const TOP_FRAME_UUID = "top";
 
 const MessageCommands = Object.freeze({
-  "CAPTURE_START": "capture-start",
-  "CAPTURE_STOP": "capture-stop",
-  "DISABLE": "disable",
-  "DISCONNECT": "disconnect",
-  "DISPLAY": "display",
-  "DOWNLOAD": "download",
-  "HIGHLIGHT": "highlight",
-  "NOTIFY": "notify",
-  "REGISTER": "register",
-  "UPDATE_CANVASES": "update-canvases"
+  "CAPTURE_START": 0,
+  "CAPTURE_STOP": 1,
+  "DISABLE": 2,
+  "DISCONNECT": 3,
+  "DISPLAY": 4,
+  "DOWNLOAD": 5,
+  "HIGHLIGHT": 6,
+  "NOTIFY": 7,
+  "REGISTER": 8,
+  "UPDATE_CANVASES": 9
 });
 
 const MIME_TYPE_MAP = Object.freeze({
