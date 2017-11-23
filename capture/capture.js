@@ -24,23 +24,17 @@ const TOP_FRAME_UUID = "top";
 const BG_FRAME_UUID = "background";
 const ALL_FRAMES_UUID = "*";
 
-var tabId = null;
-var frameId = null;
-const port = browser.runtime.connect({
-  "name": TOP_FRAME_UUID
-});
-
 const MessageCommands = Object.freeze({
-  "CAPTURE_START": "capture-start",
-  "CAPTURE_STOP": "capture-stop",
-  "DISABLE": "disable",
-  "DISCONNECT": "disconnect",
-  "DISPLAY": "display",
-  "DOWNLOAD": "download",
-  "HIGHLIGHT": "highlight",
-  "NOTIFY": "notify",
-  "REGISTER": "register",
-  "UPDATE_CANVASES": "update-canvases"
+  "CAPTURE_START": 0,
+  "CAPTURE_STOP": 1,
+  "DISABLE": 2,
+  "DISCONNECT": 3,
+  "DISPLAY": 4,
+  "DOWNLOAD": 5,
+  "HIGHLIGHT": 6,
+  "NOTIFY": 7,
+  "REGISTER": 8,
+  "UPDATE_CANVASES": 9
 });
 
 const MIME_TYPE_MAP = Object.freeze({
@@ -51,6 +45,7 @@ const DEFAULT_MIME_TYPE = "webm";
 const CAPTURE_INTERVAL_MS = 1000;
 const DEFAULT_FPS = 30;
 const DEFAULT_BPS = 2500000;
+const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
 const CSS_FILE_PATH = "/capture/capture.css";
 const HTML_FILE_PATH = "/capture/capture.html";
 const HTML_ROW_FILE_PATH = "/capture/capture-row.html";
@@ -66,6 +61,7 @@ const MODIFY_TIMER_CLEAR_ID = "modify_timer_clear";
 const MODIFY_TIMER_HOURS_ID = "modify_timer_hours";
 const MODIFY_TIMER_MINUTES_ID = "modify_timer_minutes";
 const MODIFY_TIMER_SECONDS_ID = "modify_timer_seconds";
+const CAPTURE_CLOSE_ID = "capture_close";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
@@ -86,66 +82,83 @@ const HIGHLIGHTER_UNAVAILABLE_CLASS = "highlighter_unavailable";
 const HIGHLIGHTER_HORIZONTAL_CLASS = "highlighter_horizontal";
 const HIGHLIGHTER_VERTICAL_CLASS = "highlighter_vertical";
 
-var rowTemplate = null;
-var maxVideoSize = 4 * 1024 * 1024 * 1024;
-var displayed = false;
-var mediaRecorder = null;
-const active = Object.seal({
-  "capturing": false,
-  "index": -1,
-  "frameUUID": "",
-  "canvas": null,
-  "startTS": 0,
-  "updateTS": 0,
-  "stopped": false,
-  "error": false,
-  "errorMessage": "",
-  "timer": Object.seal({
-    "timerId": -1,
-    "canvas": null,
-    "secs": 0
-  }),
-  "clear": function() {
-    this.capturing = false;
-    this.index = -1;
-    this.frameUUID = "";
-    this.canvas = null;
-    this.startTS = 0;
-    this.updateTS = 0;
-    this.stopped = false;
-    this.error = false;
-    this.errorMessage = "";
-    this.timer.timerId = -1;
-    this.timer.canvas = null;
-    this.timer.secs = 0;
-  }
-});
-var listCanvases = null;
-var chunks = null;
-var objectURLs = [];
-const frames = {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}};
-var frameElementsTS = 0;
-const frameElementsKeys = [];
-var numBytes = 0;
-var wrapperMouseHover = false;
-const bodyMutObs = new MutationObserver(observeBodyMutations);
-const canvasMutObs = new MutationObserver(observeCanvasMutations);
 const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributes": true,
   "attributeFilter": ["id", "width", "height"]
 });
-const highlighter = Object.seal({
-  "left": null,
-  "top": null,
-  "right": null,
-  "bottom": null,
-  "current": null
+
+const Ext = Object.seal({
+  "tabId": null,
+  "frameId": null,
+  "port": browser.runtime.connect({
+    "name": TOP_FRAME_UUID
+  }),
+  "rowTemplate": null,
+  "settings": Object.seal({"maxVideoSize": DEFAULT_MAX_VIDEO_SIZE}),
+  "mediaRecorder": null,
+  "active": Object.seal({
+    "capturing": false,
+    "index": -1,
+    "frameUUID": "",
+    "canvas": null,
+    "startTS": 0,
+    "updateTS": 0,
+    "stopped": false,
+    "error": false,
+    "errorMessage": "",
+    "timer": Object.seal({
+      "timerId": -1,
+      "canvas": null,
+      "secs": 0
+    }),
+    "clear": function() {
+      this.capturing = false;
+      this.index = -1;
+      this.frameUUID = "";
+      this.canvas = null;
+      this.startTS = 0;
+      this.updateTS = 0;
+      this.stopped = false;
+      this.error = false;
+      this.errorMessage = "";
+      this.timer.timerId = -1;
+      this.timer.canvas = null;
+      this.timer.secs = 0;
+    }
+  }),
+  "listCanvases": null,
+  "chunks": null,
+  "objectURLs": [],
+  "frames": {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}},
+  "frameElementsTS": 0,
+  "frameElementsKeys": [],
+  "numBytesRecorded": 0,
+  "wrapperMouseHover": false,
+  "bodyMutObs": new MutationObserver(observeBodyMutations),
+  "canvasMutObs": new MutationObserver(observeCanvasMutations),
+  "highlighter": Object.seal({
+    "left": null,
+    "top": null,
+    "right": null,
+    "bottom": null,
+    "current": null
+  }),
+  "freeObjectURLs": function() {
+    for (let k = 0; k < this.objectURLs.length; k += 1) {
+      window.URL.revokeObjectURL(this.objectURLs[k]);
+    }
+  },
+  "disable": function() {
+    for (let key of Object.keys(this)) {
+      this[key] = null;
+    }
+  }
 });
 
-port.onMessage.addListener(onMessage);
+Ext.port.onMessage.addListener(onMessage);
 window.addEventListener("message", handleWindowMessage, true);
 
-bodyMutObs.observe(document.body, {
+Ext.bodyMutObs.observe(document.body, {
   "childList": true,
   "subtree": true
 });
@@ -154,29 +167,29 @@ function handleWindowMessage(evt) {
   var msg = evt.data;
   var frameElements = Array.from(document.querySelectorAll("iframe"));
   var key = msg.key;
-  var keyPos = frameElementsKeys.indexOf(key);
+  var keyPos = Ext.frameElementsKeys.indexOf(key);
 
   if (!key || keyPos < 0) {
     return;
-  } else if (msg.ts < frameElementsTS) {
+  } else if (msg.ts < Ext.frameElementsTS) {
     identifyFrames();
-    frameElementsKeys.splice(keyPos, 1);
+    Ext.frameElementsKeys.splice(keyPos, 1);
     evt.stopPropagation();
     return;
   }
 
-  frameElementsKeys.splice(keyPos, 1);
-  frames[msg.frameUUID].node = frameElements[msg.index];
+  Ext.frameElementsKeys.splice(keyPos, 1);
+  Ext.frames[msg.frameUUID].node = frameElements[msg.index];
   evt.stopPropagation();
 }
 
 function identifyFrames() {
   var frameElements = Array.from(document.querySelectorAll("iframe"));
-  frameElementsTS = Date.now();
+  Ext.frameElementsTS = Date.now();
   for (let k = 0, n = frameElements.length; k < n; k += 1) {
     let frame = frameElements[k];
     let key = genUUIDv4();
-    frameElementsKeys.push(key);
+    Ext.frameElementsKeys.push(key);
     frame.contentWindow.postMessage({
       "command": "identify",
       "key": key,
@@ -196,28 +209,25 @@ function onMessage(msg) {
   } else if (msg.command === MessageCommands.DISCONNECT) {
     handleMessageDisconnect(msg);
   } else if (msg.command === MessageCommands.DISPLAY) {
-    if (!displayed) {
-      handleDisplay(msg);
-      displayed = true;
-    }
+    handleDisplay(msg);
   } else if (msg.command === MessageCommands.HIGHLIGHT) {
     handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
-    tabId = msg.tabId;
-    frameId = msg.frameId;
+    Ext.tabId = msg.tabId;
+    Ext.frameId = msg.frameId;
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     handleMessageUpdateCanvases(msg);
   }
 }
 
 function handleMessageCaptureStart(msg) {
-  let rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  let rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   if (msg.success) {
-    let row = rows[active.index];
+    let row = rows[Ext.active.index];
     let linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
     linkCol.classList.add(CAPTURING_CLASS);
-    active.capturing = true;
-    active.startTS = Date.now();
+    Ext.active.capturing = true;
+    Ext.active.startTS = Date.now();
   } else {
     for (let k = 0, n = rows.length; k < n; k += 1) {
       let row = rows[k];
@@ -232,17 +242,17 @@ function handleMessageCaptureStart(msg) {
       );
     }
 
-    active.clear();
+    Ext.active.clear();
   }
 }
 
 function handleMessageCaptureStop(msg) {
-  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  let row = rows[active.index];
+  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  let row = rows[Ext.active.index];
   var linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
 
   clearActiveRows();
-  active.clear();
+  Ext.active.clear();
 
   if (msg.success) {
     let link = document.createElement("a");
@@ -252,10 +262,10 @@ function handleMessageCaptureStop(msg) {
 
     if (msg.size) {
       link.addEventListener("click", function(evt) {
-        port.postMessage({
+        Ext.port.postMessage({
           "command": MessageCommands.DOWNLOAD,
-          "tabId": tabId,
-          "frameId": frameId,
+          "tabId": Ext.tabId,
+          "frameId": Ext.frameId,
           "frameUUID": TOP_FRAME_UUID,
           "targetFrameUUID": msg.frameUUID,
           "canvasIndex": msg.canvasIndex
@@ -277,25 +287,26 @@ function handleMessageCaptureStop(msg) {
 function handleMessageDisconnect(msg) {
   let frameUUID = msg.frameUUID;
 
-  if (active.capturing && active.frameUUID === frameUUID) {
+  if (Ext.active.capturing && Ext.active.frameUUID === frameUUID) {
     preStopCapture();
     handleMessageCaptureStop({
       "command": MessageCommands.CAPTURE_STOP,
-      "tabId": tabId,
-      "frameUUID": active.frameUUID,
+      "tabId": Ext.tabId,
+      "frameUUID": Ext.active.frameUUID,
       "targetFrameUUID": TOP_FRAME_UUID,
       "success": false
     });
     showNotification("Iframe was removed while one of its canvases was being recorded.");
   }
 
-  delete frames[frameUUID];
+  delete Ext.frames[frameUUID];
   updateCanvases();
-  frameElementsTS = Date.now();
+  Ext.frameElementsTS = Date.now();
 }
 
 function handleMessageHighlight(msg, node) {
-  var frame = frames[msg.frameUUID];
+  var highlighter = Ext.highlighter;
+  var frame = Ext.frames[msg.frameUUID];
   node = node || frame.node;
 
   if (node && highlighter.current) {
@@ -355,18 +366,18 @@ function handleMessageUpdateCanvases(msg) {
   var frameUUID = msg.frameUUID;
 
   if (frameUUID === BG_FRAME_UUID) {
-    port.postMessage({
+    Ext.port.postMessage({
       "command": MessageCommands.UPDATE_CANVASES,
-      "tabId": tabId,
-      "frameId": frameId,
+      "tabId": Ext.tabId,
+      "frameId": Ext.frameId,
       "frameUUID": TOP_FRAME_UUID,
       "targetFrameUUID": ALL_FRAMES_UUID
     });
     return;
-  } else if (frames[frameUUID]) {
-    frames[frameUUID].canvases = msg.canvases;
+  } else if (Ext.frames[frameUUID]) {
+    Ext.frames[frameUUID].canvases = msg.canvases;
   } else {
-    frames[frameUUID] = {
+    Ext.frames[frameUUID] = {
       "frameUUID": frameUUID,
       "canvases": msg.canvases,
       "frameId": msg.frameId
@@ -375,16 +386,16 @@ function handleMessageUpdateCanvases(msg) {
 
   var canvasIndex = -1;
   var canvasFrameUUID = frameUUID;
-  if (active.capturing) {
-    let row = listCanvases.querySelector(
+  if (Ext.active.capturing) {
+    let row = Ext.listCanvases.querySelector(
       `.${LIST_CANVASES_ROW_CLASS}.${CANVAS_CAPTURE_SELECTED_CLASS}`
     );
-    let canvasIsLocal = active.frameUUID === TOP_FRAME_UUID;
+    let canvasIsLocal = Ext.active.frameUUID === TOP_FRAME_UUID;
 
     if (canvasIsLocal) {
-      canvasIndex = parseInt(active.index, 10);
-    } else if (frameUUID === active.frameUUID) {
-      canvasIndex = parseInt(msg.activeCanvasIndex, 10);
+      canvasIndex = parseInt(Ext.active.index, 10);
+    } else if (frameUUID === Ext.active.frameUUID) {
+      canvasIndex = parseInt(msg.Ext.activeCanvasIndex, 10);
     } else {
       canvasIndex = parseInt(row.dataset.canvasIndex, 10);
       canvasFrameUUID = row.dataset.frameUUID;
@@ -393,12 +404,12 @@ function handleMessageUpdateCanvases(msg) {
 
   updateCanvases();
 
-  if (active.capturing) {
-    let canvasIsLocal = active.frameUUID === TOP_FRAME_UUID;
+  if (Ext.active.capturing) {
+    let canvasIsLocal = Ext.active.frameUUID === TOP_FRAME_UUID;
 
     if (!canvasIsLocal) {
       let row = null;
-      let rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+      let rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
       let frameRows = rows.filter((el) => el.dataset.frameUUID === canvasFrameUUID);
       row = frameRows[canvasIndex];
       for (let k = 0, n = rows.length; k < n; k += 1) {
@@ -408,7 +419,7 @@ function handleMessageUpdateCanvases(msg) {
         }
       }
 
-      active.index = canvasIndex;
+      Ext.active.index = canvasIndex;
     }
 
     setRowActive(canvasIndex);
@@ -445,27 +456,27 @@ function observeBodyMutations(mutations) {
 
   for (let k = 0, n = removedCanvases.length; k < n; k += 1) {
     let node = removedCanvases[k];
-    if (active.capturing && node === active.canvas) {
-      if (active.timer.timerId >= 0) {
-        clearTimeout(active.timer.timerId);
-        active.timer.timerId = -1;
+    if (Ext.active.capturing && node === Ext.active.canvas) {
+      if (Ext.active.timer.timerId >= 0) {
+        clearTimeout(Ext.active.timer.timerId);
+        Ext.active.timer.timerId = -1;
       }
-      active.capturing = false;
-      active.canvas = null;
+      Ext.active.capturing = false;
+      Ext.active.canvas = null;
       preStopCapture();
       break;
     }
   }
 
-  let activeCanvas = active.canvas;
-  let activeFrameUUID = active.frameUUID;
+  let activeCanvas = Ext.active.canvas;
+  let activeFrameUUID = Ext.active.frameUUID;
   let row = null;
   let canvasIsLocal = true;
   let canvasIndex = -1;
   let canvases = Array.from(document.body.querySelectorAll("canvas"));
 
-  if (active.capturing) {
-    row = listCanvases.querySelector(
+  if (Ext.active.capturing) {
+    row = Ext.listCanvases.querySelector(
       `.${LIST_CANVASES_ROW_CLASS}.${CANVAS_CAPTURE_SELECTED_CLASS}`
     );
     canvasIsLocal = JSON.parse(row.dataset.canvasIsLocal);
@@ -474,11 +485,11 @@ function observeBodyMutations(mutations) {
     }
   }
 
-  frames[TOP_FRAME_UUID].canvases = canvases;
+  Ext.frames[TOP_FRAME_UUID].canvases = canvases;
 
   updateCanvases();
 
-  if (active.capturing && canvasIsLocal) {
+  if (Ext.active.capturing && canvasIsLocal) {
     for (let k = 0, n = canvases.length; k < n; k += 1) {
       if (canvases[k] === activeCanvas) {
         canvasIndex = k;
@@ -486,9 +497,9 @@ function observeBodyMutations(mutations) {
       }
     }
     setRowActive(canvasIndex);
-    active.index = canvasIndex;
-  } else if (active.capturing && !canvasIsLocal) {
-    let rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+    Ext.active.index = canvasIndex;
+  } else if (Ext.active.capturing && !canvasIsLocal) {
+    let rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
 
     for (let k = 0, n = rows.length; k < n; k += 1) {
       if (
@@ -500,13 +511,13 @@ function observeBodyMutations(mutations) {
       }
     }
     setRowActive(canvasIndex);
-    active.index = canvasIndex;
+    Ext.active.index = canvasIndex;
   }
 }
 
 function observeCanvasMutations(mutations) {
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   mutations = mutations.filter((el) => el.type === "attributes");
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
@@ -527,10 +538,6 @@ function observeCanvasMutations(mutations) {
 }
 
 function handleDisable(notify) {
-  if (!displayed) {
-    return;
-  }
-
   var wrapper = document.getElementById(WRAPPER_ID);
   if (wrapper) {
     wrapper.parentElement.removeChild(wrapper);
@@ -546,77 +553,78 @@ function handleDisable(notify) {
     style.parentElement.removeChild(style);
   }
 
-  for (let key in Object.keys(highlighter)) {
+  for (let key of Object.keys(Ext.highlighter)) {
     if (key !== "current") {
-      highlighter[key].parentElement.removeChild(highlighter[key]);
+      Ext.highlighter[key].parentElement.removeChild(Ext.highlighter[key]);
     }
   }
 
-  freeObjectURLs();
-  displayed = false;
+  Ext.freeObjectURLs();
   showNotification(notify);
-  port.postMessage({
-    "command": MessageCommands.DISCONNECT,
-    "tabId": tabId,
-    "frameId": frameId,
-    "frameUUID": TOP_FRAME_UUID
-  });
+  Ext.port.disconnect();
+  Ext.active.clear();
+  Ext.bodyMutObs.disconnect();
+  Ext.canvasMutObs.disconnect();
 
-  listCanvases = null;
+  window.removeEventListener("resize", positionWrapper, false);
+  window.removeEventListener("wheel", handleWindowMouseWheel, true);
+  window.removeEventListener("message", handleWindowMessage, true);
+  window.removeEventListener("keypress", handleKeyEventsOnFocus, true);
+  window.removeEventListener("keydown", handleKeyEventsOnFocus, true);
+  window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
+
+  Ext.disable();
 }
 
 function handleDisplay(msg) {
-  maxVideoSize = msg.defaultSettings.maxVideoSize;
+  Ext.settings.maxVideoSize = msg.defaultSettings.maxVideoSize;
+  var cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
+  var htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
+  var htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
 
-  try {
-    var cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
-    var htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
-    var htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
+  fetch(htmlRowUrl).then(function(response) {
+    if (response.ok) {
+      return response.text();
+    }
+    throw new Error(
+      `Received ${response.status} ${response.statusText} fetching ${response.url}`
+    );
+  }).then(function(text) {
+    Ext.rowTemplate = document.createElement("template");
+    Ext.rowTemplate.innerHTML = text;
+    Ext.rowTemplate = Ext.rowTemplate.content.firstElementChild;
 
-    fetch(htmlRowUrl).then(function(response) {
-      if (response.ok) {
-        return response.text();
-      }
-      throw new Error(
-        `Received ${response.status} ${response.statusText} fetching ${response.url}`
-      );
-    }).then(function(text) {
-      rowTemplate = document.createElement("template");
-      rowTemplate.innerHTML = text;
-      rowTemplate = rowTemplate.content.firstElementChild;
+    return fetch(cssUrl);
+  }).then(function(response) {
+    if (response.ok) {
+      return response.text();
+    }
+    throw new Error(
+      `Received ${response.status} ${response.statusText} fetching ${response.url}`
+    );
+  }).then(function(text) {
+    var css = document.createElement("style");
+    css.type = "text/css";
+    css.textContent = text;
+    css.id = CSS_STYLE_ID;
+    document.head.appendChild(css);
 
-      return fetch(cssUrl);
-    }).then(function(response) {
-      if (response.ok) {
-        return response.text();
-      }
-      throw new Error(
-        `Received ${response.status} ${response.statusText} fetching ${response.url}`
-      );
-    }).then(function(text) {
-      var css = document.createElement("style");
-      css.type = "text/css";
-      css.textContent = text;
-      css.id = CSS_STYLE_ID;
-      document.head.appendChild(css);
+    return fetch(htmlUrl);
+  }).then(function(response) {
+    if (response.ok) {
+      return response.text();
+    }
+    throw new Error(
+      `Received ${response.status} ${response.statusText} fetching ${response.url}`
+    );
+  }).then(function(text) {
+    setupDisplay(text);
+  }).catch(function() {
+    showNotification("Failed to initialize resources.");
+    handleCaptureClose();
+  });
 
-      return fetch(htmlUrl);
-    }).then(function(response) {
-      if (response.ok) {
-        return response.text();
-      }
-      throw new Error(
-        `Received ${response.status} ${response.statusText} fetching ${response.url}`
-      );
-    }).then(function(text) {
-      setupDisplay(text);
-    }).catch(function(e) {
-      throw new Error(e);
-    });
-  } catch (e) {
-    displayed = true;
-    handleDisable(e.message);
-  }
+  let highlighter = Ext.highlighter;
 
   for (let key of Object.keys(highlighter)) {
     if (key !== "current") {
@@ -640,23 +648,25 @@ function positionWrapper() {
   wrapper.style.left = `${(bodyRect.width / 2) - (wrapperRect.width / 2)}px`;
 }
 
+function handleWindowMouseWheel(evt) {
+  if (Ext.wrapperMouseHover) {
+    evt.stopPropagation();
+
+    return false;
+  }
+
+  return true;
+}
+
 function setupWrapperEvents() {
   var wrapper = document.getElementById(WRAPPER_ID);
   wrapper.addEventListener("mouseenter", function() {
-    wrapperMouseHover = true;
+    Ext.wrapperMouseHover = true;
   }, false);
   wrapper.addEventListener("mouseleave", function() {
-    wrapperMouseHover = false;
+    Ext.wrapperMouseHover = false;
   }, false);
-  window.addEventListener("wheel", function(evt) {
-    if (wrapperMouseHover) {
-      evt.stopPropagation();
-
-      return false;
-    }
-
-    return true;
-  }, true);
+  window.addEventListener("wheel", handleWindowMouseWheel, true);
 }
 
 function handleKeyEventsOnFocus(evt) {
@@ -675,7 +685,15 @@ function handleInputBlur() {
   window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
 }
 
+function handleCaptureClose() {
+  Ext.port.postMessage({
+    "command": MessageCommands.DISABLE,
+    "tabId": Ext.tabId
+  });
+}
+
 function setupDisplay(html) {
+  var captureClose = null;
   var modifyTimerSet = null;
   var modifyTimerClear = null;
   var modifyTimerHours = null;
@@ -685,7 +703,12 @@ function setupDisplay(html) {
   wrapper.innerHTML = html;
   document.body.appendChild(wrapper.content);
   wrapper = document.getElementById(WRAPPER_ID);
-  listCanvases = document.getElementById(LIST_CANVASES_ID);
+  Ext.listCanvases = document.getElementById(LIST_CANVASES_ID);
+
+  window.addEventListener("resize", positionWrapper, false);
+
+  captureClose = document.getElementById(CAPTURE_CLOSE_ID);
+  captureClose.addEventListener("click", handleCaptureClose, false);
 
   modifyTimerSet = document.getElementById(MODIFY_TIMER_SET_ID);
   modifyTimerClear = document.getElementById(MODIFY_TIMER_CLEAR_ID);
@@ -705,15 +728,15 @@ function setupDisplay(html) {
   setupWrapperEvents();
 
   var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  frames[TOP_FRAME_UUID].canvases = canvases;
-  port.postMessage({
+  Ext.frames[TOP_FRAME_UUID].canvases = canvases;
+  Ext.port.postMessage({
     "command": MessageCommands.DISPLAY,
-    "tabId": tabId,
-    "frameId": frameId,
+    "tabId": Ext.tabId,
+    "frameId": Ext.frameId,
     "frameUUID": TOP_FRAME_UUID,
     "targetFrameUUID": ALL_FRAMES_UUID,
     "defaultSettings": {
-      "maxVideoSize": maxVideoSize
+      "maxVideoSize": Ext.settings.maxVideoSize
     }
   });
 
@@ -734,9 +757,9 @@ function getAllCanvases() {
     };
   });
 
-  for (let key in frames) {
-    if (Object.prototype.hasOwnProperty.call(frames, key) && key !== TOP_FRAME_UUID) {
-      let frameCanvases = frames[key].canvases;
+  for (let key of Object.keys(Ext.frames)) {
+    if (key !== TOP_FRAME_UUID) {
+      let frameCanvases = Ext.frames[key].canvases;
       frameCanvases = frameCanvases.map(function(el, index) {
         var obj = JSON.parse(JSON.stringify(el));
         obj.local = false;
@@ -752,19 +775,19 @@ function getAllCanvases() {
 
 function updateCanvases() {
   var docFrag = document.createDocumentFragment();
-  var oldRows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  var oldRows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var canvases = getAllCanvases();
   const addTimerImgUrl = browser.runtime.getURL(ICON_ADD_PATH);
 
   oldRows.forEach((row) => row.parentElement.removeChild(row));
   canvases.forEach(function(canvas) {
     if (canvas.local) {
-      canvasMutObs.observe(canvas.element, CANVAS_OBSERVER_OPS);
+      Ext.canvasMutObs.observe(canvas.element, CANVAS_OBSERVER_OPS);
     }
   });
 
   for (let k = 0, n = canvases.length; k < n; k += 1) {
-    let row = rowTemplate.cloneNode(true);
+    let row = Ext.rowTemplate.cloneNode(true);
     let canvas = canvases[k];
     let canvasIsLocal = canvas.local;
 
@@ -798,8 +821,8 @@ function updateCanvases() {
     docFrag.appendChild(row);
   }
 
-  listCanvases.appendChild(docFrag);
-  active.updateTS = Date.now();
+  Ext.listCanvases.appendChild(docFrag);
+  Ext.active.updateTS = Date.now();
 }
 
 function setRowEventListeners(
@@ -919,12 +942,12 @@ function handleRowTimerModifyClose(img) {
 }
 
 function handleRowSetTimer() {
-  var img = listCanvases.querySelector(
+  var img = Ext.listCanvases.querySelector(
     `.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}.${TIMER_MODIFYING_CLASS}`
   );
   var ts = (img && parseInt(img.dataset.ts, 10)) || 0;
 
-  if (ts < active.updateTS) {
+  if (ts < Ext.active.updateTS) {
     handleRowTimerModifyClose(img);
     return;
   }
@@ -943,12 +966,12 @@ function handleRowSetTimer() {
 }
 
 function handleRowClearTimer() {
-  var img = listCanvases.querySelector(
+  var img = Ext.listCanvases.querySelector(
     `.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}.${TIMER_MODIFYING_CLASS}`
   );
   var ts = (img && parseInt(img.dataset.ts, 10)) || 0;
 
-  if (ts < active.updateTS) {
+  if (ts < Ext.active.updateTS) {
     handleRowTimerModifyClose(img);
     return;
   }
@@ -965,10 +988,10 @@ function highlightCanvas(evt) {
     return;
   }
 
-  highlighter.current = el;
+  Ext.highlighter.current = el;
 
   if (JSON.parse(el.dataset.canvasIsLocal)) {
-    let canvas = frames[TOP_FRAME_UUID].canvases[el.dataset.index];
+    let canvas = Ext.frames[TOP_FRAME_UUID].canvases[el.dataset.index];
     let rect = canvas.getBoundingClientRect();
 
     handleMessageHighlight({
@@ -984,12 +1007,12 @@ function highlightCanvas(evt) {
         "y": 0
       },
       "canCapture": canCaptureStream(canvas)
-    }, frames[TOP_FRAME_UUID].canvases[el.dataset.index]);
+    }, Ext.frames[TOP_FRAME_UUID].canvases[el.dataset.index]);
   } else {
-    port.postMessage({
+    Ext.port.postMessage({
       "command": MessageCommands.HIGHLIGHT,
-      "tabId": tabId,
-      "frameId": frameId,
+      "tabId": Ext.tabId,
+      "frameId": Ext.frameId,
       "frameUUID": TOP_FRAME_UUID,
       "targetFrameUUID": el.dataset.frameUUID,
       "canvasIndex": el.dataset.canvasIndex
@@ -1001,6 +1024,7 @@ function highlightCanvas(evt) {
 
 function unhighlightCanvas(evt) {
   var el = evt.target;
+  var highlighter = Ext.highlighter;
 
   if (
     !el.classList.contains(LIST_CANVASES_ROW_CLASS) ||
@@ -1024,7 +1048,7 @@ function onToggleCapture(evt) {
 
   button.blur();
 
-  if (active.capturing) {
+  if (Ext.active.capturing) {
     preStopCapture();
   } else {
     preStartCapture(button);
@@ -1032,7 +1056,7 @@ function onToggleCapture(evt) {
 }
 
 function setRowActive(index) {
-  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var linkCol = rows[index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
   var linkRow = null;
 
@@ -1061,8 +1085,8 @@ function setRowActive(index) {
 }
 
 function clearActiveRows() {
-  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  var row = rows[active.index];
+  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  var row = rows[Ext.active.index];
   var linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
 
   for (let k = 0; k < rows.length; k += 1) {
@@ -1079,16 +1103,16 @@ function clearActiveRows() {
 }
 
 function preStartCapture(button) {
-  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
-  active.index = button.dataset.index;
-  active.frameUUID = button.dataset.frameUUID;
-  var index = active.index;
+  Ext.active.index = button.dataset.index;
+  Ext.active.frameUUID = button.dataset.frameUUID;
+  var index = Ext.active.index;
   var row = rows[index];
   var timerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`);
   var hasTimer = JSON.parse(timerImg.dataset.hasTimer || false);
   var timerSeconds = parseInt(timerImg.dataset.timerSeconds, 10) || 0;
-  var canvases = frames[active.frameUUID].canvases;
+  var canvases = Ext.frames[Ext.active.frameUUID].canvases;
   var canvas = canvasIsLocal ? canvases[index] : canvases[button.dataset.canvasIndex];
   var linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
   linkCol.textContent = "";
@@ -1112,10 +1136,10 @@ function preStartCapture(button) {
       linkCol.classList.remove(CAPTURING_CLASS);
     }
   } else {
-    port.postMessage({
+    Ext.port.postMessage({
       "command": MessageCommands.CAPTURE_START,
-      "tabId": tabId,
-      "frameId": frameId,
+      "tabId": Ext.tabId,
+      "frameId": Ext.frameId,
       "frameUUID": TOP_FRAME_UUID,
       "targetFrameUUID": button.dataset.frameUUID,
       "canvasIndex": button.dataset.canvasIndex,
@@ -1124,12 +1148,12 @@ function preStartCapture(button) {
       "hasTimer": hasTimer,
       "timerSeconds": timerSeconds
     });
-    active.canvas = canvas;
+    Ext.active.canvas = canvas;
   }
 }
 
 function startCapture(canvas, fps, bps, timerSeconds) {
-  chunks = [];
+  Ext.chunks = [];
   var stream = null;
 
   if (!canvas) {
@@ -1143,52 +1167,52 @@ function startCapture(canvas, fps, bps, timerSeconds) {
   }
 
   try {
-    mediaRecorder = new MediaRecorder(
+    Ext.mediaRecorder = new MediaRecorder(
       stream,
       {"mimeType": MIME_TYPE_MAP[DEFAULT_MIME_TYPE], "bitsPerSecond": bps}
     );
   } catch (e) {
-    mediaRecorder = new MediaRecorder(stream);
+    Ext.mediaRecorder = new MediaRecorder(stream);
   }
-  mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
-  mediaRecorder.addEventListener("stop", stopCapture, false);
-  mediaRecorder.addEventListener("error", preStopCapture, false);
-  mediaRecorder.start(CAPTURE_INTERVAL_MS);
-  active.capturing = true;
-  active.canvas = canvas;
-  active.startTS = Date.now();
+  Ext.mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
+  Ext.mediaRecorder.addEventListener("stop", stopCapture, false);
+  Ext.mediaRecorder.addEventListener("error", preStopCapture, false);
+  Ext.mediaRecorder.start(CAPTURE_INTERVAL_MS);
+  Ext.active.capturing = true;
+  Ext.active.canvas = canvas;
+  Ext.active.startTS = Date.now();
   if (timerSeconds) {
-    active.timer.secs = timerSeconds;
-    active.timer.canvas = canvas;
-    active.timer.timerId = setTimeout(preStopCapture, timerSeconds * 1000);
+    Ext.active.timer.secs = timerSeconds;
+    Ext.active.timer.canvas = canvas;
+    Ext.active.timer.timerId = setTimeout(preStopCapture, timerSeconds * 1000);
   }
 
   return true;
 }
 
 function preStopCapture(evt) {
-  var buttons = Array.from(listCanvases.querySelectorAll(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`));
-  var button = buttons[active.index];
+  var buttons = Array.from(Ext.listCanvases.querySelectorAll(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`));
+  var button = buttons[Ext.active.index];
   var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
 
   if (evt && evt.error) {
-    active.error = true;
-    active.errorMessage = evt.error.message;
+    Ext.active.error = true;
+    Ext.active.errorMessage = evt.error.message;
   } else {
-    active.stopped = true;
+    Ext.active.stopped = true;
   }
 
   clearActiveRows();
 
   if (canvasIsLocal) {
-    if (mediaRecorder && mediaRecorder.state !== "inactive") {
-      mediaRecorder.stop();
+    if (Ext.mediaRecorder && Ext.mediaRecorder.state !== "inactive") {
+      Ext.mediaRecorder.stop();
     }
   } else {
-    port.postMessage({
+    Ext.port.postMessage({
       "command": MessageCommands.CAPTURE_STOP,
-      "tabId": tabId,
-      "frameId": frameId,
+      "tabId": Ext.tabId,
+      "frameId": Ext.frameId,
       "frameUUID": TOP_FRAME_UUID,
       "targetFrameUUID": button.dataset.frameUUID,
       "canvasIndex": button.dataset.canvasIndex
@@ -1197,8 +1221,8 @@ function preStopCapture(evt) {
 }
 
 function createVideoURL(blob) {
-  var rows = Array.from(listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  var row = rows[active.index];
+  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  var row = rows[Ext.active.index];
   var col = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
   var videoURL = "";
   var link = document.createElement("a");
@@ -1217,39 +1241,39 @@ function createVideoURL(blob) {
   link.href = videoURL;
   link.title = prettyFileSize(size);
   col.appendChild(link);
-  objectURLs.push(videoURL);
+  Ext.objectURLs.push(videoURL);
 }
 
 function stopCapture() {
   var blob = null;
-  if (active.capturing && !active.error && active.stopped) {
-    if (chunks.length) {
-      blob = new Blob(chunks, {"type": chunks[0].type});
+  if (Ext.active.capturing && !Ext.active.error && Ext.active.stopped) {
+    if (Ext.chunks.length) {
+      blob = new Blob(Ext.chunks, {"type": Ext.chunks[0].type});
     }
     createVideoURL(blob);
-  } else if (active.error) {
+  } else if (Ext.active.error) {
     showNotification("An error occured while recording.");
-  } else if (!active.stopped) {//eslint-disable-line
+  } else if (!Ext.active.stopped) {//eslint-disable-line
     clearActiveRows();
     showNotification("Recording unexpectedly stopped, likely due to canvas inactivity.");
   } else {
     showNotification("Canvas was removed while it was being recorded.");
   }
 
-  mediaRecorder = null;
-  chunks = null;
-  active.clear();
-  numBytes = 0;
+  Ext.mediaRecorder = null;
+  Ext.chunks = null;
+  Ext.active.clear();
+  Ext.numBytesRecorded = 0;
 }
 
 function onDataAvailable(evt) {
   var blob = evt.data;
 
   if (blob.size) {
-    chunks.push(blob);
-    numBytes += blob.size;
+    Ext.chunks.push(blob);
+    Ext.numBytesRecorded += blob.size;
 
-    if (numBytes >= maxVideoSize) {
+    if (Ext.numBytesRecorded >= Ext.settings.maxVideoSize) {
       preStopCapture();
     }
   }
@@ -1267,18 +1291,12 @@ function canCaptureStream(canvas) {
 }
 
 function showNotification(notification) {
-  port.postMessage({
+  Ext.port.postMessage({
     "command": MessageCommands.NOTIFY,
-    "tabId": tabId,
+    "tabId": Ext.tabId,
     "frameUUID": TOP_FRAME_UUID,
     "notification": notification
   });
-}
-
-function freeObjectURLs() {
-  for (let k = 0; k < objectURLs.length; k += 1) {
-    window.URL.revokeObjectURL(objectURLs[k]);
-  }
 }
 
 function prettyFileSize(nBytes, useSI) {
