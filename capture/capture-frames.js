@@ -23,12 +23,6 @@
 const FRAME_UUID = genUUIDv4();
 const TOP_FRAME_UUID = "top";
 
-var tabId = null;
-var frameId = null;
-const port = browser.runtime.connect({
-  "name": FRAME_UUID
-});
-
 const MessageCommands = Object.freeze({
   "CAPTURE_START": "capture-start",
   "CAPTURE_STOP": "capture-stop",
@@ -50,6 +44,12 @@ const DEFAULT_MIME_TYPE = "webm";
 const CAPTURE_INTERVAL_MS = 1000;
 
 const CANVAS_ACTIVE_CAPTURING_CLASS = "canvas_active_capturing";
+
+var tabId = null;
+var frameId = null;
+const port = browser.runtime.connect({
+  "name": FRAME_UUID
+});
 
 var mediaRecorder = null;
 const active = Object.seal({
@@ -83,7 +83,7 @@ const active = Object.seal({
   }
 });
 var chunks = null;
-var frames = {[FRAME_UUID]: {"frameUUID": FRAME_UUID, "canvases": []}};
+const frames = {[FRAME_UUID]: {"frameUUID": FRAME_UUID, "canvases": []}};
 var numBytes = 0;
 var objectURLs = [];
 var downloadLinks = [];
@@ -119,8 +119,7 @@ function onMessage(msg) {
   } else if (msg.command === MessageCommands.CAPTURE_STOP) {
     preStopCapture();
   } else if (msg.command === MessageCommands.DISABLE) {
-    freeObjectURLs();
-    port.disconnect();
+    handleMessageDisable();
   } else if (msg.command === MessageCommands.DISPLAY) {
     handleMessageDisplay(msg);
   } else if (msg.command === MessageCommands.DOWNLOAD) {
@@ -147,6 +146,22 @@ function handleMessageCaptureStart(msg) {
     "targetFrameUUID": TOP_FRAME_UUID,
     "success": ret
   });
+}
+
+function handleMessageDisable() {
+  freeObjectURLs();
+  port.disconnect();
+  mediaRecorder = null;
+  chunks = null;
+  active.clear();
+  for (let key of Object.keys(frames)) {
+    delete frames[key];
+  }
+  downloadLinks = null;
+  bodyMutObs.disconnect();
+  canvasMutObs.disconnect();
+
+  window.removeEventListener("message", handleWindowMessage);
 }
 
 function handleMessageDisplay(msg) {
