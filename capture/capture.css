@@ -129,7 +129,7 @@
 }
 
 #capture_close:active circle, #capture_close:active line {
-  stroke: #A8A8FF;
+  stroke: #9898FF;
 }
 
 .anchored {
