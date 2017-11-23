@@ -161,7 +161,7 @@ function handleMessageDisable() {
   bodyMutObs.disconnect();
   canvasMutObs.disconnect();
 
-  window.removeEventListener("message", handleWindowMessage);
+  window.removeEventListener("message", handleWindowMessage, true);
 }
 
 function handleMessageDisplay(msg) {
