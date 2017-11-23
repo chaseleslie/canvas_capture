@@ -555,12 +555,7 @@ function handleDisable(notify) {
   freeObjectURLs();
   displayed = false;
   showNotification(notify);
-  port.postMessage({
-    "command": MessageCommands.DISCONNECT,
-    "tabId": tabId,
-    "frameId": frameId,
-    "frameUUID": TOP_FRAME_UUID
-  });
+  port.disconnect();
 
   listCanvases = null;
 }

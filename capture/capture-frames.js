@@ -120,6 +120,7 @@ function onMessage(msg) {
     preStopCapture();
   } else if (msg.command === MessageCommands.DISABLE) {
     freeObjectURLs();
+    port.disconnect();
   } else if (msg.command === MessageCommands.DISPLAY) {
     handleMessageDisplay(msg);
   } else if (msg.command === MessageCommands.DOWNLOAD) {

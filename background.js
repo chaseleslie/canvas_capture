@@ -190,6 +190,7 @@ function onDisconnectTab(msg) {
   } else {
     let frames = activeTabs[tabId].frames;
     let frameIndex = -1;
+    let topFrame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
 
     for (let k = 0, n = frames.length; k < n; k += 1) {
       let frame = frames[k];
@@ -203,16 +204,11 @@ function onDisconnectTab(msg) {
       frames.splice(frameIndex, 1);
     }
 
-    for (let k = 0, n = frames.length; k < n; k += 1) {
-      let frame = frames[k];
-      if (frame.frameUUID === TOP_FRAME_UUID) {
-        frame.port.postMessage({
-          "command": MessageCommands.DISCONNECT,
-          "tabId": tabId,
-          "frameUUID": frameUUID
-        });
-      }
-    }
+    topFrame.port.postMessage({
+      "command": MessageCommands.DISCONNECT,
+      "tabId": tabId,
+      "frameUUID": frameUUID
+    });
   }
 }
 
@@ -297,15 +293,20 @@ function onBrowserAction(tab) {
   var tabId = tab.id;
 
   if (tabId in activeTabs) {
-    var topFrame = activeTabs[tabId].frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+    let frames = activeTabs[tabId].frames;
+    let topFrame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+    frames.forEach(function(el) {
+      if (el.frameUUID !== TOP_FRAME_UUID) {
+        el.port.postMessage({
+          "command": MessageCommands.DISABLE,
+          "tabId": tabId
+        });
+      }
+    });
     topFrame.port.postMessage({
       "command": MessageCommands.DISABLE,
       "tabId": tabId
     });
-    delete activeTabs[tabId];
-    browser.browserAction.setIcon(
-      {"path": ICON_PATH_MAP, "tabId": tabId}
-    ).then(nullifyError).catch(nullifyError);
   } else {
     browser.webNavigation.getAllFrames({"tabId": tabId})
     .then(function(frames) {
