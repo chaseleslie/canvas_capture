@@ -563,9 +563,6 @@ function handleDisable(notify) {
   showNotification(notify);
   Ext.port.disconnect();
   Ext.active.clear();
-  for (let key of Object.keys(Ext.frames)) {
-    delete Ext.frames[key];
-  }
   Ext.bodyMutObs.disconnect();
   Ext.canvasMutObs.disconnect();
 
