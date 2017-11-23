@@ -562,56 +562,55 @@ function handleDisable(notify) {
 
 function handleDisplay(msg) {
   maxVideoSize = msg.defaultSettings.maxVideoSize;
+  var cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
+  var htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
+  var htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
 
-  try {
-    var cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
-    var htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
-    var htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
+  fetch(htmlRowUrl).then(function(response) {
+    if (response.ok) {
+      return response.text();
+    }
+    throw new Error(
+      `Received ${response.status} ${response.statusText} fetching ${response.url}`
+    );
+  }).then(function(text) {
+    rowTemplate = document.createElement("template");
+    rowTemplate.innerHTML = text;
+    rowTemplate = rowTemplate.content.firstElementChild;
 
-    fetch(htmlRowUrl).then(function(response) {
-      if (response.ok) {
-        return response.text();
-      }
-      throw new Error(
-        `Received ${response.status} ${response.statusText} fetching ${response.url}`
-      );
-    }).then(function(text) {
-      rowTemplate = document.createElement("template");
-      rowTemplate.innerHTML = text;
-      rowTemplate = rowTemplate.content.firstElementChild;
+    return fetch(cssUrl);
+  }).then(function(response) {
+    if (response.ok) {
+      return response.text();
+    }
+    throw new Error(
+      `Received ${response.status} ${response.statusText} fetching ${response.url}`
+    );
+  }).then(function(text) {
+    var css = document.createElement("style");
+    css.type = "text/css";
+    css.textContent = text;
+    css.id = CSS_STYLE_ID;
+    document.head.appendChild(css);
 
-      return fetch(cssUrl);
-    }).then(function(response) {
-      if (response.ok) {
-        return response.text();
-      }
-      throw new Error(
-        `Received ${response.status} ${response.statusText} fetching ${response.url}`
-      );
-    }).then(function(text) {
-      var css = document.createElement("style");
-      css.type = "text/css";
-      css.textContent = text;
-      css.id = CSS_STYLE_ID;
-      document.head.appendChild(css);
-
-      return fetch(htmlUrl);
-    }).then(function(response) {
-      if (response.ok) {
-        return response.text();
-      }
-      throw new Error(
-        `Received ${response.status} ${response.statusText} fetching ${response.url}`
-      );
-    }).then(function(text) {
-      setupDisplay(text);
-    }).catch(function(e) {
-      throw new Error(e);
-    });
-  } catch (e) {
+    return fetch(htmlUrl);
+  }).then(function(response) {
+    if (response.ok) {
+      return response.text();
+    }
+    throw new Error(
+      `Received ${response.status} ${response.statusText} fetching ${response.url}`
+    );
+  }).then(function(text) {
+    setupDisplay(text);
+  }).catch(function() {
     displayed = true;
-    handleDisable(e.message);
-  }
+    showNotification("Failed to initialize resources.");
+    port.postMessage({
+      "command": MessageCommands.DISABLE,
+      "tabId": tabId
+    });
+  });
 
   for (let key of Object.keys(highlighter)) {
     if (key !== "current") {
