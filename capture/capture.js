@@ -546,7 +546,7 @@ function handleDisable(notify) {
     style.parentElement.removeChild(style);
   }
 
-  for (let key in Object.keys(highlighter)) {
+  for (let key of Object.keys(highlighter)) {
     if (key !== "current") {
       highlighter[key].parentElement.removeChild(highlighter[key]);
     }
