@@ -24,12 +24,6 @@ const TOP_FRAME_UUID = "top";
 const BG_FRAME_UUID = "background";
 const ALL_FRAMES_UUID = "*";
 
-var tabId = null;
-var frameId = null;
-const port = browser.runtime.connect({
-  "name": TOP_FRAME_UUID
-});
-
 const MessageCommands = Object.freeze({
   "CAPTURE_START": "capture-start",
   "CAPTURE_STOP": "capture-stop",
@@ -86,6 +80,12 @@ const HIDDEN_CLASS = "hidden";
 const HIGHLIGHTER_UNAVAILABLE_CLASS = "highlighter_unavailable";
 const HIGHLIGHTER_HORIZONTAL_CLASS = "highlighter_horizontal";
 const HIGHLIGHTER_VERTICAL_CLASS = "highlighter_vertical";
+
+var tabId = null;
+var frameId = null;
+const port = browser.runtime.connect({
+  "name": TOP_FRAME_UUID
+});
 
 var rowTemplate = null;
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
@@ -612,10 +612,7 @@ function handleDisplay(msg) {
     setupDisplay(text);
   }).catch(function() {
     showNotification("Failed to initialize resources.");
-    port.postMessage({
-      "command": MessageCommands.DISABLE,
-      "tabId": tabId
-    });
+    handleCaptureClose();
   });
 
   for (let key of Object.keys(highlighter)) {
