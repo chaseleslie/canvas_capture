@@ -66,6 +66,7 @@ const MODIFY_TIMER_CLEAR_ID = "modify_timer_clear";
 const MODIFY_TIMER_HOURS_ID = "modify_timer_hours";
 const MODIFY_TIMER_MINUTES_ID = "modify_timer_minutes";
 const MODIFY_TIMER_SECONDS_ID = "modify_timer_seconds";
+const CAPTURE_CLOSE_ID = "capture_close";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
@@ -88,7 +89,6 @@ const HIGHLIGHTER_VERTICAL_CLASS = "highlighter_vertical";
 
 var rowTemplate = null;
 var maxVideoSize = 4 * 1024 * 1024 * 1024;
-var displayed = false;
 var mediaRecorder = null;
 const active = Object.seal({
   "capturing": false,
@@ -196,10 +196,7 @@ function onMessage(msg) {
   } else if (msg.command === MessageCommands.DISCONNECT) {
     handleMessageDisconnect(msg);
   } else if (msg.command === MessageCommands.DISPLAY) {
-    if (!displayed) {
-      handleDisplay(msg);
-      displayed = true;
-    }
+    handleDisplay(msg);
   } else if (msg.command === MessageCommands.HIGHLIGHT) {
     handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
@@ -527,10 +524,6 @@ function observeCanvasMutations(mutations) {
 }
 
 function handleDisable(notify) {
-  if (!displayed) {
-    return;
-  }
-
   var wrapper = document.getElementById(WRAPPER_ID);
   if (wrapper) {
     wrapper.parentElement.removeChild(wrapper);
@@ -553,11 +546,25 @@ function handleDisable(notify) {
   }
 
   freeObjectURLs();
-  displayed = false;
   showNotification(notify);
   port.disconnect();
-
+  port.onMessage.removeListener(onMessage);
+  mediaRecorder = null;
+  active.clear();
   listCanvases = null;
+  chunks = null;
+  for (let key of Object.keys(frames)) {
+    delete frames[key];
+  }
+  bodyMutObs.disconnect();
+  canvasMutObs.disconnect();
+
+  window.removeEventListener("resize", positionWrapper);
+  window.removeEventListener("wheel", handleWindowMouseWheel);
+  window.removeEventListener("message", handleWindowMessage);
+  window.removeEventListener("keypress", handleKeyEventsOnFocus, true);
+  window.removeEventListener("keydown", handleKeyEventsOnFocus, true);
+  window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
 }
 
 function handleDisplay(msg) {
@@ -604,7 +611,6 @@ function handleDisplay(msg) {
   }).then(function(text) {
     setupDisplay(text);
   }).catch(function() {
-    displayed = true;
     showNotification("Failed to initialize resources.");
     port.postMessage({
       "command": MessageCommands.DISABLE,
@@ -634,6 +640,16 @@ function positionWrapper() {
   wrapper.style.left = `${(bodyRect.width / 2) - (wrapperRect.width / 2)}px`;
 }
 
+function handleWindowMouseWheel(evt) {
+  if (wrapperMouseHover) {
+    evt.stopPropagation();
+
+    return false;
+  }
+
+  return true;
+}
+
 function setupWrapperEvents() {
   var wrapper = document.getElementById(WRAPPER_ID);
   wrapper.addEventListener("mouseenter", function() {
@@ -642,15 +658,7 @@ function setupWrapperEvents() {
   wrapper.addEventListener("mouseleave", function() {
     wrapperMouseHover = false;
   }, false);
-  window.addEventListener("wheel", function(evt) {
-    if (wrapperMouseHover) {
-      evt.stopPropagation();
-
-      return false;
-    }
-
-    return true;
-  }, true);
+  window.addEventListener("wheel", handleWindowMouseWheel, true);
 }
 
 function handleKeyEventsOnFocus(evt) {
@@ -669,7 +677,15 @@ function handleInputBlur() {
   window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
 }
 
+function handleCaptureClose() {
+  port.postMessage({
+    "command": MessageCommands.DISABLE,
+    "tabId": tabId
+  });
+}
+
 function setupDisplay(html) {
+  var captureClose = null;
   var modifyTimerSet = null;
   var modifyTimerClear = null;
   var modifyTimerHours = null;
@@ -682,6 +698,9 @@ function setupDisplay(html) {
   listCanvases = document.getElementById(LIST_CANVASES_ID);
 
   window.addEventListener("resize", positionWrapper, false);
+
+  captureClose = document.getElementById(CAPTURE_CLOSE_ID);
+  captureClose.addEventListener("click", handleCaptureClose, false);
 
   modifyTimerSet = document.getElementById(MODIFY_TIMER_SET_ID);
   modifyTimerClear = document.getElementById(MODIFY_TIMER_CLEAR_ID);

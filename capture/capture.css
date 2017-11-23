@@ -110,6 +110,28 @@
   border-color: #66D;
 }
 
+#capture_close {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 1.75em;
+  height: 1.75em;
+}
+
+#capture_close circle, #capture_close line {
+  stroke: #D8D8FF;
+  stroke-width: 10;
+  fill-opacity: 0;
+}
+
+#capture_close:hover circle, #capture_close:hover line {
+  stroke: #B8B8FF;
+}
+
+#capture_close:active circle, #capture_close:active line {
+  stroke: #A8A8FF;
+}
+
 .anchored {
   position: sticky;
   top: 0px;
