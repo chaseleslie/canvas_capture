@@ -109,7 +109,16 @@ const Ext = Object.seal({
     "timer": Object.seal({
       "timerId": -1,
       "canvas": null,
-      "secs": 0
+      "secs": 0,
+      "updateTimerId": -1,
+      "clear": function() {
+        clearTimeout(this.timerId);
+        clearInterval(this.updateTimerId);
+        this.timerId = -1;
+        this.canvas = null;
+        this.secs = 0;
+        this.updateTimerId = -1;
+      }
     }),
     "clear": function() {
       this.capturing = false;
@@ -121,9 +130,7 @@ const Ext = Object.seal({
       this.stopped = false;
       this.error = false;
       this.errorMessage = "";
-      this.timer.timerId = -1;
-      this.timer.canvas = null;
-      this.timer.secs = 0;
+      this.timer.clear();
     }
   }),
   "listCanvases": null,
