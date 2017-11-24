@@ -395,7 +395,7 @@ function handleMessageUpdateCanvases(msg) {
     if (canvasIsLocal) {
       canvasIndex = parseInt(Ext.active.index, 10);
     } else if (frameUUID === Ext.active.frameUUID) {
-      canvasIndex = parseInt(msg.Ext.activeCanvasIndex, 10);
+      canvasIndex = parseInt(msg.activeCanvasIndex, 10);
     } else {
       canvasIndex = parseInt(row.dataset.canvasIndex, 10);
       canvasFrameUUID = row.dataset.frameUUID;
@@ -908,7 +908,7 @@ function handleRowTimerModify(evt) {
 
   container.classList.remove(HIDDEN_CLASS);
   containerRect = container.getBoundingClientRect();
-  container.style.left = `${evt.clientX - parseInt(0.5 * containerRect.width, 10)}px`;
+  container.style.left = `${evt.clientX - Math.trunc(0.5 * containerRect.width)}px`;
   container.style.top = `${evt.clientY - containerRect.height - 20}px`;
 }
 
@@ -1237,7 +1237,7 @@ function createVideoURL(blob) {
   }
 
   link.textContent = "Download";
-  link.download = `capture-${parseInt(Date.now() / 1000, 10)}.${DEFAULT_MIME_TYPE}`;
+  link.download = `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`;
   link.href = videoURL;
   link.title = prettyFileSize(size);
   col.appendChild(link);
@@ -1319,8 +1319,8 @@ function hmsToSeconds({hours, minutes, seconds}) {
 }
 
 function secondsToHMS(secs) {
-  var hours = parseInt(secs / 3600, 10);
-  var minutes = parseInt((secs - (hours * 3600)) / 60, 10);
+  var hours = Math.trunc(secs / 3600);
+  var minutes = Math.trunc((secs - (hours * 3600)) / 60);
   var seconds = secs - (hours * 3600) - (minutes * 60);
 
   if (seconds >= 60) {
