@@ -171,6 +171,16 @@ function handleMessageCaptureStart(msg) {
 }
 
 function handleMessageDisable() {
+  if (Ext.mediaRecorder) {
+    Ext.mediaRecorder.removeEventListener("dataavailable", onDataAvailable, false);
+    Ext.mediaRecorder.removeEventListener("stop", stopCapture, false);
+    Ext.mediaRecorder.removeEventListener("error", preStopCapture, false);
+
+    if (Ext.mediaRecorder.state !== "inactive") {
+      Ext.mediaRecorder.stop();
+    }
+  }
+
   Ext.freeObjectURLs();
   Ext.active.clear();
   Ext.bodyMutObs.disconnect();
@@ -196,7 +206,7 @@ function handleMessageDownload(msg) {
   var link = document.createElement("a");
   link.textContent = "download";
   link.href = Ext.objectURLs[msg.canvasIndex];
-  link.download = `capture-${parseInt(Date.now() / 1000, 10)}.${DEFAULT_MIME_TYPE}`;
+  link.download = `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`;
   link.style.maxWidth = "0px";
   link.style.maxHeight = "0px";
   link.style.display = "block";

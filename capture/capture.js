@@ -559,6 +559,16 @@ function handleDisable(notify) {
     }
   }
 
+  if (Ext.mediaRecorder) {
+    Ext.mediaRecorder.removeEventListener("dataavailable", onDataAvailable, false);
+    Ext.mediaRecorder.removeEventListener("stop", stopCapture, false);
+    Ext.mediaRecorder.removeEventListener("error", preStopCapture, false);
+
+    if (Ext.mediaRecorder.state !== "inactive") {
+      Ext.mediaRecorder.stop();
+    }
+  }
+
   Ext.freeObjectURLs();
   showNotification(notify);
   Ext.port.disconnect();
