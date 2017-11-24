@@ -12,12 +12,16 @@ while read platform
 do
   echo "Generating platform folder for $platform"
   PLATFORM_DEV="$PLATFORM_DIR/$platform-dev"
-  if [ -d "$PLATFORM_DEV" ]; then
-    rm -R "$PLATFORM_DEV"
+  if [ ! -d "$PLATFORM_DEV" ]; then
+    mkdir -p "$PLATFORM_DEV"
   fi
-  mkdir -p "$PLATFORM_DEV"
+
   for file in $SRC_FILES; do
-    cp -ar "$PWD/$file" "$PLATFORM_DEV/$file"
+    if [ -d "$PWD/$file" ]; then
+      rsync -a -u -r "$PWD/$file" "$PLATFORM_DEV/"
+    else
+      rsync -a -u -r "$PWD/$file" "$PLATFORM_DEV/$file"
+    fi
   done
 
   echo "Generating manifest for $platform"
