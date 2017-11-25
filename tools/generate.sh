@@ -10,12 +10,16 @@ PLATFORMS_PATH="$PWD/platform/platforms.txt"
 
 while read platform
 do
-  echo "Generating platform folder for $platform"
+  printf "%s\n" "Generating $platform"
   PLATFORM_DEV="$PLATFORM_DIR/$platform-dev"
   if [ ! -d "$PLATFORM_DEV" ]; then
+    printf "  > %s\n" "Creating $PLATFORM_DEV"
     mkdir -p "$PLATFORM_DEV"
+  else
+    printf "  > %s\n" "$PLATFORM_DEV already exists"
   fi
 
+  printf "  > %s\n" "Copying files to $PLATFORM_DEV"
   for file in $SRC_FILES; do
     if [ -d "$PWD/$file" ]; then
       rsync -a -u -r "$PWD/$file" "$PLATFORM_DEV/"
@@ -24,6 +28,10 @@ do
     fi
   done
 
-  echo "Generating manifest for $platform"
-  "$PWD/tools/generate-manifest.py" "$platform"
+  if [ "$PLATFORM_DIR/$platform/manifest.json" -nt "$PLATFORM_DEV/manifest.json" ]; then
+    printf "  > %s\n" "Generating manifest"
+    "$PWD/tools/generate-manifest.py" "$platform"
+  else
+    printf "  > %s\n" "Manifest is current"
+  fi
 done < "$PLATFORMS_PATH"
