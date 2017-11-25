@@ -46,6 +46,7 @@ const CAPTURE_INTERVAL_MS = 1000;
 const DEFAULT_FPS = 30;
 const DEFAULT_BPS = 2500000;
 const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
+const MSEC_PER_SEC = 1000;
 const CSS_FILE_PATH = "/capture/capture.css";
 const HTML_FILE_PATH = "/capture/capture.html";
 const HTML_ROW_FILE_PATH = "/capture/capture-row.html";
@@ -62,6 +63,8 @@ const MODIFY_TIMER_HOURS_ID = "modify_timer_hours";
 const MODIFY_TIMER_MINUTES_ID = "modify_timer_minutes";
 const MODIFY_TIMER_SECONDS_ID = "modify_timer_seconds";
 const CAPTURE_CLOSE_ID = "capture_close";
+const TIMER_SLICE_CONTAINER_ID = "timer_slice_container";
+const TIMER_SLICE_CLIP_PATH_ID = "timer_slice_clip_path";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
@@ -96,6 +99,7 @@ const Ext = Object.seal({
   "rowTemplate": null,
   "settings": Object.seal({"maxVideoSize": DEFAULT_MAX_VIDEO_SIZE}),
   "mediaRecorder": null,
+  "displayed": false,
   "active": Object.seal({
     "capturing": false,
     "index": -1,
@@ -109,7 +113,16 @@ const Ext = Object.seal({
     "timer": Object.seal({
       "timerId": -1,
       "canvas": null,
-      "secs": 0
+      "secs": 0,
+      "updateTimerId": -1,
+      "clear": function() {
+        clearTimeout(this.timerId);
+        clearUpdateTimer();
+        this.timerId = -1;
+        this.canvas = null;
+        this.secs = 0;
+        this.updateTimerId = -1;
+      }
     }),
     "clear": function() {
       this.capturing = false;
@@ -121,9 +134,7 @@ const Ext = Object.seal({
       this.stopped = false;
       this.error = false;
       this.errorMessage = "";
-      this.timer.timerId = -1;
-      this.timer.canvas = null;
-      this.timer.secs = 0;
+      this.timer.clear();
     }
   }),
   "listCanvases": null,
@@ -227,21 +238,9 @@ function handleMessageCaptureStart(msg) {
     let linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
     linkCol.classList.add(CAPTURING_CLASS);
     Ext.active.capturing = true;
-    Ext.active.startTS = Date.now();
+    Ext.active.startTS = msg.startTS;
   } else {
-    for (let k = 0, n = rows.length; k < n; k += 1) {
-      let row = rows[k];
-      let button = row.querySelector("button");
-      let linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
-      button.textContent = "Capture";
-      button.addEventListener("click", onToggleCapture, false);
-      linkCol.classList.remove(CAPTURING_CLASS);
-      row.classList.remove(
-        CANVAS_CAPTURE_SELECTED_CLASS,
-        CANVAS_CAPTURE_INACTIVE_CLASS
-      );
-    }
-
+    clearActiveRows();
     Ext.active.clear();
   }
 }
@@ -395,7 +394,7 @@ function handleMessageUpdateCanvases(msg) {
     if (canvasIsLocal) {
       canvasIndex = parseInt(Ext.active.index, 10);
     } else if (frameUUID === Ext.active.frameUUID) {
-      canvasIndex = parseInt(msg.Ext.activeCanvasIndex, 10);
+      canvasIndex = parseInt(msg.activeCanvasIndex, 10);
     } else {
       canvasIndex = parseInt(row.dataset.canvasIndex, 10);
       canvasFrameUUID = row.dataset.frameUUID;
@@ -559,6 +558,16 @@ function handleDisable(notify) {
     }
   }
 
+  if (Ext.mediaRecorder) {
+    Ext.mediaRecorder.removeEventListener("dataavailable", onDataAvailable, false);
+    Ext.mediaRecorder.removeEventListener("stop", stopCapture, false);
+    Ext.mediaRecorder.removeEventListener("error", preStopCapture, false);
+
+    if (Ext.mediaRecorder.state !== "inactive") {
+      Ext.mediaRecorder.stop();
+    }
+  }
+
   Ext.freeObjectURLs();
   showNotification(notify);
   Ext.port.disconnect();
@@ -642,10 +651,14 @@ function handleDisplay(msg) {
 }
 
 function positionWrapper() {
-  var wrapper = document.getElementById(WRAPPER_ID);
-  var bodyRect = document.body.getBoundingClientRect();
-  var wrapperRect = wrapper.getBoundingClientRect();
-  wrapper.style.left = `${(bodyRect.width / 2) - (wrapperRect.width / 2)}px`;
+  if (Ext.displayed) {
+    var wrapper = document.getElementById(WRAPPER_ID);
+    var bodyRect = document.body.getBoundingClientRect();
+    var wrapperRect = wrapper.getBoundingClientRect();
+    wrapper.style.left = `${(bodyRect.width / 2) - (wrapperRect.width / 2)}px`;
+    positionUpdateTimer();
+    positionRowTimerModify();
+  }
 }
 
 function handleWindowMouseWheel(evt) {
@@ -705,6 +718,7 @@ function setupDisplay(html) {
   wrapper = document.getElementById(WRAPPER_ID);
   Ext.listCanvases = document.getElementById(LIST_CANVASES_ID);
 
+  Ext.displayed = true;
   window.addEventListener("resize", positionWrapper, false);
 
   captureClose = document.getElementById(CAPTURE_CLOSE_ID);
@@ -865,9 +879,24 @@ function clearRowEventListeners(
   }
 }
 
-function handleRowTimerModify(evt) {
+function positionRowTimerModify() {
+  var wrapper = document.getElementById(WRAPPER_ID);
   var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
   var containerRect = null;
+  var img = wrapper.querySelector(`.${TIMER_MODIFYING_CLASS}`);
+  var imgRect = null;
+
+  if (img) {
+    containerRect = container.getBoundingClientRect();
+    imgRect = img.getBoundingClientRect();
+    container.style.left = `${imgRect.left + (0.5 * imgRect.width) - Math.trunc(0.5 * containerRect.width)}px`;
+    container.style.top = `${imgRect.top - containerRect.height - 20}px`;
+  }
+}
+
+function handleRowTimerModify(evt) {
+  var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+  // var containerRect = null;
   var img = evt.target;
   var rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var row = img.parentElement;
@@ -907,9 +936,10 @@ function handleRowTimerModify(evt) {
   }
 
   container.classList.remove(HIDDEN_CLASS);
-  containerRect = container.getBoundingClientRect();
-  container.style.left = `${evt.clientX - parseInt(0.5 * containerRect.width, 10)}px`;
-  container.style.top = `${evt.clientY - containerRect.height - 20}px`;
+  // containerRect = container.getBoundingClientRect();
+  // container.style.left = `${evt.clientX - Math.trunc(0.5 * containerRect.width)}px`;
+  // container.style.top = `${evt.clientY - containerRect.height - 20}px`;
+  positionRowTimerModify();
 }
 
 function handleRowTimerModifyClose(img) {
@@ -979,6 +1009,51 @@ function handleRowClearTimer() {
   img.dataset.hasTimer = false;
   img.dataset.timerSeconds = 0;
   handleRowTimerModifyClose(img);
+}
+
+function positionUpdateTimer() {
+  var wrapper = document.getElementById(WRAPPER_ID);
+  var timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
+  var wrapperRect = wrapper.getBoundingClientRect();
+  var timerRect = timer.getBoundingClientRect();
+  var left = (0.5 * wrapperRect.width) - (0.5 * timerRect.width);
+  var top = (0.5 * wrapperRect.height) - (0.5 * timerRect.height);
+  timer.style.left = `${left}px`;
+  timer.style.top = `${top}px`;
+}
+
+function setUpdateTimer(timerSeconds) {
+  var updateTimerMS = Math.max(250, Math.trunc(timerSeconds / 100 * 1000));
+  var timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
+  var clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
+  Ext.active.timer.updateTimerId = setInterval(updateTimerDisplay, updateTimerMS);
+  timer.classList.remove("hidden");
+  positionUpdateTimer();
+  clipPath.setAttribute("d", "M0,0 L100,0 L100,100 L0,100 Z");
+}
+
+function clearUpdateTimer() {
+  let timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
+  timer.classList.add("hidden");
+}
+
+function updateTimerDisplay() {
+  var clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
+  var frac = ((Date.now() - Ext.active.startTS) / MSEC_PER_SEC) / Ext.active.timer.secs;
+  frac = Math.min(frac, 1);
+  const rd = 48;
+  const cx = 50;
+  const cy = 50;
+  const angle = (2 * Math.PI * frac);
+  const phase = 0.5 * Math.PI;
+  const theta = phase + angle;
+  const sweep = (frac <= 0.5) ? 1 : 0;
+  const x2 = 50;
+  const y2 = cy - rd;
+  const x1 = (rd * Math.cos(theta)) + cx;
+  const y1 = (-rd * Math.sin(theta)) + cy;
+  const path = `M${cx},${cy} L${x1},${y1} A${rd},${rd} 0 ${sweep} 0 ${x2},${y2} Z`;
+  clipPath.setAttribute("d", path);
 }
 
 function highlightCanvas(evt) {
@@ -1086,20 +1161,18 @@ function setRowActive(index) {
 
 function clearActiveRows() {
   var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  var row = rows[Ext.active.index];
-  var linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
 
   for (let k = 0; k < rows.length; k += 1) {
-    let ro = rows[k];
-    ro.classList.remove(
+    let row = rows[k];
+    row.classList.remove(
       CANVAS_CAPTURE_INACTIVE_CLASS,
       CANVAS_CAPTURE_SELECTED_CLASS
     );
-    setRowEventListeners(ro);
-    ro.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`).textContent = "Capture";
+    setRowEventListeners(row);
+    row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`).textContent = "Capture";
+    row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`)
+      .classList.remove(CAPTURING_CLASS);
   }
-
-  linkCol.classList.remove(CAPTURING_CLASS);
 }
 
 function preStartCapture(button) {
@@ -1130,10 +1203,15 @@ function preStartCapture(button) {
   var bps = parseFloat(bpsInput.value);
   bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : DEFAULT_BPS;
 
+  if (timerSeconds) {
+    setUpdateTimer(timerSeconds);
+  }
+
   if (canvasIsLocal) {
     let ret = startCapture(canvas, fps, bps, timerSeconds);
     if (!ret) {
-      linkCol.classList.remove(CAPTURING_CLASS);
+      clearActiveRows();
+      Ext.active.clear();
     }
   } else {
     Ext.port.postMessage({
@@ -1149,6 +1227,7 @@ function preStartCapture(button) {
       "timerSeconds": timerSeconds
     });
     Ext.active.canvas = canvas;
+    Ext.active.timer.secs = timerSeconds;
   }
 }
 
@@ -1184,7 +1263,7 @@ function startCapture(canvas, fps, bps, timerSeconds) {
   if (timerSeconds) {
     Ext.active.timer.secs = timerSeconds;
     Ext.active.timer.canvas = canvas;
-    Ext.active.timer.timerId = setTimeout(preStopCapture, timerSeconds * 1000);
+    Ext.active.timer.timerId = setTimeout(preStopCapture, timerSeconds * MSEC_PER_SEC);
   }
 
   return true;
@@ -1237,7 +1316,7 @@ function createVideoURL(blob) {
   }
 
   link.textContent = "Download";
-  link.download = `capture-${parseInt(Date.now() / 1000, 10)}.${DEFAULT_MIME_TYPE}`;
+  link.download = `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`;
   link.href = videoURL;
   link.title = prettyFileSize(size);
   col.appendChild(link);
@@ -1319,8 +1398,8 @@ function hmsToSeconds({hours, minutes, seconds}) {
 }
 
 function secondsToHMS(secs) {
-  var hours = parseInt(secs / 3600, 10);
-  var minutes = parseInt((secs - (hours * 3600)) / 60, 10);
+  var hours = Math.trunc(secs / 3600);
+  var minutes = Math.trunc((secs - (hours * 3600)) / 60);
   var seconds = secs - (hours * 3600) - (minutes * 60);
 
   if (seconds >= 60) {

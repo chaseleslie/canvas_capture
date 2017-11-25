@@ -1,5 +1,7 @@
 {
   "background": {
     "persistent": false
-  }
+  },
+
+  "minimum_chrome_version": "57"
 }

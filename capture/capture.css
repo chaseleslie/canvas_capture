@@ -208,6 +208,11 @@
   color: #D8D8FF;
 }
 
+#modify_timer_container input {
+  font-family: monospace;
+  font-size: 100%;
+}
+
 #modify_timer_container .modify_timer_heading {
   font-size: 1.25em;
   font-weight: 700;
@@ -222,6 +227,26 @@
 
 #modify_timer_container input:focus {
   border-color: #66D;
+}
+
+#timer_slice_container {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  z-index: 1000;
+  opacity: 0.90;
+  pointer-events: none;
+}
+
+#timer_slice_obscured {
+  stroke: #55D;
+  fill: #55D;
+}
+
+#timer_slice_clipped {
+  clip-path: url(#timer_slice_clip);
+  stroke: #99D;
+  fill: #99D;
 }
 
 .span_all {

@@ -71,7 +71,13 @@ const Ext = Object.seal({
     "timer": Object.seal({
       "timerId": -1,
       "canvas": null,
-      "secs": 0
+      "secs": 0,
+      "clear": function() {
+        clearTimeout(this.timerId);
+        this.timerId = -1;
+        this.canvas = null;
+        this.secs = 0;
+      }
     }),
     "clear": function() {
       this.capturing = false;
@@ -83,9 +89,7 @@ const Ext = Object.seal({
       this.stopped = false;
       this.error = false;
       this.errorMessage = "";
-      this.timer.timerId = -1;
-      this.timer.canvas = null;
-      this.timer.secs = 0;
+      this.timer.clear();
     }
   }),
   "chunks": null,
@@ -166,11 +170,22 @@ function handleMessageCaptureStart(msg) {
     "frameId": Ext.frameId,
     "frameUUID": FRAME_UUID,
     "targetFrameUUID": TOP_FRAME_UUID,
-    "success": ret
+    "success": ret,
+    "startTS": Ext.active.startTS
   });
 }
 
 function handleMessageDisable() {
+  if (Ext.mediaRecorder) {
+    Ext.mediaRecorder.removeEventListener("dataavailable", onDataAvailable, false);
+    Ext.mediaRecorder.removeEventListener("stop", stopCapture, false);
+    Ext.mediaRecorder.removeEventListener("error", preStopCapture, false);
+
+    if (Ext.mediaRecorder.state !== "inactive") {
+      Ext.mediaRecorder.stop();
+    }
+  }
+
   Ext.freeObjectURLs();
   Ext.active.clear();
   Ext.bodyMutObs.disconnect();
@@ -196,7 +211,7 @@ function handleMessageDownload(msg) {
   var link = document.createElement("a");
   link.textContent = "download";
   link.href = Ext.objectURLs[msg.canvasIndex];
-  link.download = `capture-${parseInt(Date.now() / 1000, 10)}.${DEFAULT_MIME_TYPE}`;
+  link.download = `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`;
   link.style.maxWidth = "0px";
   link.style.maxHeight = "0px";
   link.style.display = "block";
