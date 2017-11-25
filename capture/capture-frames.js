@@ -170,7 +170,8 @@ function handleMessageCaptureStart(msg) {
     "frameId": Ext.frameId,
     "frameUUID": FRAME_UUID,
     "targetFrameUUID": TOP_FRAME_UUID,
-    "success": ret
+    "success": ret,
+    "startTS": Ext.active.startTS
   });
 }
 
