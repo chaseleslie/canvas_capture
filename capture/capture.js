@@ -1019,7 +1019,7 @@ function positionUpdateTimer() {
 }
 
 function setUpdateTimer(timerSeconds) {
-  var updateTimerMS = Math.max(250, Math.trunc(timerSeconds / 100 * 1000));
+  var updateTimerMS = Math.max(125, Math.trunc(timerSeconds / 100 * 1000));
   var timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
   var clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
   Ext.active.timer.updateTimerId = setInterval(updateTimerDisplay, updateTimerMS);
@@ -1031,6 +1031,7 @@ function setUpdateTimer(timerSeconds) {
 function clearUpdateTimer() {
   let timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
   timer.classList.add("hidden");
+  clearTimeout(Ext.active.timer.updateTimerId);
 }
 
 function updateTimerDisplay() {
