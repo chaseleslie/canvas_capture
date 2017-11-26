@@ -896,7 +896,6 @@ function positionRowTimerModify() {
 
 function handleRowTimerModify(evt) {
   var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
-  // var containerRect = null;
   var img = evt.target;
   var rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var row = img.parentElement;
@@ -936,9 +935,6 @@ function handleRowTimerModify(evt) {
   }
 
   container.classList.remove(HIDDEN_CLASS);
-  // containerRect = container.getBoundingClientRect();
-  // container.style.left = `${evt.clientX - Math.trunc(0.5 * containerRect.width)}px`;
-  // container.style.top = `${evt.clientY - containerRect.height - 20}px`;
   positionRowTimerModify();
 }
 
