@@ -164,6 +164,7 @@
   width: 100vw;
   min-width: 100vw;
   max-width: 100vw;
+  z-index: 10000;
   background-color: #20202E;
   text-align: center;
   font-family: sans-serif;
