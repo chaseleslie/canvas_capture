@@ -155,7 +155,7 @@
   stroke: #9898FF;
 }
 
-#capture_maximize_container {
+#capture_maximize {
   position: fixed;
   bottom: 0px;
   left: 0px;
@@ -171,7 +171,7 @@
   color: #D8D8FF;
 }
 
-#capture_maximize {
+#capture_maximize svg {
   width: 4vh;
   height: 4vh;
   stroke-linecap: round;

@@ -65,7 +65,7 @@ const MODIFY_TIMER_SECONDS_ID = "modify_timer_seconds";
 const CAPTURE_CLOSE_ID = "capture_close";
 const TIMER_SLICE_CONTAINER_ID = "timer_slice_container";
 const TIMER_SLICE_CLIP_PATH_ID = "timer_slice_clip_path";
-const CAPTURE_MAXIMIZE_CONTAINER_ID = "capture_maximize_container";
+const CAPTURE_MAXIMIZE_ID = "capture_maximize";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
@@ -548,7 +548,7 @@ function handleDisable(notify) {
     modifyTimer.parentElement.removeChild(modifyTimer);
   }
 
-  var maximize = document.getElementById(CAPTURE_MAXIMIZE_CONTAINER_ID);
+  var maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
   if (maximize) {
     maximize.parentElement.removeChild(maximize);
   }
