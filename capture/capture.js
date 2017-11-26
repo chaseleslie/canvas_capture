@@ -66,6 +66,7 @@ const CAPTURE_CLOSE_ID = "capture_close";
 const TIMER_SLICE_CONTAINER_ID = "timer_slice_container";
 const TIMER_SLICE_CLIP_PATH_ID = "timer_slice_clip_path";
 const CAPTURE_MAXIMIZE_ID = "capture_maximize";
+const CAPTURE_MINIMIZE_ID = "capture_minimize";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
@@ -711,8 +712,24 @@ function handleCaptureClose() {
   });
 }
 
+function maximizeCapture() {
+  var captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  var wrapper = document.getElementById(WRAPPER_ID);
+  captureMaximize.classList.add(HIDDEN_CLASS);
+  wrapper.classList.remove(HIDDEN_CLASS);
+}
+
+function minimizeCapture() {
+  var captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  var wrapper = document.getElementById(WRAPPER_ID);
+  captureMaximize.classList.remove(HIDDEN_CLASS);
+  wrapper.classList.add(HIDDEN_CLASS);
+}
+
 function setupDisplay(html) {
   var captureClose = null;
+  var captureMaximize = null;
+  var captureMinimize = null;
   var modifyTimerSet = null;
   var modifyTimerClear = null;
   var modifyTimerHours = null;
@@ -729,6 +746,11 @@ function setupDisplay(html) {
 
   captureClose = document.getElementById(CAPTURE_CLOSE_ID);
   captureClose.addEventListener("click", handleCaptureClose, false);
+
+  captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  captureMaximize.addEventListener("click", maximizeCapture, false);
+  captureMinimize = document.getElementById(CAPTURE_MINIMIZE_ID);
+  captureMinimize.addEventListener("click", minimizeCapture, false);
 
   modifyTimerSet = document.getElementById(MODIFY_TIMER_SET_ID);
   modifyTimerClear = document.getElementById(MODIFY_TIMER_CLEAR_ID);
