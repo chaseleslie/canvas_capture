@@ -65,6 +65,7 @@ const MODIFY_TIMER_SECONDS_ID = "modify_timer_seconds";
 const CAPTURE_CLOSE_ID = "capture_close";
 const TIMER_SLICE_CONTAINER_ID = "timer_slice_container";
 const TIMER_SLICE_CLIP_PATH_ID = "timer_slice_clip_path";
+const CAPTURE_MAXIMIZE_CONTAINER_ID = "capture_maximize_container";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
@@ -547,6 +548,11 @@ function handleDisable(notify) {
     modifyTimer.parentElement.removeChild(modifyTimer);
   }
 
+  var maximize = document.getElementById(CAPTURE_MAXIMIZE_CONTAINER_ID);
+  if (maximize) {
+    maximize.parentElement.removeChild(maximize);
+  }
+
   var style = document.getElementById(CSS_STYLE_ID);
   if (style) {
     style.parentElement.removeChild(style);
@@ -1018,7 +1024,7 @@ function positionUpdateTimer() {
   timer.style.top = `${top}px`;
 }
 
-function setUpdateTimer(timerSeconds) {
+function setUpdateTimer() {
   var updateTimerMS = 75;
   var timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
   var clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
@@ -1201,7 +1207,7 @@ function preStartCapture(button) {
   bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : DEFAULT_BPS;
 
   if (timerSeconds) {
-    setUpdateTimer(timerSeconds);
+    setUpdateTimer();
   }
 
   if (canvasIsLocal) {
