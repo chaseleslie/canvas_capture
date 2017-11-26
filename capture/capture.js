@@ -1019,7 +1019,7 @@ function positionUpdateTimer() {
 }
 
 function setUpdateTimer(timerSeconds) {
-  var updateTimerMS = Math.max(125, Math.trunc(timerSeconds / 100 * 1000));
+  var updateTimerMS = 75;
   var timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
   var clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
   Ext.active.timer.updateTimerId = setInterval(updateTimerDisplay, updateTimerMS);
