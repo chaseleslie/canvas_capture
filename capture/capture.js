@@ -1066,14 +1066,14 @@ function setUpdateTimer() {
   var timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
   var clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
   Ext.active.timer.updateTimerId = setInterval(updateTimerDisplay, updateTimerMS);
-  timer.classList.remove("hidden");
+  timer.classList.remove(HIDDEN_CLASS);
   positionUpdateTimer();
   clipPath.setAttribute("d", "M0,0 L100,0 L100,100 L0,100 Z");
 }
 
 function clearUpdateTimer() {
   let timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
-  timer.classList.add("hidden");
+  timer.classList.add(HIDDEN_CLASS);
   clearTimeout(Ext.active.timer.updateTimerId);
 }
 
@@ -1233,16 +1233,14 @@ function preStartCapture(button) {
     return;
   }
 
+  setRowActive(parseInt(index, 10));
+
   var fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
   var fps = parseFloat(fpsInput.value);
   fps = (isFinite(fps) && !isNaN(fps) && fps >= 0) ? fps : 0;
   var bpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`);
   var bps = parseFloat(bpsInput.value);
   bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : DEFAULT_BPS;
-
-  if (timerSeconds) {
-    setUpdateTimer();
-  }
 
   Ext.active.canvas = canvas;
   Ext.active.timer.secs = timerSeconds;
@@ -1301,20 +1299,22 @@ function startCapture(canvas, fps, bps) {
 }
 
 function handleCaptureStart() {
+  var timerSeconds = Ext.active.timer.secs;
   Ext.active.capturing = true;
   Ext.active.startTS = Date.now();
-  if (Ext.active.timer.secs) {
-    let timerSeconds = Ext.active.timer.secs;
+
+  if (timerSeconds) {
     Ext.active.timer.timerId = setTimeout(preStopCapture, timerSeconds * MSEC_PER_SEC);
+    setUpdateTimer();
   }
+
   setCapturing();
 }
 
 function setCapturing() {
-  setRowActive(parseInt(Ext.active.index, 10));
-  let maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
-  let index = Ext.active.index;
-  let linkCol = Ext.listCanvases.querySelectorAll(
+  var maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  var index = Ext.active.index;
+  var linkCol = Ext.listCanvases.querySelectorAll(
     `.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`
   )[index];
 
@@ -1323,14 +1323,11 @@ function setCapturing() {
 }
 
 function clearCapturing() {
-  let maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
-  let index = Ext.active.index;
-  let linkCol = Ext.listCanvases.querySelectorAll(
-    `.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`
-  )[index];
+  var maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+
+  clearActiveRows();
 
   maximize.classList.remove(CAPTURING_MINIMIZED_CLASS);
-  linkCol.classList.remove(CAPTURING_CLASS);
 }
 
 function preStopCapture(evt) {
@@ -1344,8 +1341,6 @@ function preStopCapture(evt) {
   } else {
     Ext.active.stopped = true;
   }
-
-  clearActiveRows();
 
   if (canvasIsLocal) {
     if (Ext.mediaRecorder && Ext.mediaRecorder.state !== "inactive") {
@@ -1391,17 +1386,15 @@ function stopCapture() {
   var blob = null;
 
   clearCapturing();
+  clearActiveRows();
 
   if (Ext.active.capturing && !Ext.active.error && Ext.active.stopped) {
     if (Ext.chunks.length) {
       blob = new Blob(Ext.chunks, {"type": Ext.chunks[0].type});
     }
     createVideoURL(blob);
-  } else if (Ext.active.error) {
+  } else if (Ext.active.error || !Ext.active.stopped) {
     showNotification("An error occured while recording.");
-  } else if (!Ext.active.stopped) {//eslint-disable-line
-    clearActiveRows();
-    showNotification("Recording unexpectedly stopped, likely due to canvas inactivity.");
   } else {
     showNotification("Canvas was removed while it was being recorded.");
   }

@@ -383,7 +383,11 @@ function startCapture(canvas, fps, bps) {
   Ext.mediaRecorder.addEventListener("stop", stopCapture, false);
   Ext.mediaRecorder.addEventListener("error", preStopCapture, false);
   Ext.mediaRecorder.start(CAPTURE_INTERVAL_MS);
-  canvas.classList.add(CANVAS_ACTIVE_CAPTURING_CLASS);
+
+  return true;
+}
+
+function handleCaptureStart() {
   if (Ext.active.timer.secs) {
     let timerSeconds = Ext.active.timer.secs;
     Ext.active.timer.timerId = setTimeout(function() {
@@ -391,10 +395,7 @@ function startCapture(canvas, fps, bps) {
     }, timerSeconds * 1000);
   }
 
-  return true;
-}
-
-function handleCaptureStart() {
+  Ext.active.canvas.classList.add(CANVAS_ACTIVE_CAPTURING_CLASS);
   Ext.active.capturing = true;
   Ext.active.startTS = Date.now();
   Ext.port.postMessage({

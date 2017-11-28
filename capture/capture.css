@@ -17,7 +17,7 @@
 #capture_list_container {
   min-width: 40vw;
   min-height: 20vh;
-  max-height: 25vh;
+  max-height: 20vh;
   position: fixed;
   bottom: 0px;
   display: grid;
@@ -26,6 +26,7 @@
   overflow-y: hidden;
   border-radius: 10px;
   background-color: #20202E;
+  line-height: 1.1875em;
   text-align: center;
   font-family: sans-serif;
   font-size: 16px;
@@ -35,7 +36,6 @@
 .capture_list_container_heading {
   margin: 0px auto;
   width: 100%;
-  height: 100%;
   font-size: 1.5em;
   line-height: 1.1875em;
   background-color: #2C3044;
@@ -102,6 +102,7 @@
 .list_canvases_row input {
   border: 3px solid #AAA;
   border-radius: 2px;
+  padding: initial;
   font-size: 100%;
   font-family: monospace;
   transition: border-color 0.3s;
@@ -112,7 +113,7 @@
 
 #capture_close {
   position: absolute;
-  top: 5px;
+  top: 0px;
   right: 5px;
   width: 1.75em;
   height: 1.75em;
@@ -134,7 +135,7 @@
 
 #capture_minimize {
   position: absolute;
-  top: 5px;
+  top: 0px;
   right: calc(1.75em + 10px);
   width: 1.75em;
   height: 1.75em;
@@ -390,5 +391,5 @@
 }
 
 .capturing_minimized {
-  animation: cc_minim_active 1s linear infinite;
+  animation: cc_minim_active 2s linear infinite;
 }
