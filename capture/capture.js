@@ -102,6 +102,7 @@ const Ext = Object.seal({
   "settings": Object.seal({"maxVideoSize": DEFAULT_MAX_VIDEO_SIZE}),
   "mediaRecorder": null,
   "displayed": false,
+  "minimized": false,
   "active": Object.seal({
     "capturing": false,
     "index": -1,
@@ -717,6 +718,7 @@ function maximizeCapture() {
   var wrapper = document.getElementById(WRAPPER_ID);
   captureMaximize.classList.add(HIDDEN_CLASS);
   wrapper.classList.remove(HIDDEN_CLASS);
+  Ext.minimized = false;
 }
 
 function minimizeCapture() {
@@ -724,6 +726,7 @@ function minimizeCapture() {
   var wrapper = document.getElementById(WRAPPER_ID);
   captureMaximize.classList.remove(HIDDEN_CLASS);
   wrapper.classList.add(HIDDEN_CLASS);
+  Ext.minimized = true;
 }
 
 function setupDisplay(html) {
@@ -1180,6 +1183,7 @@ function setRowActive(index) {
       {"block": "center", "behavior": "smooth", "inline": "center"}
     );
   } catch (e) {
+    // FF < 58 doesn't accept "block": "center"
     linkRow.scrollIntoView({"behavior": "smooth", "inline": "center"});
   }
 }
