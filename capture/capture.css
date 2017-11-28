@@ -17,7 +17,7 @@
 #capture_list_container {
   min-width: 40vw;
   min-height: 20vh;
-  max-height: 25vh;
+  max-height: 20vh;
   position: fixed;
   bottom: 0px;
   display: grid;
@@ -26,6 +26,7 @@
   overflow-y: hidden;
   border-radius: 10px;
   background-color: #20202E;
+  line-height: 1.1875em;
   text-align: center;
   font-family: sans-serif;
   font-size: 16px;
@@ -35,7 +36,6 @@
 .capture_list_container_heading {
   margin: 0px auto;
   width: 100%;
-  height: 100%;
   font-size: 1.5em;
   line-height: 1.1875em;
   background-color: #2C3044;
@@ -102,6 +102,7 @@
 .list_canvases_row input {
   border: 3px solid #AAA;
   border-radius: 2px;
+  padding: initial;
   font-size: 100%;
   font-family: monospace;
   transition: border-color 0.3s;
@@ -112,7 +113,7 @@
 
 #capture_close {
   position: absolute;
-  top: 5px;
+  top: 0px;
   right: 5px;
   width: 1.75em;
   height: 1.75em;
@@ -129,6 +130,66 @@
 }
 
 #capture_close:active circle, #capture_close:active line {
+  stroke: #9898FF;
+}
+
+#capture_minimize {
+  position: absolute;
+  top: 0px;
+  right: calc(1.75em + 10px);
+  width: 1.75em;
+  height: 1.75em;
+  stroke-linecap: round;
+}
+
+#capture_minimize line {
+  stroke: #D8D8FF;
+  stroke-width: 10;
+  fill-opacity: 0;
+}
+
+#capture_minimize:hover line {
+  stroke: #B8B8FF;
+}
+
+#capture_minimize:active line {
+  stroke: #9898FF;
+}
+
+#capture_maximize {
+  position: fixed;
+  bottom: 0px;
+  left: 0px;
+  min-height: 4vh;
+  max-height: 4vh;
+  width: 100vw;
+  min-width: 100vw;
+  max-width: 100vw;
+  z-index: 10000;
+  background-color: #20202E;
+  text-align: center;
+  font-family: sans-serif;
+  font-size: 16px;
+  color: #D8D8FF;
+}
+
+#capture_maximize svg {
+  width: 4vh;
+  height: 4vh;
+  stroke-linecap: round;
+}
+
+#capture_maximize line {
+  stroke: #D8D8FF;
+  stroke-width: 10;
+  fill-opacity: 0;
+}
+
+#capture_maximize:hover line {
+  stroke: #B8B8FF;
+}
+
+#capture_maximize:active line {
   stroke: #9898FF;
 }
 
@@ -281,4 +342,54 @@
   border: 2px solid #EEE;
   border-top-color: #AAA;
   animation: cc_spinner 0.8s linear infinite;
+}
+
+@keyframes cc_minim_active {
+  from {
+    background: linear-gradient(to right, #30303F, #20202E);
+  }
+
+  10% {
+    background: linear-gradient(to right, #383847, #20202E);
+  }
+
+  20% {
+    background: linear-gradient(to right, #40404F, #20202E);
+  }
+
+  30% {
+    background: linear-gradient(to right, #383847, #40404F 16%, #20202E);
+  }
+
+  40% {
+    background: linear-gradient(to right, #30303F, #40404F 32%, #282836, #20202E);
+  }
+
+  50% {
+    background: linear-gradient(to right, #20202E, #40404F, #20202E);
+  }
+
+  60% {
+    background: linear-gradient(to right, #20202E, #282836, #40404F 66%, #30303F);
+  }
+
+  70% {
+    background: linear-gradient(to right, #20202E, #40404F 82%, #383847);
+  }
+
+  80% {
+    background: linear-gradient(to right, #20202E, #40404F);
+  }
+
+  90% {
+    background: linear-gradient(to right, #20202E, #383847);
+  }
+
+  to {
+    background: linear-gradient(to right, #20202E, #30303F);
+  }
+}
+
+.capturing_minimized {
+  animation: cc_minim_active 2s linear infinite;
 }

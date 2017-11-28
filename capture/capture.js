@@ -65,6 +65,8 @@ const MODIFY_TIMER_SECONDS_ID = "modify_timer_seconds";
 const CAPTURE_CLOSE_ID = "capture_close";
 const TIMER_SLICE_CONTAINER_ID = "timer_slice_container";
 const TIMER_SLICE_CLIP_PATH_ID = "timer_slice_clip_path";
+const CAPTURE_MAXIMIZE_ID = "capture_maximize";
+const CAPTURE_MINIMIZE_ID = "capture_minimize";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
@@ -80,6 +82,7 @@ const CANVAS_CAPTURE_SELECTED_CLASS = "canvas_capture_selected";
 const CANVAS_CAPTURE_INACTIVE_CLASS = "canvas_capture_inactive";
 const TIMER_MODIFYING_CLASS = "timer_modifying";
 const CAPTURING_CLASS = "capturing";
+const CAPTURING_MINIMIZED_CLASS = "capturing_minimized";
 const HIDDEN_CLASS = "hidden";
 const HIGHLIGHTER_UNAVAILABLE_CLASS = "highlighter_unavailable";
 const HIGHLIGHTER_HORIZONTAL_CLASS = "highlighter_horizontal";
@@ -100,6 +103,7 @@ const Ext = Object.seal({
   "settings": Object.seal({"maxVideoSize": DEFAULT_MAX_VIDEO_SIZE}),
   "mediaRecorder": null,
   "displayed": false,
+  "minimized": false,
   "active": Object.seal({
     "capturing": false,
     "index": -1,
@@ -112,14 +116,12 @@ const Ext = Object.seal({
     "errorMessage": "",
     "timer": Object.seal({
       "timerId": -1,
-      "canvas": null,
       "secs": 0,
       "updateTimerId": -1,
       "clear": function() {
         clearTimeout(this.timerId);
         clearUpdateTimer();
         this.timerId = -1;
-        this.canvas = null;
         this.secs = 0;
         this.updateTimerId = -1;
       }
@@ -160,6 +162,7 @@ const Ext = Object.seal({
     }
   },
   "disable": function() {
+    this.freeObjectURLs();
     for (let key of Object.keys(this)) {
       this[key] = null;
     }
@@ -232,13 +235,10 @@ function onMessage(msg) {
 }
 
 function handleMessageCaptureStart(msg) {
-  let rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   if (msg.success) {
-    let row = rows[Ext.active.index];
-    let linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
-    linkCol.classList.add(CAPTURING_CLASS);
     Ext.active.capturing = true;
     Ext.active.startTS = msg.startTS;
+    setCapturing();
   } else {
     clearActiveRows();
     Ext.active.clear();
@@ -246,10 +246,11 @@ function handleMessageCaptureStart(msg) {
 }
 
 function handleMessageCaptureStop(msg) {
-  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  let row = rows[Ext.active.index];
-  var linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
+  let linkCol = Ext.listCanvases.querySelectorAll(
+    `.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`
+  )[Ext.active.index];
 
+  clearCapturing();
   clearActiveRows();
   Ext.active.clear();
 
@@ -547,6 +548,11 @@ function handleDisable(notify) {
     modifyTimer.parentElement.removeChild(modifyTimer);
   }
 
+  var maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  if (maximize) {
+    maximize.parentElement.removeChild(maximize);
+  }
+
   var style = document.getElementById(CSS_STYLE_ID);
   if (style) {
     style.parentElement.removeChild(style);
@@ -568,7 +574,6 @@ function handleDisable(notify) {
     }
   }
 
-  Ext.freeObjectURLs();
   showNotification(notify);
   Ext.port.disconnect();
   Ext.active.clear();
@@ -698,15 +703,44 @@ function handleInputBlur() {
   window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
 }
 
-function handleCaptureClose() {
+function handleCaptureClose(evt) {
+  if (evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+  }
+
   Ext.port.postMessage({
     "command": MessageCommands.DISABLE,
     "tabId": Ext.tabId
   });
 }
 
+function maximizeCapture(evt) {
+  evt.preventDefault();
+  evt.stopPropagation();
+
+  var captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  var wrapper = document.getElementById(WRAPPER_ID);
+  captureMaximize.classList.add(HIDDEN_CLASS);
+  wrapper.classList.remove(HIDDEN_CLASS);
+  Ext.minimized = false;
+}
+
+function minimizeCapture(evt) {
+  evt.preventDefault();
+  evt.stopPropagation();
+
+  var captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  var wrapper = document.getElementById(WRAPPER_ID);
+  captureMaximize.classList.remove(HIDDEN_CLASS);
+  wrapper.classList.add(HIDDEN_CLASS);
+  Ext.minimized = true;
+}
+
 function setupDisplay(html) {
   var captureClose = null;
+  var captureMaximize = null;
+  var captureMinimize = null;
   var modifyTimerSet = null;
   var modifyTimerClear = null;
   var modifyTimerHours = null;
@@ -718,11 +752,20 @@ function setupDisplay(html) {
   wrapper = document.getElementById(WRAPPER_ID);
   Ext.listCanvases = document.getElementById(LIST_CANVASES_ID);
 
+  wrapper.addEventListener("click", function(evt) {
+    evt.stopPropagation();
+  }, false);
+
   Ext.displayed = true;
   window.addEventListener("resize", positionWrapper, false);
 
   captureClose = document.getElementById(CAPTURE_CLOSE_ID);
   captureClose.addEventListener("click", handleCaptureClose, false);
+
+  captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  captureMaximize.addEventListener("click", maximizeCapture, false);
+  captureMinimize = document.getElementById(CAPTURE_MINIMIZE_ID);
+  captureMinimize.addEventListener("click", minimizeCapture, false);
 
   modifyTimerSet = document.getElementById(MODIFY_TIMER_SET_ID);
   modifyTimerClear = document.getElementById(MODIFY_TIMER_CLEAR_ID);
@@ -896,7 +939,6 @@ function positionRowTimerModify() {
 
 function handleRowTimerModify(evt) {
   var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
-  // var containerRect = null;
   var img = evt.target;
   var rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var row = img.parentElement;
@@ -936,9 +978,6 @@ function handleRowTimerModify(evt) {
   }
 
   container.classList.remove(HIDDEN_CLASS);
-  // containerRect = container.getBoundingClientRect();
-  // container.style.left = `${evt.clientX - Math.trunc(0.5 * containerRect.width)}px`;
-  // container.style.top = `${evt.clientY - containerRect.height - 20}px`;
   positionRowTimerModify();
 }
 
@@ -1022,19 +1061,20 @@ function positionUpdateTimer() {
   timer.style.top = `${top}px`;
 }
 
-function setUpdateTimer(timerSeconds) {
-  var updateTimerMS = Math.max(250, Math.trunc(timerSeconds / 100 * 1000));
+function setUpdateTimer() {
+  var updateTimerMS = 75;
   var timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
   var clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
   Ext.active.timer.updateTimerId = setInterval(updateTimerDisplay, updateTimerMS);
-  timer.classList.remove("hidden");
+  timer.classList.remove(HIDDEN_CLASS);
   positionUpdateTimer();
   clipPath.setAttribute("d", "M0,0 L100,0 L100,100 L0,100 Z");
 }
 
 function clearUpdateTimer() {
   let timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
-  timer.classList.add("hidden");
+  timer.classList.add(HIDDEN_CLASS);
+  clearTimeout(Ext.active.timer.updateTimerId);
 }
 
 function updateTimerDisplay() {
@@ -1132,7 +1172,6 @@ function onToggleCapture(evt) {
 
 function setRowActive(index) {
   var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  var linkCol = rows[index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
   var linkRow = null;
 
   for (let k = 0; k < rows.length; k += 1) {
@@ -1149,12 +1188,12 @@ function setRowActive(index) {
     }
   }
 
-  linkCol.classList.add(CAPTURING_CLASS);
   try {
     linkRow.scrollIntoView(
       {"block": "center", "behavior": "smooth", "inline": "center"}
     );
   } catch (e) {
+    // FF < 58 doesn't accept "block": "center"
     linkRow.scrollIntoView({"behavior": "smooth", "inline": "center"});
   }
 }
@@ -1203,12 +1242,11 @@ function preStartCapture(button) {
   var bps = parseFloat(bpsInput.value);
   bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : DEFAULT_BPS;
 
-  if (timerSeconds) {
-    setUpdateTimer(timerSeconds);
-  }
+  Ext.active.canvas = canvas;
+  Ext.active.timer.secs = timerSeconds;
 
   if (canvasIsLocal) {
-    let ret = startCapture(canvas, fps, bps, timerSeconds);
+    let ret = startCapture(canvas, fps, bps);
     if (!ret) {
       clearActiveRows();
       Ext.active.clear();
@@ -1226,12 +1264,10 @@ function preStartCapture(button) {
       "hasTimer": hasTimer,
       "timerSeconds": timerSeconds
     });
-    Ext.active.canvas = canvas;
-    Ext.active.timer.secs = timerSeconds;
   }
 }
 
-function startCapture(canvas, fps, bps, timerSeconds) {
+function startCapture(canvas, fps, bps) {
   Ext.chunks = [];
   var stream = null;
 
@@ -1254,19 +1290,44 @@ function startCapture(canvas, fps, bps, timerSeconds) {
     Ext.mediaRecorder = new MediaRecorder(stream);
   }
   Ext.mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
+  Ext.mediaRecorder.addEventListener("start", handleCaptureStart, false);
   Ext.mediaRecorder.addEventListener("stop", stopCapture, false);
   Ext.mediaRecorder.addEventListener("error", preStopCapture, false);
   Ext.mediaRecorder.start(CAPTURE_INTERVAL_MS);
-  Ext.active.capturing = true;
-  Ext.active.canvas = canvas;
-  Ext.active.startTS = Date.now();
-  if (timerSeconds) {
-    Ext.active.timer.secs = timerSeconds;
-    Ext.active.timer.canvas = canvas;
-    Ext.active.timer.timerId = setTimeout(preStopCapture, timerSeconds * MSEC_PER_SEC);
-  }
 
   return true;
+}
+
+function handleCaptureStart() {
+  var timerSeconds = Ext.active.timer.secs;
+  Ext.active.capturing = true;
+  Ext.active.startTS = Date.now();
+
+  if (timerSeconds) {
+    Ext.active.timer.timerId = setTimeout(preStopCapture, timerSeconds * MSEC_PER_SEC);
+    setUpdateTimer();
+  }
+
+  setCapturing();
+}
+
+function setCapturing() {
+  var maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  var index = Ext.active.index;
+  var linkCol = Ext.listCanvases.querySelectorAll(
+    `.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`
+  )[index];
+
+  linkCol.classList.add(CAPTURING_CLASS);
+  maximize.classList.add(CAPTURING_MINIMIZED_CLASS);
+}
+
+function clearCapturing() {
+  var maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+
+  clearActiveRows();
+
+  maximize.classList.remove(CAPTURING_MINIMIZED_CLASS);
 }
 
 function preStopCapture(evt) {
@@ -1280,8 +1341,6 @@ function preStopCapture(evt) {
   } else {
     Ext.active.stopped = true;
   }
-
-  clearActiveRows();
 
   if (canvasIsLocal) {
     if (Ext.mediaRecorder && Ext.mediaRecorder.state !== "inactive") {
@@ -1325,16 +1384,17 @@ function createVideoURL(blob) {
 
 function stopCapture() {
   var blob = null;
+
+  clearCapturing();
+  clearActiveRows();
+
   if (Ext.active.capturing && !Ext.active.error && Ext.active.stopped) {
     if (Ext.chunks.length) {
       blob = new Blob(Ext.chunks, {"type": Ext.chunks[0].type});
     }
     createVideoURL(blob);
-  } else if (Ext.active.error) {
+  } else if (Ext.active.error || !Ext.active.stopped) {
     showNotification("An error occured while recording.");
-  } else if (!Ext.active.stopped) {//eslint-disable-line
-    clearActiveRows();
-    showNotification("Recording unexpectedly stopped, likely due to canvas inactivity.");
   } else {
     showNotification("Canvas was removed while it was being recorded.");
   }
