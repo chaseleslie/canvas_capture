@@ -70,12 +70,10 @@ const Ext = Object.seal({
     "errorMessage": "",
     "timer": Object.seal({
       "timerId": -1,
-      "canvas": null,
       "secs": 0,
       "clear": function() {
         clearTimeout(this.timerId);
         this.timerId = -1;
-        this.canvas = null;
         this.secs = 0;
       }
     }),
@@ -164,15 +162,17 @@ function onMessage(msg) {
 
 function handleMessageCaptureStart(msg) {
   var ret = preStartCapture(msg);
-  Ext.port.postMessage({
-    "command": MessageCommands.CAPTURE_START,
-    "tabId": Ext.tabId,
-    "frameId": Ext.frameId,
-    "frameUUID": FRAME_UUID,
-    "targetFrameUUID": TOP_FRAME_UUID,
-    "success": ret,
-    "startTS": Ext.active.startTS
-  });
+  if (!ret) {
+    Ext.port.postMessage({
+      "command": MessageCommands.CAPTURE_START,
+      "tabId": Ext.tabId,
+      "frameId": Ext.frameId,
+      "frameUUID": FRAME_UUID,
+      "targetFrameUUID": TOP_FRAME_UUID,
+      "success": ret,
+      "startTS": Ext.active.startTS
+    });
+  }
 }
 
 function handleMessageDisable() {
@@ -345,16 +345,17 @@ function preStartCapture(msg) {
   var canvas = Ext.frames[FRAME_UUID].canvases[Ext.active.index];
   var fps = msg.fps;
   var bps = msg.bps;
-  var timerSeconds = parseInt(msg.timerSeconds, 10) || 0;
+  Ext.active.timer.secs = parseInt(msg.timerSeconds, 10) || 0;
+  Ext.active.canvas = canvas;
 
   if (!canCaptureStream(canvas)) {
     return false;
   }
 
-  return startCapture(canvas, fps, bps, timerSeconds);
+  return startCapture(canvas, fps, bps);
 }
 
-function startCapture(canvas, fps, bps, timerSeconds) {
+function startCapture(canvas, fps, bps) {
   Ext.chunks = [];
   var stream = null;
 
@@ -378,22 +379,33 @@ function startCapture(canvas, fps, bps, timerSeconds) {
   }
 
   Ext.mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
+  Ext.mediaRecorder.addEventListener("start", handleCaptureStart, false);
   Ext.mediaRecorder.addEventListener("stop", stopCapture, false);
   Ext.mediaRecorder.addEventListener("error", preStopCapture, false);
   Ext.mediaRecorder.start(CAPTURE_INTERVAL_MS);
-  Ext.active.capturing = true;
-  Ext.active.canvas = canvas;
-  Ext.active.startTS = Date.now();
   canvas.classList.add(CANVAS_ACTIVE_CAPTURING_CLASS);
-  if (timerSeconds) {
-    Ext.active.timer.secs = timerSeconds;
-    Ext.active.timer.canvas = canvas;
+  if (Ext.active.timer.secs) {
+    let timerSeconds = Ext.active.timer.secs;
     Ext.active.timer.timerId = setTimeout(function() {
       preStopCapture();
     }, timerSeconds * 1000);
   }
 
   return true;
+}
+
+function handleCaptureStart() {
+  Ext.active.capturing = true;
+  Ext.active.startTS = Date.now();
+  Ext.port.postMessage({
+    "command": MessageCommands.CAPTURE_START,
+    "tabId": Ext.tabId,
+    "frameId": Ext.frameId,
+    "frameUUID": FRAME_UUID,
+    "targetFrameUUID": TOP_FRAME_UUID,
+    "success": true,
+    "startTS": Ext.active.startTS
+  });
 }
 
 function preStopCapture(evt) {

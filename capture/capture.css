@@ -342,3 +342,53 @@
   border-top-color: #AAA;
   animation: cc_spinner 0.8s linear infinite;
 }
+
+@keyframes cc_minim_active {
+  from {
+    background: linear-gradient(to right, #30303F, #20202E);
+  }
+
+  10% {
+    background: linear-gradient(to right, #383847, #20202E);
+  }
+
+  20% {
+    background: linear-gradient(to right, #40404F, #20202E);
+  }
+
+  30% {
+    background: linear-gradient(to right, #383847, #40404F 16%, #20202E);
+  }
+
+  40% {
+    background: linear-gradient(to right, #30303F, #40404F 32%, #282836, #20202E);
+  }
+
+  50% {
+    background: linear-gradient(to right, #20202E, #40404F, #20202E);
+  }
+
+  60% {
+    background: linear-gradient(to right, #20202E, #282836, #40404F 66%, #30303F);
+  }
+
+  70% {
+    background: linear-gradient(to right, #20202E, #40404F 82%, #383847);
+  }
+
+  80% {
+    background: linear-gradient(to right, #20202E, #40404F);
+  }
+
+  90% {
+    background: linear-gradient(to right, #20202E, #383847);
+  }
+
+  to {
+    background: linear-gradient(to right, #20202E, #30303F);
+  }
+}
+
+.capturing_minimized {
+  animation: cc_minim_active 1s linear infinite;
+}

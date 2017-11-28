@@ -82,6 +82,7 @@ const CANVAS_CAPTURE_SELECTED_CLASS = "canvas_capture_selected";
 const CANVAS_CAPTURE_INACTIVE_CLASS = "canvas_capture_inactive";
 const TIMER_MODIFYING_CLASS = "timer_modifying";
 const CAPTURING_CLASS = "capturing";
+const CAPTURING_MINIMIZED_CLASS = "capturing_minimized";
 const HIDDEN_CLASS = "hidden";
 const HIGHLIGHTER_UNAVAILABLE_CLASS = "highlighter_unavailable";
 const HIGHLIGHTER_HORIZONTAL_CLASS = "highlighter_horizontal";
@@ -115,14 +116,12 @@ const Ext = Object.seal({
     "errorMessage": "",
     "timer": Object.seal({
       "timerId": -1,
-      "canvas": null,
       "secs": 0,
       "updateTimerId": -1,
       "clear": function() {
         clearTimeout(this.timerId);
         clearUpdateTimer();
         this.timerId = -1;
-        this.canvas = null;
         this.secs = 0;
         this.updateTimerId = -1;
       }
@@ -163,6 +162,7 @@ const Ext = Object.seal({
     }
   },
   "disable": function() {
+    this.freeObjectURLs();
     for (let key of Object.keys(this)) {
       this[key] = null;
     }
@@ -235,13 +235,10 @@ function onMessage(msg) {
 }
 
 function handleMessageCaptureStart(msg) {
-  let rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   if (msg.success) {
-    let row = rows[Ext.active.index];
-    let linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
-    linkCol.classList.add(CAPTURING_CLASS);
     Ext.active.capturing = true;
     Ext.active.startTS = msg.startTS;
+    setCapturing();
   } else {
     clearActiveRows();
     Ext.active.clear();
@@ -253,6 +250,7 @@ function handleMessageCaptureStop(msg) {
   let row = rows[Ext.active.index];
   var linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
 
+  clearCapturing();
   clearActiveRows();
   Ext.active.clear();
 
@@ -576,7 +574,6 @@ function handleDisable(notify) {
     }
   }
 
-  Ext.freeObjectURLs();
   showNotification(notify);
   Ext.port.disconnect();
   Ext.active.clear();
@@ -1160,7 +1157,6 @@ function onToggleCapture(evt) {
 
 function setRowActive(index) {
   var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  var linkCol = rows[index].querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
   var linkRow = null;
 
   for (let k = 0; k < rows.length; k += 1) {
@@ -1177,7 +1173,6 @@ function setRowActive(index) {
     }
   }
 
-  linkCol.classList.add(CAPTURING_CLASS);
   try {
     linkRow.scrollIntoView(
       {"block": "center", "behavior": "smooth", "inline": "center"}
@@ -1223,8 +1218,6 @@ function preStartCapture(button) {
     return;
   }
 
-  setRowActive(parseInt(index, 10));
-
   var fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
   var fps = parseFloat(fpsInput.value);
   fps = (isFinite(fps) && !isNaN(fps) && fps >= 0) ? fps : 0;
@@ -1236,8 +1229,11 @@ function preStartCapture(button) {
     setUpdateTimer();
   }
 
+  Ext.active.canvas = canvas;
+  Ext.active.timer.secs = timerSeconds;
+
   if (canvasIsLocal) {
-    let ret = startCapture(canvas, fps, bps, timerSeconds);
+    let ret = startCapture(canvas, fps, bps);
     if (!ret) {
       clearActiveRows();
       Ext.active.clear();
@@ -1255,12 +1251,10 @@ function preStartCapture(button) {
       "hasTimer": hasTimer,
       "timerSeconds": timerSeconds
     });
-    Ext.active.canvas = canvas;
-    Ext.active.timer.secs = timerSeconds;
   }
 }
 
-function startCapture(canvas, fps, bps, timerSeconds) {
+function startCapture(canvas, fps, bps) {
   Ext.chunks = [];
   var stream = null;
 
@@ -1283,19 +1277,45 @@ function startCapture(canvas, fps, bps, timerSeconds) {
     Ext.mediaRecorder = new MediaRecorder(stream);
   }
   Ext.mediaRecorder.addEventListener("dataavailable", onDataAvailable, false);
+  Ext.mediaRecorder.addEventListener("start", handleCaptureStart, false);
   Ext.mediaRecorder.addEventListener("stop", stopCapture, false);
   Ext.mediaRecorder.addEventListener("error", preStopCapture, false);
   Ext.mediaRecorder.start(CAPTURE_INTERVAL_MS);
-  Ext.active.capturing = true;
-  Ext.active.canvas = canvas;
-  Ext.active.startTS = Date.now();
-  if (timerSeconds) {
-    Ext.active.timer.secs = timerSeconds;
-    Ext.active.timer.canvas = canvas;
-    Ext.active.timer.timerId = setTimeout(preStopCapture, timerSeconds * MSEC_PER_SEC);
-  }
 
   return true;
+}
+
+function handleCaptureStart() {
+  Ext.active.capturing = true;
+  Ext.active.startTS = Date.now();
+  if (Ext.active.timer.secs) {
+    let timerSeconds = Ext.active.timer.secs;
+    Ext.active.timer.timerId = setTimeout(preStopCapture, timerSeconds * MSEC_PER_SEC);
+  }
+  setCapturing();
+}
+
+function setCapturing() {
+  setRowActive(parseInt(Ext.active.index, 10));
+  let maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  let index = Ext.active.index;
+  let linkCol = Ext.listCanvases.querySelectorAll(
+    `.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`
+  )[index];
+
+  linkCol.classList.add(CAPTURING_CLASS);
+  maximize.classList.add(CAPTURING_MINIMIZED_CLASS);
+}
+
+function clearCapturing() {
+  let maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  let index = Ext.active.index;
+  let linkCol = Ext.listCanvases.querySelectorAll(
+    `.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`
+  )[index];
+
+  maximize.classList.remove(CAPTURING_MINIMIZED_CLASS);
+  linkCol.classList.remove(CAPTURING_CLASS);
 }
 
 function preStopCapture(evt) {
@@ -1354,6 +1374,9 @@ function createVideoURL(blob) {
 
 function stopCapture() {
   var blob = null;
+
+  clearCapturing();
+
   if (Ext.active.capturing && !Ext.active.error && Ext.active.stopped) {
     if (Ext.chunks.length) {
       blob = new Blob(Ext.chunks, {"type": Ext.chunks[0].type});
