@@ -246,9 +246,9 @@ function handleMessageCaptureStart(msg) {
 }
 
 function handleMessageCaptureStop(msg) {
-  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  let row = rows[Ext.active.index];
-  var linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
+  let linkCol = Ext.listCanvases.querySelectorAll(
+    `.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`
+  )[Ext.active.index];
 
   clearCapturing();
   clearActiveRows();
@@ -703,14 +703,22 @@ function handleInputBlur() {
   window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
 }
 
-function handleCaptureClose() {
+function handleCaptureClose(evt) {
+  if (evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+  }
+
   Ext.port.postMessage({
     "command": MessageCommands.DISABLE,
     "tabId": Ext.tabId
   });
 }
 
-function maximizeCapture() {
+function maximizeCapture(evt) {
+  evt.preventDefault();
+  evt.stopPropagation();
+
   var captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
   var wrapper = document.getElementById(WRAPPER_ID);
   captureMaximize.classList.add(HIDDEN_CLASS);
@@ -718,7 +726,10 @@ function maximizeCapture() {
   Ext.minimized = false;
 }
 
-function minimizeCapture() {
+function minimizeCapture(evt) {
+  evt.preventDefault();
+  evt.stopPropagation();
+
   var captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
   var wrapper = document.getElementById(WRAPPER_ID);
   captureMaximize.classList.remove(HIDDEN_CLASS);
@@ -740,6 +751,10 @@ function setupDisplay(html) {
   document.body.appendChild(wrapper.content);
   wrapper = document.getElementById(WRAPPER_ID);
   Ext.listCanvases = document.getElementById(LIST_CANVASES_ID);
+
+  wrapper.addEventListener("click", function(evt) {
+    evt.stopPropagation();
+  }, false);
 
   Ext.displayed = true;
   window.addEventListener("resize", positionWrapper, false);
