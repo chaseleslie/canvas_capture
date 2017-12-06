@@ -25,20 +25,20 @@ const BG_FRAME_UUID = "background";
 const ALL_FRAMES_UUID = "*";
 
 const MessageCommands = Object.freeze({
-  "CAPTURE_START": 0,
-  "CAPTURE_STOP": 1,
-  "DISABLE": 2,
-  "DISCONNECT": 3,
-  "DISPLAY": 4,
-  "DOWNLOAD": 5,
-  "HIGHLIGHT": 6,
-  "NOTIFY": 7,
-  "REGISTER": 8,
+  "CAPTURE_START":   0,
+  "CAPTURE_STOP":    1,
+  "DISABLE":         2,
+  "DISCONNECT":      3,
+  "DISPLAY":         4,
+  "DOWNLOAD":        5,
+  "HIGHLIGHT":       6,
+  "NOTIFY":          7,
+  "REGISTER":        8,
   "UPDATE_CANVASES": 9
 });
 
 const MIME_TYPE_MAP = Object.freeze({
-  "mp4": "video/mp4",
+  "mp4":  "video/mp4",
   "webm": "video/webm"
 });
 const DEFAULT_MIME_TYPE = "webm";
