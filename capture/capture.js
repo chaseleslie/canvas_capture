@@ -186,7 +186,8 @@ function handleWindowMessage(evt) {
   if (!key || keyPos < 0) {
     return;
   } else if (msg.ts < Ext.frameElementsTS) {
-    identifyFrames();
+    // Delay immediate retry to try and avoid race condition
+    setTimeout(identifyFrames, 2000);
     Ext.frameElementsKeys.splice(keyPos, 1);
     evt.stopPropagation();
     return;
