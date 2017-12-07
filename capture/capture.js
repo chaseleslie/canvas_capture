@@ -538,6 +538,12 @@ function observeCanvasMutations(mutations) {
 }
 
 function handleDisable(notify) {
+  showNotification(notify);
+  Ext.port.disconnect();
+  Ext.active.clear();
+  Ext.bodyMutObs.disconnect();
+  Ext.canvasMutObs.disconnect();
+
   var wrapper = document.getElementById(WRAPPER_ID);
   if (wrapper) {
     wrapper.parentElement.removeChild(wrapper);
@@ -573,12 +579,6 @@ function handleDisable(notify) {
       Ext.mediaRecorder.stop();
     }
   }
-
-  showNotification(notify);
-  Ext.port.disconnect();
-  Ext.active.clear();
-  Ext.bodyMutObs.disconnect();
-  Ext.canvasMutObs.disconnect();
 
   window.removeEventListener("resize", positionWrapper, false);
   window.removeEventListener("wheel", handleWindowMouseWheel, true);
