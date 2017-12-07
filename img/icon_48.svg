@@ -1,17 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg version="1.1" width="48" height="48" xmlns="http://www.w3.org/2000/svg">
+<svg version="1.1" width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
 
 	<defs>
 		<radialGradient id="gradient">
-			<stop offset="4%" stop-color="#88F" />
-			<stop offset="35%" stop-color="#99F" />
-			<stop offset="90%" stop-color="#BCE" />
+			<stop offset="85%" stop-color="#77F" />
+			<stop offset="90%" stop-color="#66F" />
+			<stop offset="95%" stop-color="#AAF" />
 		</radialGradient>
 	</defs>
 
-	<path
-		d="M3,0 L15,12 L24,6 L33,12 L45,0 L42,12 L39,24 L45,39 L42,48 L33,36 L24,42 L15,36 L6,48 L3,39 L9,24 L6,12 Z"
-		stroke-width="3" stroke="#002" fill="url(#gradient)" />
+	<circle cx="64" cy="64" r="56" stroke="" fill="url(#gradient)" />
+
+	<circle cx="64" cy="24" r="8" stroke="#55F" fill="#55F" />
+	<circle cx="30" cy="84" r="8" stroke="#55F" fill="#55F" />
+	<circle cx="98" cy="84" r="8" stroke="#55F" fill="#55F" />
+
+	<circle cx="64" cy="104" r="8" stroke="#D2C" fill="#D2C" />
+	<circle cx="98" cy="44"  r="8" stroke="#D2C" fill="#D2C" />
+	<circle cx="30" cy="44"  r="8" stroke="#D2C" fill="#D2C" />
+
+  <path d="M64,24 L30,84 L98,84 Z" stroke="#55F" stroke-width="5" fill-opacity="0" />
 
 </svg>
