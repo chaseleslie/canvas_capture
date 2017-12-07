@@ -145,6 +145,7 @@ const Ext = Object.seal({
   "frames": {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}},
   "frameElementsTS": 0,
   "frameElementsKeys": [],
+  "frameElementsTimeoutId": -1,
   "numBytesRecorded": 0,
   "wrapperMouseHover": false,
   "bodyMutObs": new MutationObserver(observeBodyMutations),
@@ -186,8 +187,10 @@ function handleWindowMessage(evt) {
   if (!key || keyPos < 0) {
     return;
   } else if (msg.ts < Ext.frameElementsTS) {
-    // Delay immediate retry to try and avoid race condition
-    setTimeout(identifyFrames, 2000);
+    if (Ext.frameElementsTimeoutId < 0) {
+      // Delay immediate retry to try and avoid race condition
+      Ext.frameElementsTimeoutId = setTimeout(identifyFrames, 2000);
+    }
     Ext.frameElementsKeys.splice(keyPos, 1);
     evt.stopPropagation();
     return;
@@ -200,6 +203,7 @@ function handleWindowMessage(evt) {
 
 function identifyFrames() {
   var frameElements = Array.from(document.querySelectorAll("iframe"));
+  Ext.frameElementsTimeoutId = -1;
   Ext.frameElementsTS = Date.now();
   for (let k = 0, n = frameElements.length; k < n; k += 1) {
     let frame = frameElements[k];
@@ -426,7 +430,11 @@ function handleMessageUpdateCanvases(msg) {
     setRowActive(canvasIndex);
   }
 
-  identifyFrames();
+  if (Date.now() > Ext.frameElementsTS + 2000) {
+    identifyFrames();
+  } else if (Ext.frameElementsTimeoutId < 0) {
+    Ext.frameElementsTimeoutId = setTimeout(identifyFrames, 2000);
+  }
 }
 
 function observeBodyMutations(mutations) {
