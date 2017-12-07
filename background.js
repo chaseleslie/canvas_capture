@@ -20,7 +20,7 @@
 
 const APP_NAME = browser.runtime.getManifest().name;
 
-const activeTabs = {};
+const activeTabs = Object.create(null);
 
 const ICON_PATH_MAP = Object.freeze({
   "16":  "/img/icon_16.svg",
@@ -67,7 +67,6 @@ browser.browserAction.setIcon(
 ).then(nullifyError).catch(nullifyError);
 browser.runtime.onConnect.addListener(connected);
 browser.browserAction.onClicked.addListener(onBrowserAction);
-browser.webNavigation.onCompleted.addListener(onNavigationCompleted);
 
 if ("onInstalled" in browser.runtime) {
   /* New browser version support runtime.onInstalled */
@@ -215,6 +214,9 @@ function onEnableTab(tab) {
     });
   });
 
+  if (!browser.webNavigation.onCompleted.hasListener(onNavigationCompleted)) {
+    browser.webNavigation.onCompleted.addListener(onNavigationCompleted);
+  }
   activeTabs[tabId] = {"frames": [], "tabId": tabId};
   browser.browserAction.setIcon(
     {"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}
@@ -251,6 +253,12 @@ function onDisconnectTab(msg) {
     browser.browserAction.setIcon(
       {"path": ICON_PATH_MAP, "tabId": tabId}
     ).then(nullifyError).catch(nullifyError);
+    if (
+      !Object.keys(activeTabs).length &&
+      browser.webNavigation.onCompleted.hasListener(onNavigationCompleted)
+    ) {
+      browser.webNavigation.onCompleted.removeListener(onNavigationCompleted);
+    }
   } else {
     let frames = activeTabs[tabId].frames;
     let frameIndex = -1;
