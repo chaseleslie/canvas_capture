@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg version="1.1" width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+<svg version="1.1" width="64" height="64" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
 
 	<defs>
 		<radialGradient id="gradient">
-			<stop offset="85%" stop-color="#55F" />
+			<stop offset="85%" stop-color="#33F" />
 			<stop offset="90%" stop-color="#66F" />
 			<stop offset="95%" stop-color="#AAF" />
 		</radialGradient>
