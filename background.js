@@ -20,22 +20,22 @@
 
 const APP_NAME = browser.runtime.getManifest().name;
 
-var activeTabs = {};
+const activeTabs = {};
 
-const ICON_PATH_MAP = {
-  "16": "/img/icon_16.svg",
-  "32": "/img/icon_32.svg",
-  "48": "/img/icon_48.svg",
-  "64": "/img/icon_64.svg",
+const ICON_PATH_MAP = Object.freeze({
+  "16":  "/img/icon_16.svg",
+  "32":  "/img/icon_32.svg",
+  "48":  "/img/icon_48.svg",
+  "64":  "/img/icon_64.svg",
   "128": "/img/icon_128.svg"
-};
-const ICON_ACTIVE_PATH_MAP = {
+});
+const ICON_ACTIVE_PATH_MAP = Object.freeze({
   "16": "/img/icon_active_16.svg",
   "32": "/img/icon_active_32.svg",
   "48": "/img/icon_active_48.svg",
   "64": "/img/icon_active_64.svg",
   "128": "/img/icon_active_128.svg"
-};
+});
 
 const CAPTURE_JS_PATH = "/capture/capture.js";
 const BROWSER_POLYFILL_JS_PATH = "/lib/webextension-polyfill/browser-polyfill.min.js";
@@ -47,20 +47,20 @@ const MAX_VIDEO_SIZE_KEY = "maxVideoSize";
 const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
 
 const MessageCommands = Object.freeze({
-  "CAPTURE_START": 0,
-  "CAPTURE_STOP": 1,
-  "DISABLE": 2,
-  "DISCONNECT": 3,
-  "DISPLAY": 4,
-  "DOWNLOAD": 5,
-  "HIGHLIGHT": 6,
-  "NOTIFY": 7,
-  "REGISTER": 8,
+  "CAPTURE_START":   0,
+  "CAPTURE_STOP":    1,
+  "DISABLE":         2,
+  "DISCONNECT":      3,
+  "DISPLAY":         4,
+  "DOWNLOAD":        5,
+  "HIGHLIGHT":       6,
+  "NOTIFY":          7,
+  "REGISTER":        8,
   "UPDATE_CANVASES": 9
 });
 
 const NOTIFICATION_DURATION = 10000;
-var notifications = [];
+const notifications = [];
 
 browser.browserAction.setIcon(
   {"path": ICON_PATH_MAP}

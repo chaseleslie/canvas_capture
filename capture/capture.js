@@ -25,20 +25,20 @@ const BG_FRAME_UUID = "background";
 const ALL_FRAMES_UUID = "*";
 
 const MessageCommands = Object.freeze({
-  "CAPTURE_START": 0,
-  "CAPTURE_STOP": 1,
-  "DISABLE": 2,
-  "DISCONNECT": 3,
-  "DISPLAY": 4,
-  "DOWNLOAD": 5,
-  "HIGHLIGHT": 6,
-  "NOTIFY": 7,
-  "REGISTER": 8,
+  "CAPTURE_START":   0,
+  "CAPTURE_STOP":    1,
+  "DISABLE":         2,
+  "DISCONNECT":      3,
+  "DISPLAY":         4,
+  "DOWNLOAD":        5,
+  "HIGHLIGHT":       6,
+  "NOTIFY":          7,
+  "REGISTER":        8,
   "UPDATE_CANVASES": 9
 });
 
 const MIME_TYPE_MAP = Object.freeze({
-  "mp4": "video/mp4",
+  "mp4":  "video/mp4",
   "webm": "video/webm"
 });
 const DEFAULT_MIME_TYPE = "webm";
@@ -186,7 +186,8 @@ function handleWindowMessage(evt) {
   if (!key || keyPos < 0) {
     return;
   } else if (msg.ts < Ext.frameElementsTS) {
-    identifyFrames();
+    // Delay immediate retry to try and avoid race condition
+    setTimeout(identifyFrames, 2000);
     Ext.frameElementsKeys.splice(keyPos, 1);
     evt.stopPropagation();
     return;
@@ -538,6 +539,12 @@ function observeCanvasMutations(mutations) {
 }
 
 function handleDisable(notify) {
+  showNotification(notify);
+  Ext.port.disconnect();
+  Ext.active.clear();
+  Ext.bodyMutObs.disconnect();
+  Ext.canvasMutObs.disconnect();
+
   var wrapper = document.getElementById(WRAPPER_ID);
   if (wrapper) {
     wrapper.parentElement.removeChild(wrapper);
@@ -573,12 +580,6 @@ function handleDisable(notify) {
       Ext.mediaRecorder.stop();
     }
   }
-
-  showNotification(notify);
-  Ext.port.disconnect();
-  Ext.active.clear();
-  Ext.bodyMutObs.disconnect();
-  Ext.canvasMutObs.disconnect();
 
   window.removeEventListener("resize", positionWrapper, false);
   window.removeEventListener("wheel", handleWindowMouseWheel, true);
