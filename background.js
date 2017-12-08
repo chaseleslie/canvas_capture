@@ -20,7 +20,7 @@
 
 const APP_NAME = browser.runtime.getManifest().name;
 
-const activeTabs = {};
+const activeTabs = Object.create(null);
 
 const ICON_PATH_MAP = Object.freeze({
   "16":  "/img/icon_16.svg",
@@ -67,43 +67,46 @@ browser.browserAction.setIcon(
 ).then(nullifyError).catch(nullifyError);
 browser.runtime.onConnect.addListener(connected);
 browser.browserAction.onClicked.addListener(onBrowserAction);
-browser.webNavigation.onCompleted.addListener(onNavigationCompleted);
 
 if ("onInstalled" in browser.runtime) {
   /* New browser version support runtime.onInstalled */
   browser.runtime.onInstalled.addListener(handleInstall);
 } else {
   /* Fallback for older browser versions first install */
-  let firstInstallSetting = browser.storage.local.get("firstInstall");
-  firstInstallSetting.then(function(setting) {
+  browser.storage.local.get("firstInstall").then(function(setting) {
     if (Array.isArray(setting)) {
       setting = setting[0];
     }
-    if (browser.runtime.lastError || !("firstInstall" in setting)) {
+    if (!("firstInstall" in setting)) {
       handleInstall({"reason": "install"});
     }
+  }).catch(function() {
+    handleInstall({"reason": "install"});
   });
 }
 
 function handleInstall(details) {
-  var reason = details.reason;
+  const reason = details.reason;
   switch (reason) {
-    case "install":
-      var obj = {[MAX_VIDEO_SIZE_KEY]: 524288000, "firstInstall": true};
+    case "install": {
+      const obj = {
+        [MAX_VIDEO_SIZE_KEY]: DEFAULT_MAX_VIDEO_SIZE,
+        "firstInstall": true
+      };
       browser.storage.local.set(obj);
+    }
     break;
   }
 }
 
 function onNavigationCompleted(details) {
-  var tabId = details.tabId;
-  var frameId = details.frameId;
+  const tabId = details.tabId;
+  const frameId = details.frameId;
 
   if (
-    details.url === "about:blank" ||
-    details.url.indexOf("blob") === 0 ||
     frameId === 0 ||
-    !(tabId in activeTabs)
+    !(tabId in activeTabs) ||
+    details.url.indexOf("http") !== 0
   ) {
     return;
   }
@@ -117,8 +120,8 @@ function onNavigationCompleted(details) {
       "frameId": frameId
     });
   }).then(function() {
-    var frames = activeTabs[tabId].frames;
-    var frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+    const frames = activeTabs[tabId].frames;
+    const frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
     frame.port.postMessage({
       "command": MessageCommands.UPDATE_CANVASES,
       "tabId": tabId,
@@ -131,14 +134,14 @@ function onNavigationCompleted(details) {
 function connected(port) {
   port.onMessage.addListener(onMessage);
 
-  var sender = port.sender;
-  var tab = sender.tab;
-  var tabId = tab.id;
-  var frameId = sender.frameId;
-  var frameUUID = port.name;
-  var url = sender.url;
-  var frames = activeTabs[tabId].frames;
-  var frame = {"frameUUID": frameUUID, "port": port, "url": url, "frameId": frameId};
+  const sender = port.sender;
+  const tab = sender.tab;
+  const tabId = tab.id;
+  const frameId = sender.frameId;
+  const frameUUID = port.name;
+  const url = sender.url;
+  const frames = activeTabs[tabId].frames;
+  const frame = {"frameUUID": frameUUID, "port": port, "url": url, "frameId": frameId};
   frames.push(frame);
 
   port.onDisconnect.addListener(function() {
@@ -162,7 +165,7 @@ function connected(port) {
       if (Array.isArray(setting)) {
         setting = setting[0];
       }
-      var maxVideoSize = setting[MAX_VIDEO_SIZE_KEY] || DEFAULT_MAX_VIDEO_SIZE;
+      const maxVideoSize = setting[MAX_VIDEO_SIZE_KEY] || DEFAULT_MAX_VIDEO_SIZE;
 
       port.postMessage({
         "command": MessageCommands.DISPLAY,
@@ -176,7 +179,7 @@ function connected(port) {
 }
 
 function onBrowserAction(tab) {
-  var tabId = tab.id;
+  const tabId = tab.id;
 
   if (tabId in activeTabs) {
     onDisableTab(tabId);
@@ -186,12 +189,12 @@ function onBrowserAction(tab) {
 }
 
 function onEnableTab(tab) {
-  var tabId = tab.id;
+  const tabId = tab.id;
 
   browser.webNavigation.getAllFrames({"tabId": tabId})
   .then(function(frames) {
     for (let k = 0, n = frames.length; k < n; k += 1) {
-      let frame = frames[k];
+      const frame = frames[k];
       if (frame.frameId !== 0) {
         browser.tabs.executeScript({
           "file": BROWSER_POLYFILL_JS_PATH,
@@ -216,6 +219,9 @@ function onEnableTab(tab) {
     });
   });
 
+  if (!browser.webNavigation.onCompleted.hasListener(onNavigationCompleted)) {
+    browser.webNavigation.onCompleted.addListener(onNavigationCompleted);
+  }
   activeTabs[tabId] = {"frames": [], "tabId": tabId};
   browser.browserAction.setIcon(
     {"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}
@@ -223,8 +229,8 @@ function onEnableTab(tab) {
 }
 
 function onDisableTab(tabId) {
-  let frames = activeTabs[tabId].frames;
-  let topFrame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+  const frames = activeTabs[tabId].frames;
+  const topFrame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
   frames.forEach(function(el) {
     if (el.frameUUID !== TOP_FRAME_UUID) {
       el.port.postMessage({
@@ -240,8 +246,8 @@ function onDisableTab(tabId) {
 }
 
 function onDisconnectTab(msg) {
-  var tabId = msg.tabId;
-  var frameUUID = msg.frameUUID;
+  const tabId = msg.tabId;
+  const frameUUID = msg.frameUUID;
 
   if (!(tabId in activeTabs)) {
     return;
@@ -252,13 +258,19 @@ function onDisconnectTab(msg) {
     browser.browserAction.setIcon(
       {"path": ICON_PATH_MAP, "tabId": tabId}
     ).then(nullifyError).catch(nullifyError);
+    if (
+      !Object.keys(activeTabs).length &&
+      browser.webNavigation.onCompleted.hasListener(onNavigationCompleted)
+    ) {
+      browser.webNavigation.onCompleted.removeListener(onNavigationCompleted);
+    }
   } else {
-    let frames = activeTabs[tabId].frames;
+    const frames = activeTabs[tabId].frames;
+    const topFrame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
     let frameIndex = -1;
-    let topFrame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
 
     for (let k = 0, n = frames.length; k < n; k += 1) {
-      let frame = frames[k];
+      const frame = frames[k];
       if (frame.frameUUID === frameUUID) {
         frameIndex = k;
         break;
@@ -283,9 +295,9 @@ function onMessage(msg) {
     case MessageCommands.CAPTURE_STOP:
     case MessageCommands.DOWNLOAD:
     case MessageCommands.HIGHLIGHT: {
-      let tabId = msg.tabId;
-      let frames = activeTabs[tabId].frames;
-      let targetFrame = frames.find((el) => el.frameUUID === msg.targetFrameUUID);
+      const tabId = msg.tabId;
+      const frames = activeTabs[tabId].frames;
+      const targetFrame = frames.find((el) => el.frameUUID === msg.targetFrameUUID);
 
       if (targetFrame) {
         targetFrame.port.postMessage(msg);
@@ -295,14 +307,14 @@ function onMessage(msg) {
 
     case MessageCommands.DISPLAY:
     case MessageCommands.UPDATE_CANVASES: {
-      let tabId = msg.tabId;
-      let frames = activeTabs[tabId].frames;
-      let targetFrame = frames.find((el) => el.frameUUID === msg.targetFrameUUID);
+      const tabId = msg.tabId;
+      const frames = activeTabs[tabId].frames;
+      const targetFrame = frames.find((el) => el.frameUUID === msg.targetFrameUUID);
       if (msg.targetFrameUUID === ALL_FRAMES_UUID && msg.frameUUID === TOP_FRAME_UUID) {
         for (let k = 0, n = frames.length; k < n; k += 1) {
-          let frame = frames[k];
+          const frame = frames[k];
           if (frame.frameUUID !== TOP_FRAME_UUID) {
-            let obj = JSON.parse(JSON.stringify(msg));
+            const obj = JSON.parse(JSON.stringify(msg));
             obj.targetFrameUUID = frame.frameUUID;
             frame.port.postMessage(obj);
           }
@@ -328,12 +340,12 @@ function onMessage(msg) {
 }
 
 function onTabNotify(msg) {
-  var notifyId = msg.notification;
+  const notifyId = msg.notification;
   if (!notifyId) {
     return;
   }
 
-  var notifyOpts = {
+  const notifyOpts = {
     "type": "basic",
     "message": msg.notification,
     "title": APP_NAME,
@@ -341,7 +353,7 @@ function onTabNotify(msg) {
   };
 
   for (let k = 0, n = notifications.length; k < n; k += 1) {
-    let notify = notifications[k];
+    const notify = notifications[k];
     if (notify.message === notifyOpts.message) {
       return;
     }
@@ -349,10 +361,10 @@ function onTabNotify(msg) {
   notifications.push(notifyOpts);
 
   browser.notifications.create(notifyId, notifyOpts);
-  setTimeout(() => {
+  setTimeout(function() {
     browser.notifications.clear(notifyId);
     for (let k = 0, n = notifications.length; k < n; k += 1) {
-      let notify = notifications[k];
+      const notify = notifications[k];
       if (notify.message === notifyOpts.message) {
         notifications.splice(k, 1);
       }

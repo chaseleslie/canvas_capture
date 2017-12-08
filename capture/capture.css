@@ -15,16 +15,17 @@
 
 
 #capture_list_container {
-  min-width: 40vw;
+  min-width: 100vw;
+  max-width: 100vw;
   min-height: 20vh;
   max-height: 20vh;
   position: fixed;
+  left: 0px;
   bottom: 0px;
   display: grid;
   grid-template-rows: 1fr 4fr;
   z-index: 50000;
   overflow-y: hidden;
-  border-radius: 10px;
   background-color: #20202E;
   line-height: 1.1875em;
   text-align: center;
@@ -345,48 +346,8 @@
 }
 
 @keyframes cc_minim_active {
-  from {
-    background: linear-gradient(to right, #30303F, #20202E);
-  }
-
-  10% {
-    background: linear-gradient(to right, #383847, #20202E);
-  }
-
-  20% {
-    background: linear-gradient(to right, #40404F, #20202E);
-  }
-
-  30% {
-    background: linear-gradient(to right, #383847, #40404F 16%, #20202E);
-  }
-
-  40% {
-    background: linear-gradient(to right, #30303F, #40404F 32%, #282836, #20202E);
-  }
-
   50% {
-    background: linear-gradient(to right, #20202E, #40404F, #20202E);
-  }
-
-  60% {
-    background: linear-gradient(to right, #20202E, #282836, #40404F 66%, #30303F);
-  }
-
-  70% {
-    background: linear-gradient(to right, #20202E, #40404F 82%, #383847);
-  }
-
-  80% {
-    background: linear-gradient(to right, #20202E, #40404F);
-  }
-
-  90% {
-    background: linear-gradient(to right, #20202E, #383847);
-  }
-
-  to {
-    background: linear-gradient(to right, #20202E, #30303F);
+    background-color: #226;
   }
 }
 
