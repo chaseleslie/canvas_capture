@@ -106,7 +106,7 @@ const Ext = Object.seal({
     }
 
     for (let k = 0, n = this.downloadLinks.length; k < n; k += 1) {
-      let link = this.downloadLinks[k];
+      const link = this.downloadLinks[k];
       link.parentElement.removeChild(link);
       this.downloadLinks[k] = null;
     }
@@ -128,10 +128,10 @@ Ext.bodyMutObs.observe(document.body, {
 });
 
 function handleWindowMessage(evt) {
-  var msg = evt.data;
+  const msg = evt.data;
 
   if (msg.command === "identify") {
-    let obj = JSON.parse(JSON.stringify(msg));
+    const obj = JSON.parse(JSON.stringify(msg));
     obj.frameUUID = FRAME_UUID;
     evt.source.postMessage(obj, evt.origin);
   }
@@ -154,14 +154,14 @@ function onMessage(msg) {
     Ext.tabId = msg.tabId;
     Ext.frameId = msg.frameId;
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
-    let canvases = Array.from(document.body.querySelectorAll("canvas"));
+    const canvases = Array.from(document.body.querySelectorAll("canvas"));
     Ext.frames[FRAME_UUID].canvases = canvases;
     updateCanvases(canvases);
   }
 }
 
 function handleMessageCaptureStart(msg) {
-  var ret = preStartCapture(msg);
+  const ret = preStartCapture(msg);
   if (!ret) {
     Ext.port.postMessage({
       "command": MessageCommands.CAPTURE_START,
@@ -198,7 +198,7 @@ function handleMessageDisable() {
 }
 
 function handleMessageDisplay(msg) {
-  var canvases = Array.from(document.body.querySelectorAll("canvas"));
+  const canvases = Array.from(document.body.querySelectorAll("canvas"));
 
   canvases.forEach((canvas) => Ext.canvasMutObs.observe(canvas, CANVAS_OBSERVER_OPS));
   Ext.settings.maxVideoSize = msg.defaultSettings.maxVideoSize;
@@ -208,7 +208,7 @@ function handleMessageDisplay(msg) {
 }
 
 function handleMessageDownload(msg) {
-  var link = document.createElement("a");
+  const link = document.createElement("a");
   link.textContent = "download";
   link.href = Ext.objectURLs[msg.canvasIndex];
   link.download = `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`;
@@ -223,9 +223,9 @@ function handleMessageDownload(msg) {
 }
 
 function handleMessageHighlight(msg) {
-  var canvasIndex = msg.canvasIndex;
-  var canvas = Ext.frames[FRAME_UUID].canvases[canvasIndex];
-  var rect = canvas.getBoundingClientRect();
+  const canvasIndex = msg.canvasIndex;
+  const canvas = Ext.frames[FRAME_UUID].canvases[canvasIndex];
+  const rect = canvas.getBoundingClientRect();
 
   Ext.port.postMessage({
     "command": MessageCommands.HIGHLIGHT,
@@ -249,13 +249,12 @@ function handleMessageHighlight(msg) {
 
 function observeBodyMutations(mutations) {
   mutations = mutations.filter((el) => el.type === "childList");
-
   var addedCanvases = false;
   var removedCanvases = [];
-  var isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
+  const isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
-    let mutation = mutations[k];
+    const mutation = mutations[k];
     for (let iK = 0, iN = mutation.addedNodes.length; iK < iN; iK += 1) {
       if (isCanvas(mutation.addedNodes[iK])) {
         addedCanvases = true;
@@ -275,7 +274,7 @@ function observeBodyMutations(mutations) {
   }
 
   for (let k = 0, n = removedCanvases.length; k < n; k += 1) {
-    let node = removedCanvases[k];
+    const node = removedCanvases[k];
     if (Ext.active.capturing && node.classList.contains(CANVAS_ACTIVE_CAPTURING_CLASS)) {
       if (Ext.active.timer.timerId >= 0) {
         clearTimeout(Ext.active.timer.timerId);
@@ -287,7 +286,7 @@ function observeBodyMutations(mutations) {
     }
   }
 
-  var canvases = Array.from(document.body.querySelectorAll("canvas"));
+  const canvases = Array.from(document.body.querySelectorAll("canvas"));
   Ext.frames[FRAME_UUID].canvases = canvases;
 
   if (canvasesChanged) {
@@ -306,8 +305,8 @@ function observeBodyMutations(mutations) {
 }
 
 function observeCanvasMutations(mutations) {
-  var canvases = Array.from(document.body.querySelectorAll("canvas"));
   mutations = mutations.filter((el) => el.type === "attributes");
+  const canvases = Array.from(document.body.querySelectorAll("canvas"));
 
   if (mutations.length) {
     updateCanvases(canvases);
@@ -315,7 +314,7 @@ function observeCanvasMutations(mutations) {
 }
 
 function updateCanvases(canvases) {
-  var canvasData = canvases.map(function(el) {
+  const canvasData = canvases.map(function(el) {
     return {
       "id": el.id,
       "width": el.width,
@@ -342,9 +341,9 @@ function preStartCapture(msg) {
   }
 
   Ext.active.index = msg.canvasIndex;
-  var canvas = Ext.frames[FRAME_UUID].canvases[Ext.active.index];
-  var fps = msg.fps;
-  var bps = msg.bps;
+  const canvas = Ext.frames[FRAME_UUID].canvases[Ext.active.index];
+  const fps = msg.fps;
+  const bps = msg.bps;
   Ext.active.timer.secs = parseInt(msg.timerSeconds, 10) || 0;
   Ext.active.canvas = canvas;
 
@@ -389,7 +388,7 @@ function startCapture(canvas, fps, bps) {
 
 function handleCaptureStart() {
   if (Ext.active.timer.secs) {
-    let timerSeconds = Ext.active.timer.secs;
+    const timerSeconds = Ext.active.timer.secs;
     Ext.active.timer.timerId = setTimeout(function() {
       preStopCapture();
     }, timerSeconds * 1000);
@@ -461,7 +460,7 @@ function stopCapture() {
 }
 
 function onDataAvailable(evt) {
-  var blob = evt.data;
+  const blob = evt.data;
 
   if (blob.size) {
     Ext.chunks.push(blob);

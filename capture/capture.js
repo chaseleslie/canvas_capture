@@ -179,10 +179,9 @@ Ext.bodyMutObs.observe(document.body, {
 });
 
 function handleWindowMessage(evt) {
-  var msg = evt.data;
-  var frameElements = Array.from(document.querySelectorAll("iframe"));
-  var key = msg.key;
-  var keyPos = Ext.frameElementsKeys.indexOf(key);
+  const msg = evt.data;
+  const key = msg.key;
+  const keyPos = Ext.frameElementsKeys.indexOf(key);
 
   if (!key || keyPos < 0) {
     return;
@@ -196,18 +195,19 @@ function handleWindowMessage(evt) {
     return;
   }
 
+  const frameElements = Array.from(document.querySelectorAll("iframe"));
   Ext.frameElementsKeys.splice(keyPos, 1);
   Ext.frames[msg.frameUUID].node = frameElements[msg.index];
   evt.stopPropagation();
 }
 
 function identifyFrames() {
-  var frameElements = Array.from(document.querySelectorAll("iframe"));
+  const frameElements = Array.from(document.querySelectorAll("iframe"));
   Ext.frameElementsTimeoutId = -1;
   Ext.frameElementsTS = Date.now();
   for (let k = 0, n = frameElements.length; k < n; k += 1) {
-    let frame = frameElements[k];
-    let key = genUUIDv4();
+    const frame = frameElements[k];
+    const key = genUUIDv4();
     Ext.frameElementsKeys.push(key);
     frame.contentWindow.postMessage({
       "command": "identify",
@@ -251,7 +251,7 @@ function handleMessageCaptureStart(msg) {
 }
 
 function handleMessageCaptureStop(msg) {
-  let linkCol = Ext.listCanvases.querySelectorAll(
+  const linkCol = Ext.listCanvases.querySelectorAll(
     `.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`
   )[Ext.active.index];
 
@@ -260,7 +260,7 @@ function handleMessageCaptureStop(msg) {
   Ext.active.clear();
 
   if (msg.success) {
-    let link = document.createElement("a");
+    const link = document.createElement("a");
     link.textContent = "Download";
     link.href = msg.videoURL;
     link.title = prettyFileSize(msg.size);
@@ -290,7 +290,7 @@ function handleMessageCaptureStop(msg) {
 }
 
 function handleMessageDisconnect(msg) {
-  let frameUUID = msg.frameUUID;
+  const frameUUID = msg.frameUUID;
 
   if (Ext.active.capturing && Ext.active.frameUUID === frameUUID) {
     preStopCapture();
@@ -310,28 +310,28 @@ function handleMessageDisconnect(msg) {
 }
 
 function handleMessageHighlight(msg, node) {
-  var highlighter = Ext.highlighter;
-  var frame = Ext.frames[msg.frameUUID];
+  const highlighter = Ext.highlighter;
+  const frame = Ext.frames[msg.frameUUID];
   node = node || frame.node;
 
   if (node && highlighter.current) {
-    let rect = msg.rect;
-    let nodeRect = node.getBoundingClientRect();
-    let nodeStyle = window.getComputedStyle(node);
-    let borderWidthLeft = parseInt(nodeStyle.borderLeftWidth, 10);
-    let borderWidthTop = parseInt(nodeStyle.borderTopWidth, 10);
-    let vertTracerStyle = window.getComputedStyle(highlighter.left);
-    let horizTracerStyle = window.getComputedStyle(highlighter.top);
-    let vertTracerWidth = (
+    const rect = msg.rect;
+    const nodeRect = node.getBoundingClientRect();
+    const nodeStyle = window.getComputedStyle(node);
+    const borderWidthLeft = parseInt(nodeStyle.borderLeftWidth, 10);
+    const borderWidthTop = parseInt(nodeStyle.borderTopWidth, 10);
+    const vertTracerStyle = window.getComputedStyle(highlighter.left);
+    const horizTracerStyle = window.getComputedStyle(highlighter.top);
+    const vertTracerWidth = (
       highlighter.left.offsetWidth +
       (2 * parseInt(vertTracerStyle.borderLeftWidth, 10) || 0)
     );
-    let horizTracerWidth = (
+    const horizTracerWidth = (
       highlighter.top.offsetHeight +
       (2 * parseInt(horizTracerStyle.borderTopWidth, 10) || 0)
     );
-    let left = nodeRect.left + rect.left + borderWidthLeft;
-    let top = nodeRect.top + rect.top + borderWidthTop;
+    const left = nodeRect.left + rect.left + borderWidthLeft;
+    const top = nodeRect.top + rect.top + borderWidthTop;
     let right = nodeRect.left + rect.left + rect.width + borderWidthLeft;
     right = Math.min(
       document.documentElement.clientWidth - vertTracerWidth,
@@ -368,7 +368,7 @@ function handleMessageHighlight(msg, node) {
 }
 
 function handleMessageUpdateCanvases(msg) {
-  var frameUUID = msg.frameUUID;
+  const frameUUID = msg.frameUUID;
 
   if (frameUUID === BG_FRAME_UUID) {
     Ext.port.postMessage({
@@ -392,10 +392,10 @@ function handleMessageUpdateCanvases(msg) {
   var canvasIndex = -1;
   var canvasFrameUUID = frameUUID;
   if (Ext.active.capturing) {
-    let row = Ext.listCanvases.querySelector(
+    const row = Ext.listCanvases.querySelector(
       `.${LIST_CANVASES_ROW_CLASS}.${CANVAS_CAPTURE_SELECTED_CLASS}`
     );
-    let canvasIsLocal = Ext.active.frameUUID === TOP_FRAME_UUID;
+    const canvasIsLocal = Ext.active.frameUUID === TOP_FRAME_UUID;
 
     if (canvasIsLocal) {
       canvasIndex = parseInt(Ext.active.index, 10);
@@ -410,13 +410,12 @@ function handleMessageUpdateCanvases(msg) {
   updateCanvases();
 
   if (Ext.active.capturing) {
-    let canvasIsLocal = Ext.active.frameUUID === TOP_FRAME_UUID;
+    const canvasIsLocal = Ext.active.frameUUID === TOP_FRAME_UUID;
 
     if (!canvasIsLocal) {
-      let row = null;
-      let rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-      let frameRows = rows.filter((el) => el.dataset.frameUUID === canvasFrameUUID);
-      row = frameRows[canvasIndex];
+      const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+      const frameRows = rows.filter((el) => el.dataset.frameUUID === canvasFrameUUID);
+      const row = frameRows[canvasIndex];
       for (let k = 0, n = rows.length; k < n; k += 1) {
         if (row === rows[k]) {
           canvasIndex = k;
@@ -441,10 +440,10 @@ function observeBodyMutations(mutations) {
   mutations = mutations.filter((el) => el.type === "childList");
   var addedCanvases = false;
   var removedCanvases = [];
-  var isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
+  const isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
-    let mutation = mutations[k];
+    const mutation = mutations[k];
     for (let iK = 0, iN = mutation.addedNodes.length; iK < iN; iK += 1) {
       if (isCanvas(mutation.addedNodes[iK])) {
         addedCanvases = true;
@@ -464,7 +463,7 @@ function observeBodyMutations(mutations) {
   }
 
   for (let k = 0, n = removedCanvases.length; k < n; k += 1) {
-    let node = removedCanvases[k];
+    const node = removedCanvases[k];
     if (Ext.active.capturing && node === Ext.active.canvas) {
       if (Ext.active.timer.timerId >= 0) {
         clearTimeout(Ext.active.timer.timerId);
@@ -477,12 +476,12 @@ function observeBodyMutations(mutations) {
     }
   }
 
-  let activeCanvas = Ext.active.canvas;
-  let activeFrameUUID = Ext.active.frameUUID;
+  const activeCanvas = Ext.active.canvas;
+  const activeFrameUUID = Ext.active.frameUUID;
+  const canvases = Array.from(document.body.querySelectorAll("canvas"));
   let row = null;
   let canvasIsLocal = true;
   let canvasIndex = -1;
-  let canvases = Array.from(document.body.querySelectorAll("canvas"));
 
   if (Ext.active.capturing) {
     row = Ext.listCanvases.querySelector(
@@ -508,7 +507,7 @@ function observeBodyMutations(mutations) {
     setRowActive(canvasIndex);
     Ext.active.index = canvasIndex;
   } else if (Ext.active.capturing && !canvasIsLocal) {
-    let rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+    const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
 
     for (let k = 0, n = rows.length; k < n; k += 1) {
       if (
@@ -525,20 +524,20 @@ function observeBodyMutations(mutations) {
 }
 
 function observeCanvasMutations(mutations) {
-  var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const canvases = Array.from(document.body.querySelectorAll("canvas"));
+  const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   mutations = mutations.filter((el) => el.type === "attributes");
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
-    let mutation = mutations[k];
-    let canvas = mutation.target;
+    const mutation = mutations[k];
+    const canvas = mutation.target;
     let canvasIndex = -1;
     canvases.forEach((el, index) => el === canvas && (canvasIndex = index));
     if (canvasIndex >= 0) {
-      let row = rows[canvasIndex];
-      let colId = row.querySelector(`.${LIST_CANVASES_CANVAS_ID_CLASS}`);
-      let colWidth = row.querySelector(`.${LIST_CANVASES_CANVAS_WIDTH_CLASS}`);
-      let colHeight = row.querySelector(`.${LIST_CANVASES_CANVAS_HEIGHT_CLASS}`);
+      const row = rows[canvasIndex];
+      const colId = row.querySelector(`.${LIST_CANVASES_CANVAS_ID_CLASS}`);
+      const colWidth = row.querySelector(`.${LIST_CANVASES_CANVAS_WIDTH_CLASS}`);
+      const colHeight = row.querySelector(`.${LIST_CANVASES_CANVAS_HEIGHT_CLASS}`);
       colId.textContent = canvas.id;
       colWidth.textContent = canvas.width;
       colHeight.textContent = canvas.height;
@@ -553,22 +552,22 @@ function handleDisable(notify) {
   Ext.bodyMutObs.disconnect();
   Ext.canvasMutObs.disconnect();
 
-  var wrapper = document.getElementById(WRAPPER_ID);
+  const wrapper = document.getElementById(WRAPPER_ID);
   if (wrapper) {
     wrapper.parentElement.removeChild(wrapper);
   }
 
-  var modifyTimer = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+  const modifyTimer = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
   if (modifyTimer) {
     modifyTimer.parentElement.removeChild(modifyTimer);
   }
 
-  var maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  const maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
   if (maximize) {
     maximize.parentElement.removeChild(maximize);
   }
 
-  var style = document.getElementById(CSS_STYLE_ID);
+  const style = document.getElementById(CSS_STYLE_ID);
   if (style) {
     style.parentElement.removeChild(style);
   }
@@ -601,9 +600,9 @@ function handleDisable(notify) {
 
 function handleDisplay(msg) {
   Ext.settings.maxVideoSize = msg.defaultSettings.maxVideoSize;
-  var cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
-  var htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
-  var htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
+  const cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
+  const htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
+  const htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
 
   fetch(htmlRowUrl).then(function(response) {
     if (response.ok) {
@@ -626,7 +625,7 @@ function handleDisplay(msg) {
       `Received ${response.status} ${response.statusText} fetching ${response.url}`
     );
   }).then(function(text) {
-    var css = document.createElement("style");
+    const css = document.createElement("style");
     css.type = "text/css";
     css.textContent = text;
     css.id = CSS_STYLE_ID;
@@ -647,7 +646,7 @@ function handleDisplay(msg) {
     handleCaptureClose();
   });
 
-  let highlighter = Ext.highlighter;
+  const highlighter = Ext.highlighter;
 
   for (let key of Object.keys(highlighter)) {
     if (key !== "current") {
@@ -674,7 +673,6 @@ function positionWrapper() {
 function handleWindowMouseWheel(evt) {
   if (Ext.wrapperMouseHover) {
     evt.stopPropagation();
-
     return false;
   }
 
@@ -682,7 +680,7 @@ function handleWindowMouseWheel(evt) {
 }
 
 function setupWrapperEvents() {
-  var wrapper = document.getElementById(WRAPPER_ID);
+  const wrapper = document.getElementById(WRAPPER_ID);
   wrapper.addEventListener("mouseenter", function() {
     Ext.wrapperMouseHover = true;
   }, false);
@@ -721,40 +719,32 @@ function handleCaptureClose(evt) {
 }
 
 function maximizeCapture(evt) {
+  const captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  const wrapper = document.getElementById(WRAPPER_ID);
+
   evt.preventDefault();
   evt.stopPropagation();
-
-  var captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
-  var wrapper = document.getElementById(WRAPPER_ID);
   captureMaximize.classList.add(HIDDEN_CLASS);
   wrapper.classList.remove(HIDDEN_CLASS);
   Ext.minimized = false;
 }
 
 function minimizeCapture(evt) {
+  const captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  const wrapper = document.getElementById(WRAPPER_ID);
+
   evt.preventDefault();
   evt.stopPropagation();
-
-  var captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
-  var wrapper = document.getElementById(WRAPPER_ID);
   captureMaximize.classList.remove(HIDDEN_CLASS);
   wrapper.classList.add(HIDDEN_CLASS);
   Ext.minimized = true;
 }
 
 function setupDisplay(html) {
-  var captureClose = null;
-  var captureMaximize = null;
-  var captureMinimize = null;
-  var modifyTimerSet = null;
-  var modifyTimerClear = null;
-  var modifyTimerHours = null;
-  var modifyTimerMinutes = null;
-  var modifyTimerSeconds = null;
-  var wrapper = document.createElement("template");
-  wrapper.innerHTML = html;
-  document.body.appendChild(wrapper.content);
-  wrapper = document.getElementById(WRAPPER_ID);
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  document.body.appendChild(template.content);
+  const wrapper = document.getElementById(WRAPPER_ID);
   Ext.listCanvases = document.getElementById(LIST_CANVASES_ID);
 
   wrapper.addEventListener("click", function(evt) {
@@ -764,19 +754,19 @@ function setupDisplay(html) {
   Ext.displayed = true;
   window.addEventListener("resize", positionWrapper, false);
 
-  captureClose = document.getElementById(CAPTURE_CLOSE_ID);
+  const captureClose = document.getElementById(CAPTURE_CLOSE_ID);
   captureClose.addEventListener("click", handleCaptureClose, false);
 
-  captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  const captureMaximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
   captureMaximize.addEventListener("click", maximizeCapture, false);
-  captureMinimize = document.getElementById(CAPTURE_MINIMIZE_ID);
+  const captureMinimize = document.getElementById(CAPTURE_MINIMIZE_ID);
   captureMinimize.addEventListener("click", minimizeCapture, false);
 
-  modifyTimerSet = document.getElementById(MODIFY_TIMER_SET_ID);
-  modifyTimerClear = document.getElementById(MODIFY_TIMER_CLEAR_ID);
-  modifyTimerHours = document.getElementById(MODIFY_TIMER_HOURS_ID);
-  modifyTimerMinutes = document.getElementById(MODIFY_TIMER_MINUTES_ID);
-  modifyTimerSeconds = document.getElementById(MODIFY_TIMER_SECONDS_ID);
+  const modifyTimerSet = document.getElementById(MODIFY_TIMER_SET_ID);
+  const modifyTimerClear = document.getElementById(MODIFY_TIMER_CLEAR_ID);
+  const modifyTimerHours = document.getElementById(MODIFY_TIMER_HOURS_ID);
+  const modifyTimerMinutes = document.getElementById(MODIFY_TIMER_MINUTES_ID);
+  const modifyTimerSeconds = document.getElementById(MODIFY_TIMER_SECONDS_ID);
   modifyTimerSet.addEventListener("click", handleRowSetTimer, false);
   modifyTimerClear.addEventListener("click", handleRowClearTimer, false);
   modifyTimerHours.addEventListener("focus", handleInputFocus, false);
@@ -789,7 +779,7 @@ function setupDisplay(html) {
   positionWrapper();
   setupWrapperEvents();
 
-  var canvases = Array.from(document.body.querySelectorAll("canvas"));
+  const canvases = Array.from(document.body.querySelectorAll("canvas"));
   Ext.frames[TOP_FRAME_UUID].canvases = canvases;
   Ext.port.postMessage({
     "command": MessageCommands.DISPLAY,
@@ -806,8 +796,8 @@ function setupDisplay(html) {
 }
 
 function getAllCanvases() {
-  var canvases = Array.from(document.body.querySelectorAll("canvas"));
-  canvases = canvases.map(function(el, index) {
+  var canvases = Array.from(document.body.querySelectorAll("canvas"))
+    .map(function(el, index) {
     return {
       "element": el,
       "frameUUID": TOP_FRAME_UUID,
@@ -821,9 +811,8 @@ function getAllCanvases() {
 
   for (let key of Object.keys(Ext.frames)) {
     if (key !== TOP_FRAME_UUID) {
-      let frameCanvases = Ext.frames[key].canvases;
-      frameCanvases = frameCanvases.map(function(el, index) {
-        var obj = JSON.parse(JSON.stringify(el));
+      let frameCanvases = Ext.frames[key].canvases.map(function(el, index) {
+        const obj = JSON.parse(JSON.stringify(el));
         obj.local = false;
         obj.frameUUID = key;
         obj.index = index;
@@ -836,9 +825,9 @@ function getAllCanvases() {
 }
 
 function updateCanvases() {
-  var docFrag = document.createDocumentFragment();
-  var oldRows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  var canvases = getAllCanvases();
+  const docFrag = document.createDocumentFragment();
+  const oldRows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const canvases = getAllCanvases();
   const addTimerImgUrl = browser.runtime.getURL(ICON_ADD_PATH);
 
   oldRows.forEach((row) => row.parentElement.removeChild(row));
@@ -849,27 +838,27 @@ function updateCanvases() {
   });
 
   for (let k = 0, n = canvases.length; k < n; k += 1) {
-    let row = Ext.rowTemplate.cloneNode(true);
-    let canvas = canvases[k];
-    let canvasIsLocal = canvas.local;
+    const row = Ext.rowTemplate.cloneNode(true);
+    const canvas = canvases[k];
+    const canvasIsLocal = canvas.local;
 
-    let canvasId = row.querySelector(`.${LIST_CANVASES_CANVAS_ID_CLASS}`);
+    const canvasId = row.querySelector(`.${LIST_CANVASES_CANVAS_ID_CLASS}`);
     canvasId.textContent = canvas.id;
-    let dimens = row.querySelector(`.${LIST_CANVASES_CANVAS_DIMENS_CLASS}`);
+    const dimens = row.querySelector(`.${LIST_CANVASES_CANVAS_DIMENS_CLASS}`);
     dimens.textContent = `${canvas.width}x${canvas.height}`;
-    let addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`);
+    const addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`);
     addTimerImg.src = addTimerImgUrl;
     addTimerImg.dataset.hasTimer = false;
-    let fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
+    const fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
     fpsInput.value = DEFAULT_FPS;
     fpsInput.addEventListener("focus", handleInputFocus, false);
     fpsInput.addEventListener("blur", handleInputBlur, false);
-    let bpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`);
+    const bpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`);
     bpsInput.value = DEFAULT_BPS;
     bpsInput.addEventListener("focus", handleInputFocus, false);
     bpsInput.addEventListener("blur", handleInputBlur, false);
 
-    let button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
+    const button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
     button.dataset.index = k;
     button.dataset.canvasIsLocal = canvasIsLocal;
     button.dataset.frameUUID = canvas.frameUUID;
@@ -928,36 +917,34 @@ function clearRowEventListeners(
 }
 
 function positionRowTimerModify() {
-  var wrapper = document.getElementById(WRAPPER_ID);
-  var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
-  var containerRect = null;
-  var img = wrapper.querySelector(`.${TIMER_MODIFYING_CLASS}`);
-  var imgRect = null;
+  const wrapper = document.getElementById(WRAPPER_ID);
+  const img = wrapper.querySelector(`.${TIMER_MODIFYING_CLASS}`);
 
   if (img) {
-    containerRect = container.getBoundingClientRect();
-    imgRect = img.getBoundingClientRect();
+    const container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+    const containerRect = container.getBoundingClientRect();
+    const imgRect = img.getBoundingClientRect();
     container.style.left = `${imgRect.left + (0.5 * imgRect.width) - Math.trunc(0.5 * containerRect.width)}px`;
     container.style.top = `${imgRect.top - containerRect.height - 20}px`;
   }
 }
 
 function handleRowTimerModify(evt) {
-  var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
-  var img = evt.target;
-  var rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+  const img = evt.target;
+  const rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const hasTimer = JSON.parse(img.dataset.hasTimer || false);
+  const hoursInput = document.getElementById(MODIFY_TIMER_HOURS_ID);
+  const minutesInput = document.getElementById(MODIFY_TIMER_MINUTES_ID);
+  const secondsInput = document.getElementById(MODIFY_TIMER_SECONDS_ID);
   var row = img.parentElement;
-  var hasTimer = JSON.parse(img.dataset.hasTimer || false);
-  var hoursInput = document.getElementById(MODIFY_TIMER_HOURS_ID);
-  var minutesInput = document.getElementById(MODIFY_TIMER_MINUTES_ID);
-  var secondsInput = document.getElementById(MODIFY_TIMER_SECONDS_ID);
 
   img.dataset.ts = Date.now();
   img.classList.add(TIMER_MODIFYING_CLASS);
 
   if (hasTimer) {
-    let secs = parseInt(img.dataset.timerSeconds, 10) || 0;
-    let {hours, minutes, seconds} = secondsToHMS(secs);
+    const secs = parseInt(img.dataset.timerSeconds, 10) || 0;
+    const {hours, minutes, seconds} = secondsToHMS(secs);
     hoursInput.value = hours;
     minutesInput.value = minutes;
     secondsInput.value = seconds;
@@ -972,7 +959,7 @@ function handleRowTimerModify(evt) {
   }
 
   for (let k = 0, n = rows.length; k < n; k += 1) {
-    let ro = rows[k];
+    const ro = rows[k];
     if (row === ro) {
       ro.classList.add(CANVAS_CAPTURE_SELECTED_CLASS);
     } else {
@@ -989,9 +976,9 @@ function handleRowTimerModify(evt) {
 function handleRowTimerModifyClose(img) {
   const addImgUrl = browser.runtime.getURL(ICON_ADD_PATH);
   const timerImgUrl = browser.runtime.getURL(ICON_TIMER_PATH);
-  var container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
-  var hasTimer = img && ("hasTimer" in img.dataset) && JSON.parse(img.dataset.hasTimer);
-  var rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
+  const hasTimer = img && ("hasTimer" in img.dataset) && JSON.parse(img.dataset.hasTimer);
+  const rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
 
   if (img) {
     if (hasTimer) {
@@ -1004,7 +991,7 @@ function handleRowTimerModifyClose(img) {
   }
 
   for (let k = 0, n = rows.length; k < n; k += 1) {
-    let row = rows[k];
+    const row = rows[k];
     row.classList.remove(
       CANVAS_CAPTURE_SELECTED_CLASS,
       CANVAS_CAPTURE_INACTIVE_CLASS
@@ -1016,23 +1003,23 @@ function handleRowTimerModifyClose(img) {
 }
 
 function handleRowSetTimer() {
-  var img = Ext.listCanvases.querySelector(
+  const img = Ext.listCanvases.querySelector(
     `.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}.${TIMER_MODIFYING_CLASS}`
   );
-  var ts = (img && parseInt(img.dataset.ts, 10)) || 0;
+  const ts = (img && parseInt(img.dataset.ts, 10)) || 0;
 
   if (ts < Ext.active.updateTS) {
     handleRowTimerModifyClose(img);
     return;
   }
 
-  var hoursInput = document.getElementById(MODIFY_TIMER_HOURS_ID);
-  var minutesInput = document.getElementById(MODIFY_TIMER_MINUTES_ID);
-  var secondsInput = document.getElementById(MODIFY_TIMER_SECONDS_ID);
-  var hours = parseInt(hoursInput.value, 10) || 0;
-  var minutes = parseInt(minutesInput.value, 10) || 0;
-  var seconds = parseInt(secondsInput.value, 10) || 0;
-  var totalSecs = hmsToSeconds({hours, minutes, seconds});
+  const hoursInput = document.getElementById(MODIFY_TIMER_HOURS_ID);
+  const minutesInput = document.getElementById(MODIFY_TIMER_MINUTES_ID);
+  const secondsInput = document.getElementById(MODIFY_TIMER_SECONDS_ID);
+  const hours = parseInt(hoursInput.value, 10) || 0;
+  const minutes = parseInt(minutesInput.value, 10) || 0;
+  const seconds = parseInt(secondsInput.value, 10) || 0;
+  const totalSecs = hmsToSeconds({hours, minutes, seconds});
 
   img.dataset.hasTimer = Boolean(totalSecs);
   img.dataset.timerSeconds = totalSecs;
@@ -1040,10 +1027,10 @@ function handleRowSetTimer() {
 }
 
 function handleRowClearTimer() {
-  var img = Ext.listCanvases.querySelector(
+  const img = Ext.listCanvases.querySelector(
     `.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}.${TIMER_MODIFYING_CLASS}`
   );
-  var ts = (img && parseInt(img.dataset.ts, 10)) || 0;
+  const ts = (img && parseInt(img.dataset.ts, 10)) || 0;
 
   if (ts < Ext.active.updateTS) {
     handleRowTimerModifyClose(img);
@@ -1056,20 +1043,20 @@ function handleRowClearTimer() {
 }
 
 function positionUpdateTimer() {
-  var wrapper = document.getElementById(WRAPPER_ID);
-  var timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
-  var wrapperRect = wrapper.getBoundingClientRect();
-  var timerRect = timer.getBoundingClientRect();
-  var left = (0.5 * wrapperRect.width) - (0.5 * timerRect.width);
-  var top = (0.5 * wrapperRect.height) - (0.5 * timerRect.height);
+  const wrapper = document.getElementById(WRAPPER_ID);
+  const timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const timerRect = timer.getBoundingClientRect();
+  const left = (0.5 * wrapperRect.width) - (0.5 * timerRect.width);
+  const top = (0.5 * wrapperRect.height) - (0.5 * timerRect.height);
   timer.style.left = `${left}px`;
   timer.style.top = `${top}px`;
 }
 
 function setUpdateTimer() {
-  var updateTimerMS = 75;
-  var timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
-  var clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
+  const updateTimerMS = 75;
+  const timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
+  const clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
   Ext.active.timer.updateTimerId = setInterval(updateTimerDisplay, updateTimerMS);
   timer.classList.remove(HIDDEN_CLASS);
   positionUpdateTimer();
@@ -1077,15 +1064,17 @@ function setUpdateTimer() {
 }
 
 function clearUpdateTimer() {
-  let timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
+  const timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
   timer.classList.add(HIDDEN_CLASS);
   clearTimeout(Ext.active.timer.updateTimerId);
 }
 
 function updateTimerDisplay() {
-  var clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
-  var frac = ((Date.now() - Ext.active.startTS) / MSEC_PER_SEC) / Ext.active.timer.secs;
-  frac = Math.min(frac, 1);
+  const clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
+  const frac = Math.min(
+    1,
+    ((Date.now() - Ext.active.startTS) / MSEC_PER_SEC) / Ext.active.timer.secs
+  );
   const rd = 48;
   const cx = 50;
   const cy = 50;
@@ -1102,7 +1091,7 @@ function updateTimerDisplay() {
 }
 
 function highlightCanvas(evt) {
-  var el = evt.target;
+  const el = evt.target;
 
   if (!el.classList.contains(LIST_CANVASES_ROW_CLASS)) {
     return;
@@ -1111,8 +1100,8 @@ function highlightCanvas(evt) {
   Ext.highlighter.current = el;
 
   if (JSON.parse(el.dataset.canvasIsLocal)) {
-    let canvas = Ext.frames[TOP_FRAME_UUID].canvases[el.dataset.index];
-    let rect = canvas.getBoundingClientRect();
+    const canvas = Ext.frames[TOP_FRAME_UUID].canvases[el.dataset.index];
+    const rect = canvas.getBoundingClientRect();
 
     handleMessageHighlight({
       "frameUUID": TOP_FRAME_UUID,
@@ -1143,8 +1132,8 @@ function highlightCanvas(evt) {
 }
 
 function unhighlightCanvas(evt) {
-  var el = evt.target;
-  var highlighter = Ext.highlighter;
+  const el = evt.target;
+  const highlighter = Ext.highlighter;
 
   if (
     !el.classList.contains(LIST_CANVASES_ROW_CLASS) ||
@@ -1164,7 +1153,7 @@ function unhighlightCanvas(evt) {
 }
 
 function onToggleCapture(evt) {
-  var button = evt.target;
+  const button = evt.target;
 
   button.blur();
 
@@ -1176,11 +1165,11 @@ function onToggleCapture(evt) {
 }
 
 function setRowActive(index) {
-  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   var linkRow = null;
 
   for (let k = 0; k < rows.length; k += 1) {
-    let row = rows[k];
+    const row = rows[k];
 
     if (parseInt(row.dataset.index, 10) === index) {
       row.classList.add(CANVAS_CAPTURE_SELECTED_CLASS);
@@ -1204,10 +1193,10 @@ function setRowActive(index) {
 }
 
 function clearActiveRows() {
-  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
 
   for (let k = 0; k < rows.length; k += 1) {
-    let row = rows[k];
+    const row = rows[k];
     row.classList.remove(
       CANVAS_CAPTURE_INACTIVE_CLASS,
       CANVAS_CAPTURE_SELECTED_CLASS
@@ -1220,18 +1209,18 @@ function clearActiveRows() {
 }
 
 function preStartCapture(button) {
-  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
+  const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
   Ext.active.index = button.dataset.index;
   Ext.active.frameUUID = button.dataset.frameUUID;
-  var index = Ext.active.index;
-  var row = rows[index];
-  var timerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`);
-  var hasTimer = JSON.parse(timerImg.dataset.hasTimer || false);
-  var timerSeconds = parseInt(timerImg.dataset.timerSeconds, 10) || 0;
-  var canvases = Ext.frames[Ext.active.frameUUID].canvases;
-  var canvas = canvasIsLocal ? canvases[index] : canvases[button.dataset.canvasIndex];
-  var linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
+  const index = Ext.active.index;
+  const row = rows[index];
+  const timerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`);
+  const hasTimer = JSON.parse(timerImg.dataset.hasTimer || false);
+  const timerSeconds = parseInt(timerImg.dataset.timerSeconds, 10) || 0;
+  const canvases = Ext.frames[Ext.active.frameUUID].canvases;
+  const canvas = canvasIsLocal ? canvases[index] : canvases[button.dataset.canvasIndex];
+  const linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
   linkCol.textContent = "";
 
   if (canvasIsLocal && !canCaptureStream(canvas)) {
@@ -1240,10 +1229,10 @@ function preStartCapture(button) {
 
   setRowActive(parseInt(index, 10));
 
-  var fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
+  const fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
   var fps = parseFloat(fpsInput.value);
   fps = (isFinite(fps) && !isNaN(fps) && fps >= 0) ? fps : 0;
-  var bpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`);
+  const bpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`);
   var bps = parseFloat(bpsInput.value);
   bps = (isFinite(bps) && !isNaN(bps) && bps > 0) ? bps : DEFAULT_BPS;
 
@@ -1251,7 +1240,7 @@ function preStartCapture(button) {
   Ext.active.timer.secs = timerSeconds;
 
   if (canvasIsLocal) {
-    let ret = startCapture(canvas, fps, bps);
+    const ret = startCapture(canvas, fps, bps);
     if (!ret) {
       clearActiveRows();
       Ext.active.clear();
@@ -1304,7 +1293,7 @@ function startCapture(canvas, fps, bps) {
 }
 
 function handleCaptureStart() {
-  var timerSeconds = Ext.active.timer.secs;
+  const timerSeconds = Ext.active.timer.secs;
   Ext.active.capturing = true;
   Ext.active.startTS = Date.now();
 
@@ -1317,9 +1306,9 @@ function handleCaptureStart() {
 }
 
 function setCapturing() {
-  var maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
-  var index = Ext.active.index;
-  var linkCol = Ext.listCanvases.querySelectorAll(
+  const maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  const index = Ext.active.index;
+  const linkCol = Ext.listCanvases.querySelectorAll(
     `.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`
   )[index];
 
@@ -1328,7 +1317,7 @@ function setCapturing() {
 }
 
 function clearCapturing() {
-  var maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
+  const maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
 
   clearActiveRows();
 
@@ -1336,9 +1325,9 @@ function clearCapturing() {
 }
 
 function preStopCapture(evt) {
-  var buttons = Array.from(Ext.listCanvases.querySelectorAll(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`));
-  var button = buttons[Ext.active.index];
-  var canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
+  const buttons = Array.from(Ext.listCanvases.querySelectorAll(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`));
+  const button = buttons[Ext.active.index];
+  const canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
 
   if (evt && evt.error) {
     Ext.active.error = true;
@@ -1364,12 +1353,12 @@ function preStopCapture(evt) {
 }
 
 function createVideoURL(blob) {
-  var rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  var row = rows[Ext.active.index];
-  var col = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
+  const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const row = rows[Ext.active.index];
+  const col = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
+  const link = document.createElement("a");
+  const size = blob ? blob.size : 0;
   var videoURL = "";
-  var link = document.createElement("a");
-  var size = blob ? blob.size : 0;
 
   if (blob) {
     videoURL = window.URL.createObjectURL(blob);
@@ -1411,7 +1400,7 @@ function stopCapture() {
 }
 
 function onDataAvailable(evt) {
-  var blob = evt.data;
+  const blob = evt.data;
 
   if (blob.size) {
     Ext.chunks.push(blob);

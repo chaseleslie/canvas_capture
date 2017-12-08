@@ -24,10 +24,10 @@ const OPTION_MAX_VIDEO_SIZE_ID = "option_max_video_size";
 window.addEventListener("load", initOptions, false);
 
 function initOptions() {
-  var inputMaxSize = document.getElementById(OPTION_MAX_VIDEO_SIZE_ID);
+  const inputMaxSize = document.getElementById(OPTION_MAX_VIDEO_SIZE_ID);
   inputMaxSize.addEventListener("blur", updateMaxVideoSize, false);
 
-  var inputMaxSizeSetting = browser.storage.local.get(MAX_VIDEO_SIZE_KEY);
+  const inputMaxSizeSetting = browser.storage.local.get(MAX_VIDEO_SIZE_KEY);
   if (inputMaxSizeSetting) {
     inputMaxSizeSetting.then(function(setting) {
       if (Array.isArray(setting)) {
@@ -39,13 +39,13 @@ function initOptions() {
 }
 
 function updateMaxVideoSize(e) {
-  var input = e.target;
-  var size = parseInt(input.value, 10);
+  const input = e.target;
+  const size = parseInt(input.value, 10);
   if (!isFinite(size) || isNaN(size) || size < 0) {
     return;
   }
 
-  var obj = Object.create(null, {});
+  const obj = Object.create(null);
   obj[MAX_VIDEO_SIZE_KEY] = size;
   browser.storage.local.set(obj);
 }
