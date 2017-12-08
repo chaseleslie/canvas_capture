@@ -666,10 +666,6 @@ function handleDisplay(msg) {
 
 function positionWrapper() {
   if (Ext.displayed) {
-    var wrapper = document.getElementById(WRAPPER_ID);
-    var bodyRect = document.body.getBoundingClientRect();
-    var wrapperRect = wrapper.getBoundingClientRect();
-    wrapper.style.left = `${(bodyRect.width / 2) - (wrapperRect.width / 2)}px`;
     positionUpdateTimer();
     positionRowTimerModify();
   }

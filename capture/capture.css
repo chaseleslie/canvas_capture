@@ -15,16 +15,17 @@
 
 
 #capture_list_container {
-  min-width: 40vw;
+  min-width: 100vw;
+  max-width: 100vw;
   min-height: 20vh;
   max-height: 20vh;
   position: fixed;
+  left: 0px;
   bottom: 0px;
   display: grid;
   grid-template-rows: 1fr 4fr;
   z-index: 50000;
   overflow-y: hidden;
-  border-radius: 10px;
   background-color: #20202E;
   line-height: 1.1875em;
   text-align: center;
