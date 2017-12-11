@@ -49,14 +49,15 @@ const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
 const MessageCommands = Object.freeze({
   "CAPTURE_START":   0,
   "CAPTURE_STOP":    1,
-  "DISABLE":         2,
-  "DISCONNECT":      3,
-  "DISPLAY":         4,
-  "DOWNLOAD":        5,
-  "HIGHLIGHT":       6,
-  "NOTIFY":          7,
-  "REGISTER":        8,
-  "UPDATE_CANVASES": 9
+  "DELAY":           2,
+  "DISABLE":         3,
+  "DISCONNECT":      4,
+  "DISPLAY":         5,
+  "DOWNLOAD":        6,
+  "HIGHLIGHT":       7,
+  "NOTIFY":          8,
+  "REGISTER":        9,
+  "UPDATE_CANVASES": 10
 });
 
 const NOTIFICATION_DURATION = 10000;
@@ -293,6 +294,7 @@ function onMessage(msg) {
   switch (msg.command) {
     case MessageCommands.CAPTURE_START:
     case MessageCommands.CAPTURE_STOP:
+    case MessageCommands.DELAY:
     case MessageCommands.DOWNLOAD:
     case MessageCommands.HIGHLIGHT: {
       const tabId = msg.tabId;
