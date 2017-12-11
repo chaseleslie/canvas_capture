@@ -69,6 +69,10 @@ const TIMER_SLICE_CONTAINER_ID = "timer_slice_container";
 const TIMER_SLICE_CLIP_PATH_ID = "timer_slice_clip_path";
 const CAPTURE_MAXIMIZE_ID = "capture_maximize";
 const CAPTURE_MINIMIZE_ID = "capture_minimize";
+const DELAY_OVERLAY_ID = "capture_delay_overlay";
+const DELAY_OVERLAY_TIME_ID = "capture_delay_overlay_time";
+const DELAY_OVERLAY_SKIP_ID = "capture_delay_overlay_skip";
+const DELAY_OVERLAY_CANCEL_ID = "capture_delay_overlay_cancel";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
@@ -118,13 +122,18 @@ const Ext = Object.seal({
     "error": false,
     "errorMessage": "",
     "delay": Object.seal({
+      "startTS": 0,
       "delaySecs": 0,
       "timerId": -1,
+      "updateTimerId": -1,
       "options": null,
       "clear": function() {
         clearTimeout(this.timerId);
+        clearTimeout(this.updateTimerId);
+        this.startTS = 0;
         this.delaySecs = 0;
         this.timerId = -1;
+        this.updateTimerId = -1;
         this.options = null;
       }
     }),
@@ -847,6 +856,11 @@ function setupDisplay(html) {
   modifyTimerSeconds.addEventListener("focus", handleInputFocus, false);
   modifyTimerSeconds.addEventListener("blur", handleInputBlur, false);
 
+  const delaySkip = document.getElementById(DELAY_OVERLAY_SKIP_ID);
+  const delayCancel = document.getElementById(DELAY_OVERLAY_CANCEL_ID);
+  delaySkip.addEventListener("click", handleDelayEnd, false);
+  delayCancel.addEventListener("click", handleCancelDelay, false);
+
   positionWrapper();
   setupWrapperEvents();
 
@@ -1316,6 +1330,8 @@ function preStartCapture(button) {
   }
 
   setRowActive(index);
+  Ext.active.canvas = canvas;
+  Ext.active.timer.secs = timerSeconds;
 
   const fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
   const fpsVal = parseFloat(fpsInput.value);
@@ -1324,6 +1340,7 @@ function preStartCapture(button) {
   const bpsVal = parseFloat(bpsInput.value);
   const bps = (isFinite(bpsVal) && !isNaN(bpsVal) && bpsVal > 0) ? bpsVal : DEFAULT_BPS;
 
+  const delayOverlay = document.getElementById(DELAY_OVERLAY_ID);
   const delayInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_DELAY_CLASS} input`);
   const delaySecs = parseInt(delayInput.value, 10) || 0;
   const delayMsecs =
@@ -1331,11 +1348,9 @@ function preStartCapture(button) {
     ? delaySecs * 1000
     : 0;
 
-  Ext.active.canvas = canvas;
-  Ext.active.timer.secs = timerSeconds;
-
   const frameUUID = button.dataset.frameUUID;
   const rowIndex = index;
+  const delayUpdateMSecs = 150;
   Ext.active.delay.options = Object.seal({
     canvas,
     canvasIsLocal,
@@ -1347,17 +1362,22 @@ function preStartCapture(button) {
     bps,
     rowIndex
   });
+  delayOverlay.classList.remove(HIDDEN_CLASS);
   Ext.active.delay.delaySecs = delaySecs;
   Ext.active.delay.timerId = setTimeout(handleDelayEnd, delayMsecs);
-  Ext.port.postMessage({
-    "command": MessageCommands.DELAY,
-    "tabId": Ext.tabId,
-    "frameId": Ext.frameId,
-    "frameUUID": TOP_FRAME_UUID,
-    "targetFrameUUID": frameUUID,
-    "canvasIndex": canvasIndex,
-    "delayed": true
-  });
+  Ext.active.delay.updateTimerId = setInterval(handleDelayUpdate, delayUpdateMSecs);
+  Ext.active.delay.startTS = Date.now();
+  if (!canvasIsLocal) {
+    Ext.port.postMessage({
+      "command": MessageCommands.DELAY,
+      "tabId": Ext.tabId,
+      "frameId": Ext.frameId,
+      "frameUUID": TOP_FRAME_UUID,
+      "targetFrameUUID": frameUUID,
+      "canvasIndex": canvasIndex,
+      "delayed": true
+    });
+  }
 }
 
 function handleDelayEnd() {
@@ -1371,6 +1391,7 @@ function handleDelayEnd() {
     fps,
     bps
   } = Ext.active.delay.options;
+  const delayOverlay = document.getElementById(DELAY_OVERLAY_ID);
 
   if (canvasIsLocal) {
     const ret = startCapture(canvas, fps, bps);
@@ -1402,11 +1423,24 @@ function handleDelayEnd() {
     });
   }
 
+  delayOverlay.classList.add(HIDDEN_CLASS);
   Ext.active.delay.clear();
 }
 
+function handleDelayUpdate() {
+  const delayTime = document.getElementById(DELAY_OVERLAY_TIME_ID);
+  const startTS = Ext.active.delay.startTS;
+  const delaySecs = Ext.active.delay.delaySecs;
+  const timeDiff = delaySecs - (((Date.now() - startTS)) / 1000);
+  delayTime.textContent = Math.round(timeDiff);
+}
+
 function handleCancelDelay() {
+  const delayOverlay = document.getElementById(DELAY_OVERLAY_ID);
+  delayOverlay.classList.add(HIDDEN_CLASS);
   Ext.active.delay.clear();
+  clearActiveRows();
+  Ext.active.clear();
 }
 
 function startCapture(canvas, fps, bps) {
