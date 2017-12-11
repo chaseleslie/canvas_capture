@@ -55,7 +55,7 @@
 .list_canvases_row_heading {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
   z-index: 100;
   background-color: #372850;
   font-weight: 600;
@@ -65,7 +65,7 @@
 .list_canvases_row {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
   height: 1.75em;
 }
 
@@ -309,6 +309,18 @@
   clip-path: url(#timer_slice_clip);
   stroke: #99D;
   fill: #99D;
+}
+
+#capture_delay_overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0px;
+  left: 0px;
+  z-index: 1000;
+  display: grid;
+  grid-template-rows: 2fr 1fr 2fr;
+  background-color: #20202E;
 }
 
 .span_all {

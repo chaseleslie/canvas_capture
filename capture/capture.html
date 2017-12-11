@@ -5,6 +5,7 @@
         <span title="Canvas ID">Canvas ID</span>
         <span title="Canvas Dimensions">Dimensions</span>
         <span title="Canvas Timer">Timer</span>
+        <span title="Delay Before Capturing">Delay (seconds)</span>
         <span title="Capture Rate">FPS</span>
         <span title="Video Bitrate">Bits Per Second</span>
         <span title="Toggle Capture">Capture</span>
@@ -35,6 +36,14 @@
     <circle r="48" cx="50" cy="50" id="timer_slice_obscured" />
     <circle r="48" cx="50" cy="50" id="timer_slice_clipped" />
   </svg>
+  <div id="capture_delay_overlay" class="hidden">
+    <div class="middle_centered">Capture starting in</div>
+    <div class="middle_centered" id="capture_delay_overlay_time"></div>
+    <div class="middle_centered">
+      <button id="capture_delay_overlay_skip">Skip</button>
+      <button id="capture_delay_overlay_cancel">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <div id="capture_maximize" title="Maximize" class="hidden">

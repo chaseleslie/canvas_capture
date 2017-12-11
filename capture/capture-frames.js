@@ -26,14 +26,15 @@ const TOP_FRAME_UUID = "top";
 const MessageCommands = Object.freeze({
   "CAPTURE_START":   0,
   "CAPTURE_STOP":    1,
-  "DISABLE":         2,
-  "DISCONNECT":      3,
-  "DISPLAY":         4,
-  "DOWNLOAD":        5,
-  "HIGHLIGHT":       6,
-  "NOTIFY":          7,
-  "REGISTER":        8,
-  "UPDATE_CANVASES": 9
+  "DELAY":           2,
+  "DISABLE":         3,
+  "DISCONNECT":      4,
+  "DISPLAY":         5,
+  "DOWNLOAD":        6,
+  "HIGHLIGHT":       7,
+  "NOTIFY":          8,
+  "REGISTER":        9,
+  "UPDATE_CANVASES": 10
 });
 
 const MIME_TYPE_MAP = Object.freeze({
@@ -45,6 +46,7 @@ const CAPTURE_INTERVAL_MS = 1000;
 const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
 
 const CANVAS_ACTIVE_CAPTURING_CLASS = "canvas_active_capturing";
+const CANVAS_ACTIVE_DELAYED_CLASS = "canvas_active_delayed";
 
 const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributes": true,
@@ -66,6 +68,7 @@ const Ext = Object.seal({
     "startTS": 0,
     "canvasRemoved": false,
     "stopped": false,
+    "delayCanvasIndex": -1,
     "error": false,
     "errorMessage": "",
     "timer": Object.seal({
@@ -85,6 +88,7 @@ const Ext = Object.seal({
       this.startTS = 0;
       this.canvasRemoved = false;
       this.stopped = false;
+      this.delayCanvasIndex = -1;
       this.error = false;
       this.errorMessage = "";
       this.timer.clear();
@@ -142,6 +146,8 @@ function onMessage(msg) {
     handleMessageCaptureStart(msg);
   } else if (msg.command === MessageCommands.CAPTURE_STOP) {
     preStopCapture();
+  } else if (msg.command === MessageCommands.DELAY) {
+    handleMessageDelay(msg);
   } else if (msg.command === MessageCommands.DISABLE) {
     handleMessageDisable();
   } else if (msg.command === MessageCommands.DISPLAY) {
@@ -172,6 +178,22 @@ function handleMessageCaptureStart(msg) {
       "success": ret,
       "startTS": Ext.active.startTS
     });
+  }
+}
+
+function handleMessageDelay(msg) {
+  const canvases = Array.from(document.body.querySelectorAll("canvas"));
+  if (msg.delayed) {
+    const index = msg.canvasIndex;
+    Ext.active.delayCanvasIndex = index;
+    const canvas = canvases[index];
+    canvas.classList.add(CANVAS_ACTIVE_DELAYED_CLASS);
+  } else {
+    Ext.active.delayCanvasIndex = -1;
+    for (let k = 0, n = canvases.length; k < n; k += 1) {
+      const canvas = canvases[k];
+      canvas.classList.remove(CANVAS_ACTIVE_DELAYED_CLASS);
+    }
   }
 }
 
@@ -275,7 +297,10 @@ function observeBodyMutations(mutations) {
 
   for (let k = 0, n = removedCanvases.length; k < n; k += 1) {
     const node = removedCanvases[k];
-    if (Ext.active.capturing && node.classList.contains(CANVAS_ACTIVE_CAPTURING_CLASS)) {
+    if (
+      Ext.active.capturing &&
+      node.classList.contains(CANVAS_ACTIVE_CAPTURING_CLASS)
+    ) {
       if (Ext.active.timer.timerId >= 0) {
         clearTimeout(Ext.active.timer.timerId);
         Ext.active.timer.timerId = -1;
@@ -283,25 +308,37 @@ function observeBodyMutations(mutations) {
       Ext.active.canvasRemoved = true;
       preStopCapture();
       break;
+    } else if (
+      Ext.active.delay.delayCanvasIndex >= 0 &&
+      node.classList.contains(CANVAS_ACTIVE_DELAYED_CLASS)
+    ) {
+      Ext.active.delayCanvasIndex = -1;
     }
   }
 
   const canvases = Array.from(document.body.querySelectorAll("canvas"));
   Ext.frames[FRAME_UUID].canvases = canvases;
 
-  if (canvasesChanged) {
-    if (Ext.active.capturing && !Ext.active.canvasRemoved) {
-      for (let k = 0, n = canvases.length; k < n; k += 1) {
-        if (canvases[k].classList.contains(CANVAS_ACTIVE_CAPTURING_CLASS)) {
-          Ext.active.index = k;
-          Ext.active.canvas = canvases[k];
-          break;
-        }
+  if (Ext.active.capturing && !Ext.active.canvasRemoved) {
+    for (let k = 0, n = canvases.length; k < n; k += 1) {
+      const canvas = canvases[k];
+      if (canvas.classList.contains(CANVAS_ACTIVE_CAPTURING_CLASS)) {
+        Ext.active.index = k;
+        Ext.active.canvas = canvas;
+        break;
       }
     }
-
-    updateCanvases(canvases);
+  } else if (Ext.active.delayCanvasIndex >= 0) {
+    for (let k = 0, n = canvases.length; k < n; k += 1) {
+      const canvas = canvases[k];
+      if (canvas.classList.contains(CANVAS_ACTIVE_DELAYED_CLASS)) {
+        Ext.active.delayCanvasIndex = k;
+        break;
+      }
+    }
   }
+
+  updateCanvases(canvases);
 }
 
 function observeCanvasMutations(mutations) {
@@ -331,7 +368,8 @@ function updateCanvases(canvases) {
     "frameUUID": FRAME_UUID,
     "targetFrameUUID": TOP_FRAME_UUID,
     "canvases": canvasData,
-    "activeCanvasIndex": Ext.active.index
+    "activeCanvasIndex": Ext.active.index,
+    "delayCanvasIndex": Ext.active.delayCanvasIndex
   });
 }
 
@@ -438,7 +476,7 @@ function stopCapture() {
   } else if (Ext.active.error) {
     showNotification("An error occured while recording.");
   } else if (!Ext.active.stopped) {
-    showNotification("Recording unexpectedly stopped, likely due to canvas inactivity.");
+    showNotification("Recording unexpectedly stopped.");
   }
 
   Ext.port.postMessage({
