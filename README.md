@@ -27,8 +27,11 @@ Alternatively, a timeout can be set to record for a predetermined duration.
 Click the add timer icon (plus sign) for a canvas entry to add a timer
 before starting a capture.
 
+A delay can be set to wait a period of time before recording.
+
 Canvas Capture produces video files of canvas elements using the
-MediaRecorder, MediaStream and Blob APIs.
+MediaRecorder, MediaStream and Blob APIs. All captured video is kept local:
+no data is sent over the network.
 
 ### Notes
 
