@@ -28,11 +28,12 @@ while read platform; do
 
   echo "Packaging $platform"
 
-  rm -R "$TMP_DEST/*"
+  rm -R "$TMP_DEST/"* > /dev/null 2>&1
   for file in $SRC_FILES; do
     cp -R "$PLAT_PATH/$file" "$TMP_DEST/$file"
   done
 
+  rm "$DEST/$ZIP_NAME" > /dev/null 2>&1
   pushd "$TMP_DEST" > /dev/null
   zip "$DEST/$ZIP_NAME" -q -r *
   popd > /dev/null
