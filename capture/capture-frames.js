@@ -117,7 +117,7 @@ const Ext = Object.seal({
     Ext.downloadLinks = [];
   },
   "disable": function() {
-    for (let key of Object.keys(this)) {
+    for (const key of Object.keys(this)) {
       this[key] = null;
     }
   }

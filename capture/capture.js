@@ -188,7 +188,7 @@ const Ext = Object.seal({
   },
   "disable": function() {
     this.freeObjectURLs();
-    for (let key of Object.keys(this)) {
+    for (const key of Object.keys(this)) {
       this[key] = null;
     }
   }
@@ -652,7 +652,7 @@ function handleDisable(notify) {
     style.parentElement.removeChild(style);
   }
 
-  for (let key of Object.keys(Ext.highlighter)) {
+  for (const key of Object.keys(Ext.highlighter)) {
     if (key !== "current") {
       Ext.highlighter[key].parentElement.removeChild(Ext.highlighter[key]);
     }
@@ -728,7 +728,7 @@ function handleDisplay(msg) {
 
   const highlighter = Ext.highlighter;
 
-  for (let key of Object.keys(highlighter)) {
+  for (const key of Object.keys(highlighter)) {
     if (key !== "current") {
       highlighter[key] = document.createElement("div");
       highlighter[key].textContent = " ";
@@ -894,7 +894,7 @@ function getAllCanvases() {
     };
   });
 
-  for (let key of Object.keys(Ext.frames)) {
+  for (const key of Object.keys(Ext.frames)) {
     if (key !== TOP_FRAME_UUID) {
       let frameCanvases = Ext.frames[key].canvases.map(function(el, index) {
         const obj = JSON.parse(JSON.stringify(el));
@@ -1231,7 +1231,7 @@ function unhighlightCanvas(evt) {
     return;
   }
 
-  for (let key of Object.keys(highlighter)) {
+  for (const key of Object.keys(highlighter)) {
     if (key !== "current") {
       highlighter[key].classList.add(HIDDEN_CLASS);
     }

@@ -17,7 +17,8 @@
 #capture_list_container {
   min-width: 100vw;
   max-width: 100vw;
-  min-height: 20vh;
+  min-height: 100px;
+  height: 20vh;
   max-height: 20vh;
   position: fixed;
   left: 0px;
@@ -161,7 +162,8 @@
   position: fixed;
   bottom: 0px;
   left: 0px;
-  min-height: 4vh;
+  min-height: 20px;
+  height: 4vh;
   max-height: 4vh;
   width: 100vw;
   min-width: 100vw;
@@ -176,7 +178,9 @@
 
 #capture_maximize svg {
   width: 4vh;
+  min-width: 20px;
   height: 4vh;
+  min-height: 20px;
   stroke-linecap: round;
 }
 
@@ -321,6 +325,10 @@
   display: grid;
   grid-template-rows: 2fr 1fr 2fr;
   background-color: #20202E;
+}
+
+#capture_delay_overlay button {
+  margin: 0px 5px;
 }
 
 .span_all {
