@@ -31,7 +31,10 @@ do
   done
 
   printf "  > %s\n" "Generating manifest"
-  if [ "$PLATFORM_DIR/$platform/manifest.json" -nt "$PLATFORM_DEV/manifest.json" ]; then
+  PLAT_MAN="$PLATFORM_DIR/$platform/manifest.json"
+  PLAT_DEV_MAN="$PLATFORM_DEV/manifest.json"
+  MAIN_MAN="$PWD/manifest.json"
+  if [ "$PLAT_MAN" -nt "$PLAT_DEV_MAN" ] || [ "$MAIN_MAN" -nt "$PLAT_MAN" ] || [ "$MAIN_MAN" -nt "$PLAT_DEV_MAN" ]; then
     "$PWD/tools/generate-manifest.py" "$platform"
     printf "    >> %s\n" "manifest.json created"
   else
