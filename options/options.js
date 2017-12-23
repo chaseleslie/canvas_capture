@@ -16,39 +16,36 @@
 
 "use strict";
 
-/* global chrome */
-var browser = chrome;
+/* global browser */
 
-var maxVideoSizeKey = "maxVideoSize";
+const MAX_VIDEO_SIZE_KEY = "maxVideoSize";
+const OPTION_MAX_VIDEO_SIZE_ID = "option_max_video_size";
 
-function initOptions() {
-  var inputMaxSize = document.getElementById("option_max_video_size");
-  inputMaxSize.addEventListener("blur", updateMaxVideoSize, false);
-
-  var inputMaxSizeSetting = browser.storage.local.get(maxVideoSizeKey, getMaxVideoSize);
-  if (inputMaxSizeSetting) {
-    inputMaxSizeSetting.then(getMaxVideoSize);
-  }
-}
 window.addEventListener("load", initOptions, false);
 
-function getMaxVideoSize(setting) {
-  var inputMaxSize = document.getElementById("option_max_video_size");
+function initOptions() {
+  const inputMaxSize = document.getElementById(OPTION_MAX_VIDEO_SIZE_ID);
+  inputMaxSize.addEventListener("blur", updateMaxVideoSize, false);
 
-  if (Array.isArray(setting)) {
-    setting = setting[0];
+  const inputMaxSizeSetting = browser.storage.local.get(MAX_VIDEO_SIZE_KEY);
+  if (inputMaxSizeSetting) {
+    inputMaxSizeSetting.then(function(setting) {
+      if (Array.isArray(setting)) {
+        setting = setting[0];
+      }
+      inputMaxSize.value = setting[MAX_VIDEO_SIZE_KEY];
+    });
   }
-  inputMaxSize.value = setting[maxVideoSizeKey];
 }
 
 function updateMaxVideoSize(e) {
-  var input = e.target;
-  var size = parseInt(input.value, 10);
+  const input = e.target;
+  const size = parseInt(input.value, 10);
   if (!isFinite(size) || isNaN(size) || size < 0) {
     return;
   }
 
-  var obj = {};
-  obj[maxVideoSizeKey] = size;
+  const obj = Object.create(null);
+  obj[MAX_VIDEO_SIZE_KEY] = size;
   browser.storage.local.set(obj);
 }

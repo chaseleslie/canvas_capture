@@ -1,18 +1,65 @@
 <div id="capture_list_container">
-  <h3>Select a Canvas to Capture:</h3>
-  <table id="list_canvases">
-    <thead>
-      <tr>
-        <th title="Canvas ID">Canvas ID</th>
-        <th title="Canvas Width">Width</th>
-        <th title="Canvas Height">Height</th>
-        <th title="Capture Rate">FPS</th>
-        <th title="Video Bitrate">Bits Per Second</th>
-        <th title="Toggle Capture">Capture</th>
-        <th title="Download Captured Video">Download</th>
-      </tr>
-    </thead>
-    <tbody>
-    </tbody>
-  </table>
+  <div class="capture_list_container_heading middle_centered">Select a Canvas to Capture:</div>
+  <div id="list_canvases">
+    <span class="list_canvases_row_heading anchored">
+        <span title="Canvas ID">Canvas ID</span>
+        <span title="Canvas Dimensions">Dimensions</span>
+        <span title="Canvas Timer">Timer</span>
+        <span title="Delay Before Capturing">Delay (seconds)</span>
+        <span title="Capture Rate">FPS</span>
+        <span title="Video Bitrate">Bits Per Second</span>
+        <span title="Toggle Capture">Capture</span>
+        <span title="Download Captured Video">Download</span>
+    </span>
+  </div>
+  <div id="capture_close" title="Close">
+    <svg version="1.1" viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="45" />
+      <line x1="16" y1="16" x2="84" y2="84" />
+      <line x1="84" y1="16" x2="16" y2="84" />
+    </svg>
+  </div>
+  <div id="capture_minimize" title="Minimize">
+    <svg version="1.1" viewBox="0 0 100 100" width="100%" height="100%">
+      <line x1="16" y1="16" x2="50" y2="40" />
+      <line x1="50" y1="40" x2="84" y2="16" />
+      <line x1="16" y1="46" x2="50" y2="70" />
+      <line x1="50" y1="70" x2="84" y2="46" />
+    </svg>
+  </div>
+  <svg version="1.1" viewBox="0 0 100 100" width="100%" height="100%" id="timer_slice_container" class="hidden">
+    <defs>
+      <clipPath id="timer_slice_clip">
+        <path id="timer_slice_clip_path" d="M50,50 L50,0 Z" />
+      </clipPath>
+    </defs>
+    <circle r="48" cx="50" cy="50" id="timer_slice_obscured" />
+    <circle r="48" cx="50" cy="50" id="timer_slice_clipped" />
+  </svg>
+  <div id="capture_delay_overlay" class="hidden">
+    <div class="middle_centered">Capture starting in</div>
+    <div class="middle_centered" id="capture_delay_overlay_time"></div>
+    <div class="middle_centered">
+      <button id="capture_delay_overlay_skip">Skip</button>
+      <button id="capture_delay_overlay_cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="capture_maximize" title="Maximize" class="hidden">
+  <svg version="1.1" viewBox="0 0 100 100" width="100%" height="100%">
+    <line x1="16" y1="48" x2="50" y2="24" />
+    <line x1="50" y1="24" x2="84" y2="48" />
+    <line x1="16" y1="76" x2="50" y2="52" />
+    <line x1="50" y1="52" x2="84" y2="76" />
+  </svg>
+</div>
+
+<div id="modify_timer_container" class="hidden">
+  <span class="modify_timer_heading span_all">Set Timeout</span>
+  <label for="modify_timer_hours">Hours</label><input type="text" id="modify_timer_hours" value="0" size="5">
+  <label for="modify_timer_minutes">Minutes</label><input type="text" id="modify_timer_minutes" value="0" size="5">
+  <label for="modify_timer_seconds">Seconds</label><input type="text" id="modify_timer_seconds" value="0" size="5">
+  <button id="modify_timer_set">Set</button>
+  <button id="modify_timer_clear">Clear</button>
 </div>
