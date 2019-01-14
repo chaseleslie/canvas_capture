@@ -34,7 +34,8 @@ const MessageCommands = Object.freeze({
   "HIGHLIGHT":       7,
   "NOTIFY":          8,
   "REGISTER":        9,
-  "UPDATE_CANVASES": 10
+  "UPDATE_CANVASES": 10,
+  "UPDATE_SETTINGS": 11
 });
 
 const MIME_TYPE_MAP = Object.freeze({
