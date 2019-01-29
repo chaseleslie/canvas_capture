@@ -143,7 +143,7 @@ function onNavigationCompleted(details) {
   });
 }
 
-function connected(port) {
+async function connected(port) {
   port.onMessage.addListener(onMessage);
 
   const sender = port.sender;
@@ -172,40 +172,12 @@ function connected(port) {
   });
 
   if (frameUUID === TOP_FRAME_UUID) {
-    let maxVideoSize = DEFAULT_MAX_VIDEO_SIZE;
-    let fps = DEFAULT_FPS;
-    let bps = DEFAULT_BPS;
+    const settings = await getSettings();
 
-    browser.storage.local.get(MAX_VIDEO_SIZE_KEY)
-    .then(function(setting) {
-      if (Array.isArray(setting)) {
-        setting = setting[0];
-      }
-      maxVideoSize = setting[MAX_VIDEO_SIZE_KEY] || DEFAULT_MAX_VIDEO_SIZE;
-
-      return browser.storage.local.get(FPS_KEY);
-    }).then(function(setting) {
-      if (Array.isArray(setting)) {
-        setting = setting[0];
-      }
-      fps = setting[FPS_KEY] || DEFAULT_FPS;
-
-      return browser.storage.local.get(BPS_KEY);
-    }).then(function(setting) {
-      if (Array.isArray(setting)) {
-        setting = setting[0];
-      }
-      bps = setting[BPS_KEY] || DEFAULT_BPS;
-
-      port.postMessage({
-        "command": MessageCommands.DISPLAY,
-        "tabId": tabId,
-        "defaultSettings": {
-          "maxVideoSize": maxVideoSize,
-          "fps": fps,
-          "bps": bps
-        }
-      });
+    port.postMessage({
+      "command": MessageCommands.DISPLAY,
+      "tabId": tabId,
+      "defaultSettings": settings
     });
   }
 }
