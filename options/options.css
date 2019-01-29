@@ -22,3 +22,9 @@ input {
 input:focus {
   border-color: #66D;
 }
+
+.option_row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}

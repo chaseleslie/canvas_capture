@@ -17,6 +17,7 @@
 "use strict";
 
 /* global browser */
+/* exported sendUpdatedSettings */
 
 const APP_NAME = browser.runtime.getManifest().name;
 
@@ -43,8 +44,15 @@ const CAPTURE_FRAMES_JS_PATH = "/capture/capture-frames.js";
 const TOP_FRAME_UUID = "top";
 const BG_FRAME_UUID = "background";
 const ALL_FRAMES_UUID = "*";
+
 const MAX_VIDEO_SIZE_KEY = "maxVideoSize";
 const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
+
+const FPS_KEY = "fps";
+const DEFAULT_FPS = 30;
+
+const BPS_KEY = "bps";
+const DEFAULT_BPS = 2500000;
 
 const MessageCommands = Object.freeze({
   "CAPTURE_START":   0,
@@ -57,7 +65,8 @@ const MessageCommands = Object.freeze({
   "HIGHLIGHT":       7,
   "NOTIFY":          8,
   "REGISTER":        9,
-  "UPDATE_CANVASES": 10
+  "UPDATE_CANVASES": 10,
+  "UPDATE_SETTINGS": 11
 });
 
 const NOTIFICATION_DURATION = 10000;
@@ -92,6 +101,8 @@ function handleInstall(details) {
     case "install": {
       const obj = {
         [MAX_VIDEO_SIZE_KEY]: DEFAULT_MAX_VIDEO_SIZE,
+        [FPS_KEY]: DEFAULT_FPS,
+        [BPS_KEY]: DEFAULT_BPS,
         "firstInstall": true
       };
       browser.storage.local.set(obj);
@@ -132,7 +143,7 @@ function onNavigationCompleted(details) {
   });
 }
 
-function connected(port) {
+async function connected(port) {
   port.onMessage.addListener(onMessage);
 
   const sender = port.sender;
@@ -161,20 +172,12 @@ function connected(port) {
   });
 
   if (frameUUID === TOP_FRAME_UUID) {
-    browser.storage.local.get(MAX_VIDEO_SIZE_KEY)
-    .then(function(setting) {
-      if (Array.isArray(setting)) {
-        setting = setting[0];
-      }
-      const maxVideoSize = setting[MAX_VIDEO_SIZE_KEY] || DEFAULT_MAX_VIDEO_SIZE;
+    const settings = await getSettings();
 
-      port.postMessage({
-        "command": MessageCommands.DISPLAY,
-        "tabId": tabId,
-        "defaultSettings": {
-          "maxVideoSize": maxVideoSize
-        }
-      });
+    port.postMessage({
+      "command": MessageCommands.DISPLAY,
+      "tabId": tabId,
+      "defaultSettings": settings
     });
   }
 }
@@ -338,6 +341,10 @@ function onMessage(msg) {
     case MessageCommands.DISABLE:
       onDisableTab(msg.tabId);
     break;
+
+    case MessageCommands.UPDATE_SETTINGS:
+      updateSettings(msg);
+    break;
   }
 }
 
@@ -372,6 +379,64 @@ function onTabNotify(msg) {
       }
     }
   }, NOTIFICATION_DURATION);
+}
+
+async function getSettings() {
+  let maxVideoSize = DEFAULT_MAX_VIDEO_SIZE;
+  let fps = DEFAULT_FPS;
+  let bps = DEFAULT_BPS;
+
+  await browser.storage.local.get(MAX_VIDEO_SIZE_KEY)
+  .then(function(setting) {
+    if (Array.isArray(setting)) {
+      setting = setting[0];
+    }
+    maxVideoSize = setting[MAX_VIDEO_SIZE_KEY] || DEFAULT_MAX_VIDEO_SIZE;
+
+    return browser.storage.local.get(FPS_KEY);
+  }).then(function(setting) {
+    if (Array.isArray(setting)) {
+      setting = setting[0];
+    }
+    fps = setting[FPS_KEY] || DEFAULT_FPS;
+
+    return browser.storage.local.get(BPS_KEY);
+  }).then(function(setting) {
+    if (Array.isArray(setting)) {
+      setting = setting[0];
+    }
+    bps = setting[BPS_KEY] || DEFAULT_BPS;
+  });
+
+  return {
+    [MAX_VIDEO_SIZE_KEY]: maxVideoSize,
+    [FPS_KEY]:            fps,
+    [BPS_KEY]:            bps
+  };
+}
+
+/* Receive updated settings from top frame */
+function updateSettings(msg) {
+  const obj = Object.create(null);
+  obj[msg.setting] = msg.value;
+  browser.storage.local.set(obj);
+}
+
+/* Send updated settings to top frames */
+async function sendUpdatedSettings() {
+  const settings = await getSettings();
+
+  for (const tabId of Object.keys(activeTabs)) {
+    const tab = activeTabs[tabId];
+    const topFrame = tab.frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+    const port = topFrame.port;
+
+    port.postMessage({
+      "command":          MessageCommands.UPDATE_SETTINGS,
+      "tabId":            tabId,
+      "defaultSettings":  settings
+    });
+  }
 }
 
 function nullifyError() {

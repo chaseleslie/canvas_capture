@@ -35,7 +35,8 @@ const MessageCommands = Object.freeze({
   "HIGHLIGHT":       7,
   "NOTIFY":          8,
   "REGISTER":        9,
-  "UPDATE_CANVASES": 10
+  "UPDATE_CANVASES": 10,
+  "UPDATE_SETTINGS": 11
 });
 
 const MIME_TYPE_MAP = Object.freeze({
@@ -44,8 +45,6 @@ const MIME_TYPE_MAP = Object.freeze({
 });
 const DEFAULT_MIME_TYPE = "webm";
 const CAPTURE_INTERVAL_MS = 1000;
-const DEFAULT_FPS = 30;
-const DEFAULT_BPS = 2500000;
 const DEFAULT_DELAY = 0;
 const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
 const MSEC_PER_SEC = 1000;
@@ -100,6 +99,11 @@ const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributeFilter": ["id", "width", "height"]
 });
 
+const INPUT_BLUR_UPDATE_SETTINGS_MAP = Object.freeze({
+  [LIST_CANVASES_CAPTURE_FPS_CLASS]: "fps",
+  [LIST_CANVASES_CAPTURE_BPS_CLASS]: "bps"
+});
+
 const Ext = Object.seal({
   "tabId": null,
   "frameId": null,
@@ -107,7 +111,11 @@ const Ext = Object.seal({
     "name": TOP_FRAME_UUID
   }),
   "rowTemplate": null,
-  "settings": Object.seal({"maxVideoSize": DEFAULT_MAX_VIDEO_SIZE}),
+  "settings": Object.seal({
+    "maxVideoSize": DEFAULT_MAX_VIDEO_SIZE,
+    "fps": 0,
+    "bps": 0
+  }),
   "mediaRecorder": null,
   "displayed": false,
   "minimized": false,
@@ -260,6 +268,8 @@ function onMessage(msg) {
     Ext.frameId = msg.frameId;
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     handleMessageUpdateCanvases(msg);
+  } else if (msg.command === MessageCommands.UPDATE_SETTINGS) {
+    handleMessageUpdateSettings(msg);
   }
 }
 
@@ -478,6 +488,15 @@ function handleMessageUpdateCanvases(msg) {
   }
 }
 
+function handleMessageUpdateSettings(msg) {
+  const settings = msg.defaultSettings;
+  for (const key of Object.keys(Ext.settings)) {
+    if (key in settings) {
+      Ext.settings[key] = settings[key];
+    }
+  }
+}
+
 function observeBodyMutations(mutations) {
   mutations = mutations.filter((el) => el.type === "childList");
   var addedCanvases = false;
@@ -680,6 +699,8 @@ function handleDisable(notify) {
 
 function handleDisplay(msg) {
   Ext.settings.maxVideoSize = msg.defaultSettings.maxVideoSize;
+  Ext.settings.fps = msg.defaultSettings.fps;
+  Ext.settings.bps = msg.defaultSettings.bps;
   const cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
   const htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
   const htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
@@ -780,7 +801,21 @@ function handleInputFocus() {
   window.addEventListener("keyup", handleKeyEventsOnFocus, true);
 }
 
-function handleInputBlur() {
+function handleInputBlur(e) {
+  const el = e.target.parentElement;
+
+  if (el) {
+    for (const key of Object.keys(INPUT_BLUR_UPDATE_SETTINGS_MAP)) {
+      if (el.classList.contains(key)) {
+        Ext.port.postMessage({
+          "command": MessageCommands.UPDATE_SETTINGS,
+          "setting": INPUT_BLUR_UPDATE_SETTINGS_MAP[key],
+          "value": e.target.value
+        });
+      }
+    }
+  }
+
   window.removeEventListener("keypress", handleKeyEventsOnFocus, true);
   window.removeEventListener("keydown", handleKeyEventsOnFocus, true);
   window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
@@ -935,11 +970,11 @@ function updateCanvases() {
     addTimerImg.src = addTimerImgUrl;
     addTimerImg.dataset.hasTimer = false;
     const fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
-    fpsInput.value = DEFAULT_FPS;
+    fpsInput.value = Ext.settings.fps;
     fpsInput.addEventListener("focus", handleInputFocus, false);
     fpsInput.addEventListener("blur", handleInputBlur, false);
     const bpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`);
-    bpsInput.value = DEFAULT_BPS;
+    bpsInput.value = Ext.settings.bps;
     bpsInput.addEventListener("focus", handleInputFocus, false);
     bpsInput.addEventListener("blur", handleInputBlur, false);
     const delayInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_DELAY_CLASS} input`);
@@ -1338,7 +1373,7 @@ function preStartCapture(button) {
   const fps = (isFinite(fpsVal) && !isNaN(fpsVal) && fpsVal >= 0) ? fpsVal : 0;
   const bpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`);
   const bpsVal = parseFloat(bpsInput.value);
-  const bps = (isFinite(bpsVal) && !isNaN(bpsVal) && bpsVal > 0) ? bpsVal : DEFAULT_BPS;
+  const bps = (isFinite(bpsVal) && !isNaN(bpsVal) && bpsVal > 0) ? bpsVal : Ext.settings.bps;
 
   const delayOverlay = document.getElementById(DELAY_OVERLAY_ID);
   const delayInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_DELAY_CLASS} input`);

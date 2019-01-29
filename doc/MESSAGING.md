@@ -53,6 +53,7 @@ The following `command`s are used (see `MessageCommands` enum in source files):
 - [NOTIFY](#notify)
 - [REGISTER](#register)
 - [UPDATE_CANVASES](#update_canvases)
+- [UPDATE_SETTINGS](#update_settings)
 
 #### CAPTURE_START <a name="capture_start"></a>
 
@@ -125,6 +126,14 @@ This command is sent between the top frame and child frames. The top frame
 sends this command when it requires a fresh list of what canvases are available
 for recording. Child frames also send this command when a canvas in their
 environment is modified (added, removed or changed).
+
+#### UPDATE_SETTINGS <a name="update_settings"></a>
+
+This command is sent between the top frame and the background script. When a
+setting in the top frame is changed, it notifies the background script so that
+the updated setting is saved to storage. When changes are made to the settings
+on the options page, the background page will be prompted to send this
+command to all top frames to notify them of the updated settings.
 
 
 ## Window Messaging <a name="window_msg"></a>
