@@ -14,7 +14,7 @@
  */
 
 
- /* global browser */
+ /* global browser Utils */
 
 ; // eslint-disable-line no-extra-semi
 (function() {

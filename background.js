@@ -41,6 +41,7 @@ const ICON_ACTIVE_PATH_MAP = Object.freeze({
 const CAPTURE_JS_PATH = "/capture/capture.js";
 const BROWSER_POLYFILL_JS_PATH = "/lib/webextension-polyfill/browser-polyfill.min.js";
 const CAPTURE_FRAMES_JS_PATH = "/capture/capture-frames.js";
+const UTILS_JS_PATH = "/capture/utils.js";
 const TOP_FRAME_UUID = "top";
 const BG_FRAME_UUID = "background";
 const ALL_FRAMES_UUID = "*";
@@ -128,6 +129,11 @@ function onNavigationCompleted(details) {
     "frameId": frameId
   }).then(function() {
     return browser.tabs.executeScript({
+      "file": UTILS_JS_PATH,
+      "frameId": frameId
+    });
+  }).then(function() {
+    return browser.tabs.executeScript({
       "file": CAPTURE_FRAMES_JS_PATH,
       "frameId": frameId
     });
@@ -204,6 +210,11 @@ function onEnableTab(tab) {
           "file": BROWSER_POLYFILL_JS_PATH,
           "frameId": frame.frameId
         }).then(function() {
+          return browser.tabs.executeScript({
+            "file": UTILS_JS_PATH,
+            "frameId": frame.frameId
+          });
+        }).then(function() {
           browser.tabs.executeScript({
             "file": CAPTURE_FRAMES_JS_PATH,
             "frameId": frame.frameId
@@ -216,6 +227,11 @@ function onEnableTab(tab) {
       "file": BROWSER_POLYFILL_JS_PATH,
       "frameId": 0
     }).then(function() {
+      return browser.tabs.executeScript({
+        "file": UTILS_JS_PATH,
+        "frameId": 0
+      });
+    }).then(function() {
       browser.tabs.executeScript({
         "file": CAPTURE_JS_PATH,
         "frameId": 0
@@ -226,6 +242,7 @@ function onEnableTab(tab) {
   if (!browser.webNavigation.onCompleted.hasListener(onNavigationCompleted)) {
     browser.webNavigation.onCompleted.addListener(onNavigationCompleted);
   }
+
   activeTabs[tabId] = {"frames": [], "tabId": tabId};
   browser.browserAction.setIcon(
     {"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}
