@@ -356,7 +356,8 @@ function updateCanvases(canvases) {
     return {
       "id": el.id,
       "width": el.width,
-      "height": el.height
+      "height": el.height,
+      "pathSpec": Utils.pathSpecFromElement(el)
     };
   });
 
