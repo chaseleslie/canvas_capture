@@ -264,8 +264,7 @@ function onMessage(msg) {
   } else if (msg.command === MessageCommands.HIGHLIGHT) {
     handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
-    Ext.tabId = msg.tabId;
-    Ext.frameId = msg.frameId;
+    handleMessageRegister(msg);
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     handleMessageUpdateCanvases(msg);
   } else if (msg.command === MessageCommands.UPDATE_SETTINGS) {
@@ -399,6 +398,11 @@ function handleMessageHighlight(msg, node) {
   if (!msg.canCapture && highlighter.current) {
     highlighter.current.classList.add(HIGHLIGHTER_UNAVAILABLE_CLASS);
   }
+}
+
+function handleMessageRegister(msg) {
+  Ext.tabId = msg.tabId;
+  Ext.frameId = msg.frameId;
 }
 
 function handleMessageUpdateCanvases(msg) {
