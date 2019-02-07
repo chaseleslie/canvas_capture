@@ -174,7 +174,14 @@ const Ext = Object.seal({
   "listCanvases": null,
   "chunks": null,
   "objectURLs": [],
-  "frames": {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}},
+  "frames": {
+    [TOP_FRAME_UUID]: {
+      "frameUUID": TOP_FRAME_UUID,
+      "canvases": [],
+      "node": window,
+      "settings": {}
+    }
+  },
   "frameElementsTS": 0,
   "frameElementsKeys": [],
   "frameElementsTimeoutId": -1,
@@ -929,7 +936,8 @@ function getAllCanvases() {
       "local": true,
       "id": el.id,
       "width": el.width,
-      "height": el.height
+      "height": el.height,
+      "pathSpec": Utils.pathSpecFromElement(el)
     };
   });
 
