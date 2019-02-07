@@ -20,9 +20,9 @@
 (function() {
 "use strict";
 
-const TOP_FRAME_UUID = "top";
-const BG_FRAME_UUID = "background";
-const ALL_FRAMES_UUID = "*";
+const TOP_FRAME_UUID = Utils.TOP_FRAME_UUID;
+const BG_FRAME_UUID = Utils.BG_FRAME_UUID;
+const ALL_FRAMES_UUID = Utils.ALL_FRAMES_UUID;
 
 const MessageCommands = Utils.MessageCommands;
 
@@ -33,7 +33,6 @@ const MIME_TYPE_MAP = Object.freeze({
 const DEFAULT_MIME_TYPE = "webm";
 const CAPTURE_INTERVAL_MS = 1000;
 const DEFAULT_DELAY = 0;
-const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
 const MSEC_PER_SEC = 1000;
 const CSS_FILE_PATH = "/capture/capture.css";
 const HTML_FILE_PATH = "/capture/capture.html";
@@ -99,7 +98,7 @@ const Ext = Object.seal({
   }),
   "rowTemplate": null,
   "settings": Object.seal({
-    "maxVideoSize": DEFAULT_MAX_VIDEO_SIZE,
+    "maxVideoSize": Utils.DEFAULT_MAX_VIDEO_SIZE,
     "fps": 0,
     "bps": 0
   }),

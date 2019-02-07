@@ -21,7 +21,7 @@
 "use strict";
 
 const FRAME_UUID = genUUIDv4();
-const TOP_FRAME_UUID = "top";
+const TOP_FRAME_UUID = Utils.TOP_FRAME_UUID;
 
 const MessageCommands = Utils.MessageCommands;
 
@@ -31,7 +31,6 @@ const MIME_TYPE_MAP = Object.freeze({
 });
 const DEFAULT_MIME_TYPE = "webm";
 const CAPTURE_INTERVAL_MS = 1000;
-const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
 
 const CANVAS_ACTIVE_CAPTURING_CLASS = "canvas_active_capturing";
 const CANVAS_ACTIVE_DELAYED_CLASS = "canvas_active_delayed";
@@ -88,7 +87,7 @@ const Ext = Object.seal({
   "objectURLs": [],
   "downloadLinks": [],
   "settings": {
-    "maxVideoSize": DEFAULT_MAX_VIDEO_SIZE
+    "maxVideoSize": Utils.DEFAULT_MAX_VIDEO_SIZE
   },
   "bodyMutObs": new MutationObserver(observeBodyMutations),
   "canvasMutObs": new MutationObserver(observeCanvasMutations),

@@ -38,22 +38,14 @@ const ICON_ACTIVE_PATH_MAP = Object.freeze({
   "128": "/img/icon_active_128.svg"
 });
 
+const TOP_FRAME_UUID = Utils.TOP_FRAME_UUID;
+const BG_FRAME_UUID = Utils.BG_FRAME_UUID;
+const ALL_FRAMES_UUID = Utils.ALL_FRAMES_UUID;
+
 const CAPTURE_JS_PATH = "/capture/capture.js";
 const BROWSER_POLYFILL_JS_PATH = "/lib/webextension-polyfill/browser-polyfill.min.js";
 const CAPTURE_FRAMES_JS_PATH = "/capture/capture-frames.js";
 const UTILS_JS_PATH = "/capture/utils.js";
-const TOP_FRAME_UUID = "top";
-const BG_FRAME_UUID = "background";
-const ALL_FRAMES_UUID = "*";
-
-const MAX_VIDEO_SIZE_KEY = "maxVideoSize";
-const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
-
-const FPS_KEY = "fps";
-const DEFAULT_FPS = 30;
-
-const BPS_KEY = "bps";
-const DEFAULT_BPS = 2500000;
 
 const MessageCommands = Utils.MessageCommands;
 
@@ -88,9 +80,9 @@ function handleInstall(details) {
   switch (reason) {
     case "install": {
       const obj = {
-        [MAX_VIDEO_SIZE_KEY]: DEFAULT_MAX_VIDEO_SIZE,
-        [FPS_KEY]: DEFAULT_FPS,
-        [BPS_KEY]: DEFAULT_BPS,
+        [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
+        [Utils.FPS_KEY]: Utils.DEFAULT_FPS,
+        [Utils.BPS_KEY]: Utils.DEFAULT_BPS,
         "firstInstall": true
       };
       browser.storage.local.set(obj);
@@ -386,36 +378,36 @@ function onTabNotify(msg) {
 }
 
 async function getSettings() {
-  let maxVideoSize = DEFAULT_MAX_VIDEO_SIZE;
-  let fps = DEFAULT_FPS;
-  let bps = DEFAULT_BPS;
+  let maxVideoSize = Utils.DEFAULT_MAX_VIDEO_SIZE;
+  let fps = Utils.DEFAULT_FPS;
+  let bps = Utils.DEFAULT_BPS;
 
-  await browser.storage.local.get(MAX_VIDEO_SIZE_KEY)
+  await browser.storage.local.get(Utils.MAX_VIDEO_SIZE_KEY)
   .then(function(setting) {
     if (Array.isArray(setting)) {
       setting = setting[0];
     }
-    maxVideoSize = setting[MAX_VIDEO_SIZE_KEY] || DEFAULT_MAX_VIDEO_SIZE;
+    maxVideoSize = setting[Utils.MAX_VIDEO_SIZE_KEY] || Utils.DEFAULT_MAX_VIDEO_SIZE;
 
-    return browser.storage.local.get(FPS_KEY);
+    return browser.storage.local.get(Utils.FPS_KEY);
   }).then(function(setting) {
     if (Array.isArray(setting)) {
       setting = setting[0];
     }
-    fps = setting[FPS_KEY] || DEFAULT_FPS;
+    fps = setting[Utils.FPS_KEY] || Utils.DEFAULT_FPS;
 
-    return browser.storage.local.get(BPS_KEY);
+    return browser.storage.local.get(Utils.BPS_KEY);
   }).then(function(setting) {
     if (Array.isArray(setting)) {
       setting = setting[0];
     }
-    bps = setting[BPS_KEY] || DEFAULT_BPS;
+    bps = setting[Utils.BPS_KEY] || Utils.DEFAULT_BPS;
   });
 
   return {
-    [MAX_VIDEO_SIZE_KEY]: maxVideoSize,
-    [FPS_KEY]:            fps,
-    [BPS_KEY]:            bps
+    [Utils.MAX_VIDEO_SIZE_KEY]: maxVideoSize,
+    [Utils.FPS_KEY]:            fps,
+    [Utils.BPS_KEY]:            bps
   };
 }
 

@@ -32,6 +32,19 @@ const MessageCommands = Object.freeze({
   "UPDATE_SETTINGS": 11
 });
 
+const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
+const MAX_VIDEO_SIZE_KEY = "maxVideoSize";
+
+const FPS_KEY = "fps";
+const DEFAULT_FPS = 30;
+
+const BPS_KEY = "bps";
+const DEFAULT_BPS = 2500000;
+
+const TOP_FRAME_UUID = "top";
+const BG_FRAME_UUID = "background";
+const ALL_FRAMES_UUID = "*";
+
 function pathSpecFromElement(element) {
   const pathComponents = [];
   var ptr = element;
@@ -95,6 +108,15 @@ function elementFromPathSpec(path) {
 
 return {
   "MessageCommands": MessageCommands,
+  "DEFAULT_MAX_VIDEO_SIZE": DEFAULT_MAX_VIDEO_SIZE,
+  "MAX_VIDEO_SIZE_KEY": MAX_VIDEO_SIZE_KEY,
+  "FPS_KEY": FPS_KEY,
+  "DEFAULT_FPS": DEFAULT_FPS,
+  "BPS_KEY": BPS_KEY,
+  "DEFAULT_BPS": DEFAULT_BPS,
+  "TOP_FRAME_UUID": TOP_FRAME_UUID,
+  "BG_FRAME_UUID": BG_FRAME_UUID,
+  "ALL_FRAMES_UUID": ALL_FRAMES_UUID,
   "pathSpecFromElement": pathSpecFromElement,
   "elementFromPathSpec": elementFromPathSpec
 };
