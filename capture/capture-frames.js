@@ -20,7 +20,7 @@
 (function() {
 "use strict";
 
-const FRAME_UUID = genUUIDv4();
+const FRAME_UUID = Utils.genUUIDv4();
 const TOP_FRAME_UUID = Utils.TOP_FRAME_UUID;
 
 const MessageCommands = Utils.MessageCommands;
@@ -519,12 +519,4 @@ function showNotification(notification) {
   });
 }
 
-function genUUIDv4() {
-  /* https://stackoverflow.com/a/2117523/1031545 */
-  /* eslint-disable no-bitwise, id-length, no-mixed-operators */
-  return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
-    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-  );
-  /* eslint-enable no-bitwise, id-length, no-mixed-operators */
-}
 }());

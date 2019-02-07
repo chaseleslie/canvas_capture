@@ -106,6 +106,52 @@ function elementFromPathSpec(path) {
   return ptr;
 }
 
+function prettyFileSize(nBytes, useSI) {
+  const SI_UNITS = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+  const IEC_UNITS = ["B", "kiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"];
+  const mult = useSI ? 1000 : 1024;
+  const units = useSI ? SI_UNITS : IEC_UNITS;
+  var index = 0;
+
+  while (Math.abs(nBytes) >= mult) {
+    index += 1;
+    nBytes /= mult;
+  }
+
+  return `${nBytes.toFixed(Boolean(index))} ${units[index]}`;
+}
+
+function hmsToSeconds({hours, minutes, seconds}) {
+  return (hours * 3600) + (minutes * 60) + seconds;
+}
+
+function secondsToHMS(secs) {
+  var hours = Math.trunc(secs / 3600);
+  var minutes = Math.trunc((secs - (hours * 3600)) / 60);
+  var seconds = secs - (hours * 3600) - (minutes * 60);
+
+  if (seconds >= 60) {
+    seconds -= (seconds % 60);
+    minutes += 1;
+  }
+
+  if (minutes >= 60) {
+    minutes -= (minutes % 60);
+    hours += 1;
+  }
+
+  return {hours, minutes, seconds};
+}
+
+function genUUIDv4() {
+  /* https://stackoverflow.com/a/2117523/1031545 */
+  /* eslint-disable no-bitwise, id-length, no-mixed-operators */
+  return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
+    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+  );
+  /* eslint-enable no-bitwise, id-length, no-mixed-operators */
+}
+
 return {
   "MessageCommands": MessageCommands,
   "DEFAULT_MAX_VIDEO_SIZE": DEFAULT_MAX_VIDEO_SIZE,
@@ -118,7 +164,11 @@ return {
   "BG_FRAME_UUID": BG_FRAME_UUID,
   "ALL_FRAMES_UUID": ALL_FRAMES_UUID,
   "pathSpecFromElement": pathSpecFromElement,
-  "elementFromPathSpec": elementFromPathSpec
+  "elementFromPathSpec": elementFromPathSpec,
+  "prettyFileSize": prettyFileSize,
+  "hmsToSeconds": hmsToSeconds,
+  "secondsToHMS": secondsToHMS,
+  "genUUIDv4": genUUIDv4
 };
 
 }());

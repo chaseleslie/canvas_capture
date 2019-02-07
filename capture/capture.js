@@ -242,7 +242,7 @@ function identifyFrames() {
   Ext.frameElementsTS = Date.now();
   for (let k = 0, n = frameElements.length; k < n; k += 1) {
     const frame = frameElements[k];
-    const key = genUUIDv4();
+    const key = Utils.genUUIDv4();
     Ext.frameElementsKeys.push(key);
     frame.contentWindow.postMessage({
       "command": "identify",
@@ -299,7 +299,7 @@ function handleMessageCaptureStop(msg) {
     const link = document.createElement("a");
     link.textContent = "Download";
     link.href = msg.videoURL;
-    link.title = prettyFileSize(msg.size);
+    link.title = Utils.prettyFileSize(msg.size);
 
     if (msg.size) {
       link.addEventListener("click", function(evt) {
@@ -1162,7 +1162,7 @@ function handleRowTimerModify(evt) {
 
   if (hasTimer) {
     const secs = parseInt(img.dataset.timerSeconds, 10) || 0;
-    const {hours, minutes, seconds} = secondsToHMS(secs);
+    const {hours, minutes, seconds} = Utils.secondsToHMS(secs);
     hoursInput.value = hours;
     minutesInput.value = minutes;
     secondsInput.value = seconds;
@@ -1238,7 +1238,7 @@ function handleRowSetTimer() {
   const hours = parseInt(hoursInput.value, 10) || 0;
   const minutes = parseInt(minutesInput.value, 10) || 0;
   const seconds = parseInt(secondsInput.value, 10) || 0;
-  const totalSecs = hmsToSeconds({hours, minutes, seconds});
+  const totalSecs = Utils.hmsToSeconds({hours, minutes, seconds});
 
   img.dataset.hasTimer = Boolean(totalSecs);
   img.dataset.timerSeconds = totalSecs;
@@ -1683,7 +1683,7 @@ function createVideoURL(blob) {
   link.textContent = "Download";
   link.download = `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`;
   link.href = videoURL;
-  link.title = prettyFileSize(size);
+  link.title = Utils.prettyFileSize(size);
   col.appendChild(link);
   Ext.objectURLs.push(videoURL);
 }
@@ -1742,52 +1742,6 @@ function showNotification(notification) {
     "frameUUID": TOP_FRAME_UUID,
     "notification": notification
   });
-}
-
-function prettyFileSize(nBytes, useSI) {
-  const SI_UNITS = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-  const IEC_UNITS = ["B", "kiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"];
-  const mult = useSI ? 1000 : 1024;
-  const units = useSI ? SI_UNITS : IEC_UNITS;
-  var index = 0;
-
-  while (Math.abs(nBytes) >= mult) {
-    index += 1;
-    nBytes /= mult;
-  }
-
-  return `${nBytes.toFixed(Boolean(index))} ${units[index]}`;
-}
-
-function hmsToSeconds({hours, minutes, seconds}) {
-  return (hours * 3600) + (minutes * 60) + seconds;
-}
-
-function secondsToHMS(secs) {
-  var hours = Math.trunc(secs / 3600);
-  var minutes = Math.trunc((secs - (hours * 3600)) / 60);
-  var seconds = secs - (hours * 3600) - (minutes * 60);
-
-  if (seconds >= 60) {
-    seconds -= (seconds % 60);
-    minutes += 1;
-  }
-
-  if (minutes >= 60) {
-    minutes -= (minutes % 60);
-    hours += 1;
-  }
-
-  return {hours, minutes, seconds};
-}
-
-function genUUIDv4() {
-  /* https://stackoverflow.com/a/2117523/1031545 */
-  /* eslint-disable no-bitwise, id-length, no-mixed-operators */
-  return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
-    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-  );
-  /* eslint-enable no-bitwise, id-length, no-mixed-operators */
 }
 
 }());
