@@ -355,7 +355,7 @@ function updateCanvases(canvases) {
     "frameId": Ext.frameId,
     "frameUUID": FRAME_UUID,
     "targetFrameUUID": TOP_FRAME_UUID,
-    "url": window.location.href,
+    "frameUrl": window.location.href.split("#")[0],
     "canvases": canvasData,
     "activeCanvasIndex": Ext.active.index,
     "delayCanvasIndex": Ext.active.delayCanvasIndex

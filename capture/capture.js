@@ -61,6 +61,7 @@ const DELAY_OVERLAY_CANCEL_ID = "capture_delay_overlay_cancel";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
+const LIST_CANVASES_CAPTURE_TIMER_CLASS = "list_canvases_capture_timer";
 const LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS = "list_canvases_capture_timer_img";
 const LIST_CANVASES_CANVAS_ID_CLASS = "list_canvases_canvas_id";
 const LIST_CANVASES_CANVAS_DIMENS_CLASS = "list_canvases_canvas_dimens";
@@ -85,9 +86,18 @@ const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributeFilter": ["id", "width", "height"]
 });
 
-const INPUT_BLUR_UPDATE_SETTINGS_MAP = Object.freeze({
+/* Settings which get updated globally when changed on any canvas */
+const UPDATE_GLOBAL_SETTINGS_MAP = Object.freeze({
   [LIST_CANVASES_CAPTURE_FPS_CLASS]: "fps",
   [LIST_CANVASES_CAPTURE_BPS_CLASS]: "bps"
+});
+
+/* Settings which get saved per-canvas to persist page refresh */
+const SAVE_SETTINGS_MAP = Object.freeze({
+  [LIST_CANVASES_CAPTURE_FPS_CLASS]:    "fps",
+  [LIST_CANVASES_CAPTURE_BPS_CLASS]:    "bps",
+  [LIST_CANVASES_CAPTURE_DELAY_CLASS]:  "delay",
+  [LIST_CANVASES_CAPTURE_TIMER_CLASS]:  "timer"
 });
 
 const Ext = Object.seal({
@@ -416,7 +426,9 @@ function handleMessageUpdateCanvases(msg) {
     Ext.frames[frameUUID] = {
       "frameUUID": frameUUID,
       "canvases": msg.canvases,
-      "frameId": msg.frameId
+      "frameId": msg.frameId,
+      "frameUrl": msg.frameUrl,
+      "settings": {}
     };
   }
 
@@ -490,6 +502,78 @@ function handleMessageUpdateSettings(msg) {
   for (const key of Object.keys(Ext.settings)) {
     if (key in settings) {
       Ext.settings[key] = settings[key];
+    }
+  }
+}
+
+function saveCanvasSettings() {
+  const wrapper = document.getElementById(WRAPPER_ID);
+  const rows = Array.from(wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+
+  for (const key of Object.keys(Ext.frames)) {
+    delete Ext.frames[key].settings;
+    Ext.frames[key].settings = {};
+  }
+
+  for (let k = 0, n = rows.length; k < n; k += 1) {
+    const settings = {};
+    const row = rows[k];
+    const frameUUID = row.dataset.frameUUID;
+    const pathSpec = row.dataset.pathSpec;
+
+    for (const key of Object.keys(SAVE_SETTINGS_MAP)) {
+      const span = row.querySelector(`.${key}`);
+      let value = null;
+
+      if (span) {
+        const input = span.firstElementChild;
+
+        if (key === LIST_CANVASES_CAPTURE_TIMER_CLASS) {
+          const hasTimer = JSON.parse(input.dataset.hasTimer || "false");
+          const timerSeconds = parseInt(input.dataset.timerSeconds, 10);
+          value = (hasTimer && timerSeconds) ? timerSeconds : "0";
+        } else if (input.type.toUpperCase() === "TEXT") {
+          value = input.value;
+        } else if (input.type.toUpperCase() === "CHECKBOX") {
+          value = input.checked;
+        }
+
+        settings[SAVE_SETTINGS_MAP[key]] = value;
+      }
+    }
+
+    Ext.frames[frameUUID].settings[pathSpec] = settings;
+  }
+}
+
+function loadCanvasSettings() {
+  const wrapper = document.getElementById(WRAPPER_ID);
+  const rows = Array.from(wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+
+  for (let k = 0, n = rows.length; k < n; k += 1) {
+    const row = rows[k];
+    const frameUUID = row.dataset.frameUUID;
+    const pathSpec = row.dataset.pathSpec;
+    const frame = Ext.frames[frameUUID];
+    const settings = frame && frame.settings[pathSpec];
+    if (settings) {
+      for (const key of Object.keys(SAVE_SETTINGS_MAP)) {
+        const span = row.querySelector(`.${key}`);
+        if (span) {
+          const input = span.firstElementChild;
+          const value = settings[SAVE_SETTINGS_MAP[key]];
+
+          if (key === LIST_CANVASES_CAPTURE_TIMER_CLASS) {
+            input.dataset.hasTimer = Boolean(parseInt(value, 10));
+            input.dataset.timerSeconds = value;
+            handleRowTimerModifyClose(input);
+          } else if (input.type.toUpperCase() === "TEXT") {
+            input.value = value;
+          } else if (input.type.toUpperCase() === "CHECKBOX") {
+            input.checked = value;
+          }
+        }
+      }
     }
   }
 }
@@ -802,11 +886,11 @@ function handleInputBlur(e) {
   const el = e.target.parentElement;
 
   if (el) {
-    for (const key of Object.keys(INPUT_BLUR_UPDATE_SETTINGS_MAP)) {
+    for (const key of Object.keys(UPDATE_GLOBAL_SETTINGS_MAP)) {
       if (el.classList.contains(key)) {
         Ext.port.postMessage({
           "command": MessageCommands.UPDATE_SETTINGS,
-          "setting": INPUT_BLUR_UPDATE_SETTINGS_MAP[key],
+          "setting": UPDATE_GLOBAL_SETTINGS_MAP[key],
           "value": e.target.value
         });
       }
@@ -816,6 +900,8 @@ function handleInputBlur(e) {
   window.removeEventListener("keypress", handleKeyEventsOnFocus, true);
   window.removeEventListener("keydown", handleKeyEventsOnFocus, true);
   window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
+
+  saveCanvasSettings();
 }
 
 function handleCaptureClose(evt) {
@@ -934,11 +1020,13 @@ function getAllCanvases() {
         obj.local = false;
         obj.frameUUID = key;
         obj.index = index;
+        obj.frameUrl = Ext.frames[key].frameUrl;
         return obj;
       });
       canvases = canvases.concat(frameCanvases);
     }
   }
+
   return canvases;
 }
 
@@ -947,6 +1035,8 @@ function updateCanvases() {
   const oldRows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
   const canvases = getAllCanvases();
   const addTimerImgUrl = browser.runtime.getURL(ICON_ADD_PATH);
+
+  saveCanvasSettings();
 
   oldRows.forEach((row) => row.parentElement.removeChild(row));
   canvases.forEach(function(canvas) {
@@ -967,6 +1057,7 @@ function updateCanvases() {
     const addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`);
     addTimerImg.src = addTimerImgUrl;
     addTimerImg.dataset.hasTimer = false;
+    addTimerImg.dataset.timerSeconds = 0;
     const fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
     fpsInput.value = Ext.settings.fps;
     fpsInput.addEventListener("focus", handleInputFocus, false);
@@ -990,12 +1081,17 @@ function updateCanvases() {
     row.dataset.canvasIsLocal = canvasIsLocal;
     row.dataset.frameUUID = canvas.frameUUID;
     row.dataset.canvasIndex = canvas.index;
+    row.dataset.frameUrl = canvas.frameUrl;
+    row.dataset.pathSpec = canvas.pathSpec;
     setRowEventListeners(row);
     docFrag.appendChild(row);
   }
 
   Ext.listCanvases.appendChild(docFrag);
   Ext.active.updateTS = Date.now();
+
+  loadCanvasSettings();
+  saveCanvasSettings();
 }
 
 function setRowEventListeners(
@@ -1122,6 +1218,7 @@ function handleRowTimerModifyClose(img) {
   }
 
   container.classList.add(HIDDEN_CLASS);
+  img.classList.remove(TIMER_MODIFYING_CLASS);
 }
 
 function handleRowSetTimer() {
