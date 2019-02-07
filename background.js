@@ -16,7 +16,7 @@
 
 "use strict";
 
-/* global browser */
+/* global browser Utils */
 /* exported sendUpdatedSettings */
 
 const APP_NAME = browser.runtime.getManifest().name;
@@ -55,20 +55,7 @@ const DEFAULT_FPS = 30;
 const BPS_KEY = "bps";
 const DEFAULT_BPS = 2500000;
 
-const MessageCommands = Object.freeze({
-  "CAPTURE_START":   0,
-  "CAPTURE_STOP":    1,
-  "DELAY":           2,
-  "DISABLE":         3,
-  "DISCONNECT":      4,
-  "DISPLAY":         5,
-  "DOWNLOAD":        6,
-  "HIGHLIGHT":       7,
-  "NOTIFY":          8,
-  "REGISTER":        9,
-  "UPDATE_CANVASES": 10,
-  "UPDATE_SETTINGS": 11
-});
+const MessageCommands = Utils.MessageCommands;
 
 const NOTIFICATION_DURATION = 10000;
 const notifications = [];

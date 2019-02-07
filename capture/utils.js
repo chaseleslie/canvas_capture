@@ -17,6 +17,21 @@
 
 const Utils = (function() {
 
+const MessageCommands = Object.freeze({
+  "CAPTURE_START":   0,
+  "CAPTURE_STOP":    1,
+  "DELAY":           2,
+  "DISABLE":         3,
+  "DISCONNECT":      4,
+  "DISPLAY":         5,
+  "DOWNLOAD":        6,
+  "HIGHLIGHT":       7,
+  "NOTIFY":          8,
+  "REGISTER":        9,
+  "UPDATE_CANVASES": 10,
+  "UPDATE_SETTINGS": 11
+});
+
 function pathSpecFromElement(element) {
   const pathComponents = [];
   var ptr = element;
@@ -79,6 +94,7 @@ function elementFromPathSpec(path) {
 }
 
 return {
+  "MessageCommands": MessageCommands,
   "pathSpecFromElement": pathSpecFromElement,
   "elementFromPathSpec": elementFromPathSpec
 };

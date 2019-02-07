@@ -23,20 +23,7 @@
 const FRAME_UUID = genUUIDv4();
 const TOP_FRAME_UUID = "top";
 
-const MessageCommands = Object.freeze({
-  "CAPTURE_START":   0,
-  "CAPTURE_STOP":    1,
-  "DELAY":           2,
-  "DISABLE":         3,
-  "DISCONNECT":      4,
-  "DISPLAY":         5,
-  "DOWNLOAD":        6,
-  "HIGHLIGHT":       7,
-  "NOTIFY":          8,
-  "REGISTER":        9,
-  "UPDATE_CANVASES": 10,
-  "UPDATE_SETTINGS": 11
-});
+const MessageCommands = Utils.MessageCommands;
 
 const MIME_TYPE_MAP = Object.freeze({
   "mp4":  "video/mp4",

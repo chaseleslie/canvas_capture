@@ -25,6 +25,7 @@
   "background": {
     "scripts": [
       "lib/webextension-polyfill/browser-polyfill.min.js",
+      "capture/utils.js",
       "background.js"
     ]
   },
