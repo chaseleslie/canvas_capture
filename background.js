@@ -57,23 +57,7 @@ browser.browserAction.setIcon(
 ).then(nullifyError).catch(nullifyError);
 browser.runtime.onConnect.addListener(connected);
 browser.browserAction.onClicked.addListener(onBrowserAction);
-
-if ("onInstalled" in browser.runtime) {
-  /* New browser version support runtime.onInstalled */
-  browser.runtime.onInstalled.addListener(handleInstall);
-} else {
-  /* Fallback for older browser versions first install */
-  browser.storage.local.get("firstInstall").then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
-    if (!("firstInstall" in setting)) {
-      handleInstall({"reason": "install"});
-    }
-  }).catch(function() {
-    handleInstall({"reason": "install"});
-  });
-}
+browser.runtime.onInstalled.addListener(handleInstall);
 
 function handleInstall(details) {
   const reason = details.reason;
