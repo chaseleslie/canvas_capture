@@ -52,6 +52,8 @@ const MessageCommands = Utils.MessageCommands;
 const NOTIFICATION_DURATION = 10000;
 const notifications = [];
 
+const SETTINGS_RELOAD_TIMEOUT = 15000;
+
 browser.browserAction.setIcon(
   {"path": ICON_PATH_MAP}
 ).then(nullifyError).catch(nullifyError);
@@ -65,9 +67,10 @@ function handleInstall(details) {
     case "install": {
       const obj = {
         [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
-        [Utils.FPS_KEY]: Utils.DEFAULT_FPS,
-        [Utils.BPS_KEY]: Utils.DEFAULT_BPS,
-        "firstInstall": true
+        [Utils.FPS_KEY]:            Utils.DEFAULT_FPS,
+        [Utils.BPS_KEY]:            Utils.DEFAULT_BPS,
+        [Utils.AUTO_OPEN_KEY]:      Utils.DEFAULT_AUTO_OPEN,
+        "firstInstall":             true
       };
       browser.storage.local.set(obj);
     }
@@ -365,6 +368,7 @@ async function getSettings() {
   let maxVideoSize = Utils.DEFAULT_MAX_VIDEO_SIZE;
   let fps = Utils.DEFAULT_FPS;
   let bps = Utils.DEFAULT_BPS;
+  let autoOpen = Utils.DEFAULT_AUTO_OPEN;
 
   await browser.storage.local.get(Utils.MAX_VIDEO_SIZE_KEY)
   .then(function(setting) {
@@ -386,20 +390,35 @@ async function getSettings() {
       setting = setting[0];
     }
     bps = setting[Utils.BPS_KEY] || Utils.DEFAULT_BPS;
+
+    return browser.storage.local.get(Utils.AUTO_OPEN_KEY);
+  }).then(function(setting) {
+    if (Array.isArray(setting)) {
+      setting = setting[0];
+    }
+    autoOpen = setting[Utils.AUTO_OPEN_KEY] || Utils.DEFAULT_AUTO_OPEN;
   });
 
   return {
     [Utils.MAX_VIDEO_SIZE_KEY]: maxVideoSize,
     [Utils.FPS_KEY]:            fps,
-    [Utils.BPS_KEY]:            bps
+    [Utils.BPS_KEY]:            bps,
+    [Utils.AUTO_OPEN_KEY]:      autoOpen
   };
 }
 
-/* Receive updated settings from top frame */
+/* Receive updated per-canvas settings from top frame */
 function updateSettings(msg) {
-  const obj = Object.create(null);
-  obj[msg.setting] = msg.value;
-  browser.storage.local.set(obj);
+  const tabId = msg.tabId;
+  const tab = activeTabs[tabId];
+
+  tab.settings = msg.settings;
+  tab.settingsReloaded = false;
+  tab.settingsTimeout = setTimeout(function() {
+    if (!tab.settingsReloaded) {
+      delete activeTabs[tabId];
+    }
+  }, SETTINGS_RELOAD_TIMEOUT);
 }
 
 /* Send updated settings to top frames */

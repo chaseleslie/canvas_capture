@@ -108,9 +108,10 @@ const Ext = Object.seal({
   }),
   "rowTemplate": null,
   "settings": Object.seal({
-    "maxVideoSize": Utils.DEFAULT_MAX_VIDEO_SIZE,
-    "fps": 0,
-    "bps": 0
+    [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
+    [Utils.FPS_KEY]:            Utils.DEFAULT_FPS,
+    [Utils.BPS_KEY]:            Utils.DEFAULT_BPS,
+    [Utils.AUTO_OPEN_KEY]:      Utils.DEFAULT_AUTO_OPEN
   }),
   "mediaRecorder": null,
   "displayed": false,
@@ -175,6 +176,7 @@ const Ext = Object.seal({
       "frameUUID": TOP_FRAME_UUID,
       "canvases": [],
       "node": window,
+      "url": window.location.href.split("#")[0],
       "settings": {}
     }
   },
@@ -207,6 +209,8 @@ const Ext = Object.seal({
 
 Ext.port.onMessage.addListener(onMessage);
 window.addEventListener("message", handleWindowMessage, true);
+
+window.addEventListener("beforeunload", handlePageUnload, false);
 
 Ext.bodyMutObs.observe(document.body, {
   "childList": true,
@@ -1733,6 +1737,27 @@ function canCaptureStream(canvas) {
   } catch (e) {
     return false;
   }
+}
+
+function handlePageUnload() {
+  if (!Ext.settings[Utils.AUTO_OPEN_KEY]) {
+    return;
+  }
+
+  const settings = Object.create(null);
+
+  for (const key of Object.keys(Ext.frames)) {
+    const frame = Ext.frames[key];
+    const frameUrl = frame.url;
+    settings[frameUrl] = frame.settings;
+  }
+
+  Ext.port.postMessage({
+    "command": MessageCommands.UPDATE_SETTINGS,
+    "tabId": Ext.tabId,
+    "frameUUID": TOP_FRAME_UUID,
+    "settings": settings
+  });
 }
 
 function showNotification(notification) {
