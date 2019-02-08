@@ -155,6 +155,14 @@ function genUUIDv4() {
   /* eslint-enable no-bitwise, id-length, no-mixed-operators */
 }
 
+function makeDelay(delay) {
+  return new Promise(function(resolve) {
+    setTimeout(function() {
+      resolve();
+    }, delay);
+  });
+}
+
 return {
   "MessageCommands": MessageCommands,
   "DEFAULT_MAX_VIDEO_SIZE": DEFAULT_MAX_VIDEO_SIZE,
@@ -173,7 +181,8 @@ return {
   "prettyFileSize": prettyFileSize,
   "hmsToSeconds": hmsToSeconds,
   "secondsToHMS": secondsToHMS,
-  "genUUIDv4": genUUIDv4
+  "genUUIDv4": genUUIDv4,
+  "makeDelay": makeDelay
 };
 
 }());
