@@ -44,33 +44,21 @@ function initOptions() {
 
   browser.storage.local.get(MAX_VIDEO_SIZE_KEY)
   .then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
     inputMaxSize.value = setting[MAX_VIDEO_SIZE_KEY];
   });
 
   browser.storage.local.get(FPS_KEY)
   .then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
     inputFPS.value = setting[FPS_KEY];
   });
 
   browser.storage.local.get(BPS_KEY)
   .then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
     inputBPS.value = setting[BPS_KEY];
   });
 
   browser.storage.local.get(AUTO_OPEN_KEY)
   .then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
     inputAutoOpen.checked = setting[AUTO_OPEN_KEY];
   });
 }

@@ -85,6 +85,7 @@ function onNavigationCompleted(details) {
   if (
     frameId === 0 ||
     !(tabId in activeTabs) ||
+    activeTabs[tabId].settingsOrphaned ||
     details.url.indexOf("http") !== 0
   ) {
     return;
@@ -236,12 +237,17 @@ function onDisconnectTab(msg) {
   const tabId = msg.tabId;
   const frameUUID = msg.frameUUID;
 
-  if (!(tabId in activeTabs)) {
+  if (!(tabId in activeTabs) || activeTabs[tabId].settingsOrphaned) {
     return;
   }
 
   if (frameUUID === TOP_FRAME_UUID) {
-    delete activeTabs[tabId];
+    if (activeTabs[tabId].settingsPreserve) {
+      activeTabs[tabId].settingsOrphaned = true;
+    } else {
+      delete activeTabs[tabId];
+    }
+
     browser.browserAction.setIcon(
       {"path": ICON_PATH_MAP, "tabId": tabId}
     ).then(nullifyError).catch(nullifyError);
@@ -372,30 +378,18 @@ async function getSettings() {
 
   await browser.storage.local.get(Utils.MAX_VIDEO_SIZE_KEY)
   .then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
     maxVideoSize = setting[Utils.MAX_VIDEO_SIZE_KEY] || Utils.DEFAULT_MAX_VIDEO_SIZE;
 
     return browser.storage.local.get(Utils.FPS_KEY);
   }).then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
     fps = setting[Utils.FPS_KEY] || Utils.DEFAULT_FPS;
 
     return browser.storage.local.get(Utils.BPS_KEY);
   }).then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
     bps = setting[Utils.BPS_KEY] || Utils.DEFAULT_BPS;
 
     return browser.storage.local.get(Utils.AUTO_OPEN_KEY);
   }).then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
     autoOpen = setting[Utils.AUTO_OPEN_KEY] || Utils.DEFAULT_AUTO_OPEN;
   });
 
@@ -407,12 +401,13 @@ async function getSettings() {
   };
 }
 
-/* Receive updated per-canvas settings from top frame */
+/* Receive updated per-canvas settings from top frame on page unload */
 function updateSettings(msg) {
   const tabId = msg.tabId;
   const tab = activeTabs[tabId];
 
   tab.settings = msg.settings;
+  tab.settingsPreserve = true;
   tab.settingsReloaded = false;
   tab.settingsTimeout = setTimeout(function() {
     if (!tab.settingsReloaded) {

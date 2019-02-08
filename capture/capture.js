@@ -176,7 +176,7 @@ const Ext = Object.seal({
       "frameUUID": TOP_FRAME_UUID,
       "canvases": [],
       "node": window,
-      "url": window.location.href.split("#")[0],
+      "frameUrl": window.location.href.split("#")[0],
       "settings": {}
     }
   },
@@ -1748,7 +1748,7 @@ function handlePageUnload() {
 
   for (const key of Object.keys(Ext.frames)) {
     const frame = Ext.frames[key];
-    const frameUrl = frame.url;
+    const frameUrl = frame.frameUrl;
     settings[frameUrl] = frame.settings;
   }
 
