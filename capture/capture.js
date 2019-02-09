@@ -278,8 +278,6 @@ function onMessage(msg) {
     handleDisplay(msg);
   } else if (msg.command === MessageCommands.HIGHLIGHT) {
     handleMessageHighlight(msg);
-  } else if (msg.command === MessageCommands.IFRAME_ADDED) {
-    handleMessageIframeAdded(msg);
   } else if (msg.command === MessageCommands.IFRAME_NAVIGATED) {
     handleMessageIframeAdded(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
@@ -766,32 +764,39 @@ function observeIframeMutations(mutations) {
     const mutation = mutations[k];
     const iframe = mutation.target;
     Ext.port.postMessage({
-      "command": MessageCommands.IFRAME_NAVIGATED,
-      "tabId": Ext.tabId,
-      "frameUUID": TOP_FRAME_UUID,
-      "frameUrl": iframe.src,
-      "oldFrameUrl": mutation.oldValue
+      "command":      MessageCommands.IFRAME_NAVIGATED,
+      "tabId":        Ext.tabId,
+      "frameUUID":    TOP_FRAME_UUID,
+      "frameUrl":     iframe.src,
+      "oldFrameUrl":  mutation.oldValue
     });
   }
 }
 
 function handleAddedIframes(iframes) {
-  // console.log(iframes);
-  // console.trace();
   for (let k = 0, n = iframes.length; k < n; k += 1) {
     const iframe = iframes[k];
+    iframe.addEventListener("load", handleIframeLoaded, false);
     Ext.iframeMutObs.observe(iframe, IFRAME_OBSERVER_OPS);
-    if (iframe.src.indexOf("http") === 0) {
-      // console.log("iframe.src.indexOf('http') === 0");
-      // console.log(iframe.src);
-      Ext.port.postMessage({
-        "command": MessageCommands.IFRAME_ADDED,
-        "tabId": Ext.tabId,
-        "frameUUID": TOP_FRAME_UUID,
-        "frameUrl": iframe.src
-      });
-    }
+    Ext.port.postMessage({
+      "command":      MessageCommands.IFRAME_NAVIGATED,
+      "tabId":        Ext.tabId,
+      "frameUUID":    TOP_FRAME_UUID,
+      "frameUrl":     iframe.src,
+      "oldFrameUrl":  ""
+    });
   }
+}
+
+function handleIframeLoaded(e) {
+  const iframe = e.target;
+  Ext.port.postMessage({
+    "command":      MessageCommands.IFRAME_NAVIGATED,
+    "tabId":        Ext.tabId,
+    "frameUUID":    TOP_FRAME_UUID,
+    "frameUrl":     iframe.src,
+    "oldFrameUrl":  ""
+  });
 }
 
 function handleDisable(notify) {

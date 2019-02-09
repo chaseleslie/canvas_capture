@@ -300,32 +300,23 @@ function injectFrameContentScripts(tabId, frameId) {
   });
 }
 
-async function handleIframeAdded(msg) {
-  await Utils.makeDelay(250);
-
-  const tabId = msg.tabId;
-  const frameUrl = msg.frameUrl.split("#")[0];
-  const frames = await getAllFramesForTab(tabId);
-// console.log(frames);
-  for (let k = 0, n = frames.length; k < n; k += 1) {
-    const frame = frames[k];
-    // console.log(frame.url);
-    // console.log(frameUrl);
-    if (frame.url === frameUrl) {
-      // console.log("injecting content scripts");
-      injectFrameContentScripts(tabId, frame.frameId);
-    }
-  }
-}
-
 async function handleIframeNavigated(msg) {
   const frameUrl = msg.frameUrl.split("#")[0];
+  const tabId = msg.tabId;
 
-  if (frameUrl.indexOf("http") !== 0 || frameUrl.indexOf("data") !== 0) {
+  if (frameUrl.indexOf("http") !== 0 && frameUrl.indexOf("data") !== 0) {
     return;
   }
 
-  const tabId = msg.tabId;
+  for (let k = 0, n = activeTabs[tabId].frames.length; k < n; k += 1) {
+    const frame = activeTabs[tabId].frames[k];
+    const url = frame.url.split("#")[0];
+
+    if (frameUrl === url) {
+      return;
+    }
+  }
+
   const frames = await getAllFramesForTab(tabId);
 
   for (let k = 0, n = frames.length; k < n; k += 1) {
@@ -390,10 +381,6 @@ function onMessage(msg) {
 
     case MessageCommands.UPDATE_SETTINGS:
       updateSettings(msg);
-    break;
-
-    case MessageCommands.IFRAME_ADDED:
-      handleIframeAdded(msg);
     break;
 
     case MessageCommands.IFRAME_NAVIGATED:
