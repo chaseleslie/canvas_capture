@@ -56,7 +56,7 @@ const SETTINGS_RELOAD_TIMEOUT = 15000;
 
 browser.browserAction.setIcon(
   {"path": ICON_PATH_MAP}
-).then(nullifyError).catch(nullifyError);
+);
 browser.runtime.onConnect.addListener(connected);
 browser.browserAction.onClicked.addListener(onBrowserAction);
 browser.runtime.onInstalled.addListener(handleInstall);
@@ -246,7 +246,7 @@ function onEnableTab(tab) {
 
   browser.browserAction.setIcon(
     {"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}
-  ).then(nullifyError).catch(nullifyError);
+  );
 }
 
 function onDisableTab(tabId) {
@@ -283,7 +283,7 @@ function onDisconnectTab(msg) {
 
     browser.browserAction.setIcon(
       {"path": ICON_PATH_MAP, "tabId": tabId}
-    ).then(nullifyError).catch(nullifyError);
+    );
     if (
       !Object.keys(activeTabs).length &&
       browser.webNavigation.onCompleted.hasListener(onNavigationCompleted)
@@ -312,6 +312,57 @@ function onDisconnectTab(msg) {
       "tabId": tabId,
       "frameUUID": frameUUID
     });
+  }
+}
+
+function injectFrameContentScripts(frameId) {
+  browser.tabs.executeScript({
+    "file": BROWSER_POLYFILL_JS_PATH,
+    "frameId": frameId
+  })
+  .then(function() {
+    return browser.tabs.executeScript({
+      "file": UTILS_JS_PATH,
+      "frameId": frameId
+    });
+  }).then(function() {
+    browser.tabs.executeScript({
+      "file": CAPTURE_FRAMES_JS_PATH,
+      "frameId": frameId
+    });
+  });
+}
+
+async function handleIframeAdded(msg) {
+  console.log(msg);
+  const tabId = msg.tabId;
+  const frameUrl = msg.frameUrl.split("#")[0];
+  const frames = await getAllFramesForTab(tabId);
+
+  for (let k = 0, n = frames.length; k < n; k += 1) {
+    const frame = frames[k];
+    if (frame.url === frameUrl) {
+      injectFrameContentScripts(frame.frameId);
+    }
+  }
+}
+
+async function handleIframeNavigated(msg) {
+  console.log(msg);
+  const frameUrl = msg.frameUrl.split("#")[0];
+
+  if (frameUrl.indexOf("http") !== 0 || frameUrl.indexOf("data") !== 0) {
+    return;
+  }
+
+  const tabId = msg.tabId;
+  const frames = await getAllFramesForTab(tabId);
+
+  for (let k = 0, n = frames.length; k < n; k += 1) {
+    const frame = frames[k];
+    if (frame.url === frameUrl) {
+      injectFrameContentScripts(frame.frameId);
+    }
   }
 }
 
@@ -369,6 +420,14 @@ function onMessage(msg) {
 
     case MessageCommands.UPDATE_SETTINGS:
       updateSettings(msg);
+    break;
+
+    case MessageCommands.IFRAME_ADDED:
+      handleIframeAdded(msg);
+    break;
+
+    case MessageCommands.IFRAME_NAVIGATED:
+      handleIframeNavigated(msg);
     break;
   }
 }
@@ -477,11 +536,5 @@ async function sendUpdatedSettings() {
       "tabId":            tabId,
       "defaultSettings":  settings
     });
-  }
-}
-
-function nullifyError() {
-  if (browser.runtime.lastError) {
-    // eslint-disable-line no-empty
   }
 }

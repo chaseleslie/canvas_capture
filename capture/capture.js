@@ -86,6 +86,12 @@ const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributeFilter": ["id", "width", "height"]
 });
 
+const IFRAME_OBSERVER_OPS = Object.freeze({
+  "attributes": true,
+  "attributeFilter": ["src"],
+  "attributeOldValue": true
+});
+
 /* Settings which get saved per-canvas to persist page refresh */
 const SAVE_SETTINGS_MAP = Object.freeze({
   [LIST_CANVASES_CAPTURE_FPS_CLASS]:    "fps",
@@ -97,9 +103,7 @@ const SAVE_SETTINGS_MAP = Object.freeze({
 const Ext = Object.seal({
   "tabId": null,
   "frameId": null,
-  "port": browser.runtime.connect({
-    "name": TOP_FRAME_UUID
-  }),
+  "port": null,
   "rowTemplate": null,
   "settings": Object.seal({
     [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
@@ -181,6 +185,7 @@ const Ext = Object.seal({
   "wrapperMouseHover": false,
   "bodyMutObs": new MutationObserver(observeBodyMutations),
   "canvasMutObs": new MutationObserver(observeCanvasMutations),
+  "iframeMutObs": new MutationObserver(observeIframeMutations),
   "highlighter": Object.seal({
     "left": null,
     "top": null,
@@ -201,15 +206,29 @@ const Ext = Object.seal({
   }
 });
 
-Ext.port.onMessage.addListener(onMessage);
-window.addEventListener("message", handleWindowMessage, true);
+if (document.readyState === "loading") {
+  window.addEventListener("load", handleWindowLoad, false);
+} else {
+  handleWindowLoad();
+}
 
-window.addEventListener("beforeunload", handlePageUnload, false);
+function handleWindowLoad() {
+  Ext.port = browser.runtime.connect({"name": TOP_FRAME_UUID});
+  Ext.port.onMessage.addListener(onMessage);
+  window.addEventListener("message", handleWindowMessage, true);
 
-Ext.bodyMutObs.observe(document.body, {
-  "childList": true,
-  "subtree": true
-});
+  window.addEventListener("beforeunload", handlePageUnload, false);
+
+  Ext.bodyMutObs.observe(document.body, {
+    "childList": true,
+    "subtree": true
+  });
+
+  const frames = Array.from(document.querySelectorAll("iframe"));
+  if (frames.length) {
+    handleAddedIframes(frames);
+  }
+}
 
 function handleWindowMessage(evt) {
   const msg = evt.data;
@@ -264,6 +283,10 @@ function onMessage(msg) {
     handleDisplay(msg);
   } else if (msg.command === MessageCommands.HIGHLIGHT) {
     handleMessageHighlight(msg);
+  } else if (msg.command === MessageCommands.IFRAME_ADDED) {
+    handleMessageIframeAdded(msg);
+  } else if (msg.command === MessageCommands.IFRAME_NAVIGATED) {
+    handleMessageIframeAdded(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
     handleMessageRegister(msg);
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
@@ -399,6 +422,16 @@ function handleMessageHighlight(msg, node) {
   if (!msg.canCapture && highlighter.current) {
     highlighter.current.classList.add(HIGHLIGHTER_UNAVAILABLE_CLASS);
   }
+}
+
+function handleMessageIframeAdded() {
+  Ext.port.postMessage({
+    "command": MessageCommands.UPDATE_CANVASES,
+    "tabId": Ext.tabId,
+    "frameId": Ext.frameId,
+    "frameUUID": TOP_FRAME_UUID,
+    "targetFrameUUID": ALL_FRAMES_UUID
+  });
 }
 
 function handleMessageRegister(msg) {
@@ -579,24 +612,29 @@ function loadCanvasSettings() {
 function observeBodyMutations(mutations) {
   mutations = mutations.filter((el) => el.type === "childList");
   var addedCanvases = false;
-  var removedCanvases = [];
-  const isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
+  const removedCanvases = [];
+  const addedIframes = [];
+  const isCanvas = (el) => el.nodeName.toUpperCase() === "CANVAS";
+  const isIframe = (el) => el.nodeName.toUpperCase() === "IFRAME";
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
     const mutation = mutations[k];
     for (let iK = 0, iN = mutation.addedNodes.length; iK < iN; iK += 1) {
       if (isCanvas(mutation.addedNodes[iK])) {
         addedCanvases = true;
-        break;
+      } else if (isIframe(mutation.addedNodes[iK])) {
+        addedIframes.push(mutation.addedNodes[iK]);
       }
     }
 
-    removedCanvases = removedCanvases.concat(
-      Array.from(mutation.removedNodes).filter(isCanvas)
-    );
+    removedCanvases.push(...Array.from(mutation.removedNodes).filter(isCanvas));
   }
 
   const canvasesChanged = addedCanvases || removedCanvases.length;
+
+  if (addedIframes.length) {
+    handleAddedIframes(addedIframes);
+  }
 
   if (!canvasesChanged) {
     return;
@@ -723,6 +761,33 @@ function observeCanvasMutations(mutations) {
   }
 }
 
+function observeIframeMutations(mutations) {
+  for (let k = 0, n = mutations.length; k < n; k += 1) {
+    const mutation = mutations[k];
+    const iframe = mutation.target;
+    Ext.port.postMessage({
+      "command": MessageCommands.IFRAME_NAVIGATED,
+      "tabId": Ext.tabId,
+      "frameUUID": TOP_FRAME_UUID,
+      "frameUrl": iframe.src,
+      "oldFrameUrl": mutation.oldValue
+    });
+  }
+}
+
+function handleAddedIframes(iframes) {
+  for (let k = 0, n = iframes.length; k < n; k += 1) {
+    const iframe = iframes[k];
+    Ext.iframeMutObs.observe(iframe, IFRAME_OBSERVER_OPS);
+    Ext.port.postMessage({
+      "command": MessageCommands.IFRAME_ADDED,
+      "tabId": Ext.tabId,
+      "frameUUID": TOP_FRAME_UUID,
+      "frameUrl": iframe.src
+    });
+  }
+}
+
 function handleDisable(notify) {
   showNotification(notify);
   Ext.port.disconnect();
@@ -777,9 +842,12 @@ function handleDisable(notify) {
 }
 
 function handleDisplay(msg) {
-  Ext.settings.maxVideoSize = msg.defaultSettings.maxVideoSize;
-  Ext.settings.fps = msg.defaultSettings.fps;
-  Ext.settings.bps = msg.defaultSettings.bps;
+  for (const key of Object.keys(msg.defaultSettings)) {
+    if (key in Ext.settings) {
+      Ext.settings[key] = msg.defaultSettings[key];
+    }
+  }
+
   const cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
   const htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
   const htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
@@ -841,6 +909,14 @@ function handleDisplay(msg) {
   highlighter.top.classList.add(HIGHLIGHTER_HORIZONTAL_CLASS);
   highlighter.right.classList.add(HIGHLIGHTER_VERTICAL_CLASS);
   highlighter.bottom.classList.add(HIGHLIGHTER_HORIZONTAL_CLASS);
+
+  Ext.port.postMessage({
+    "command": MessageCommands.UPDATE_CANVASES,
+    "tabId": Ext.tabId,
+    "frameId": Ext.frameId,
+    "frameUUID": TOP_FRAME_UUID,
+    "targetFrameUUID": ALL_FRAMES_UUID
+  });
 }
 
 function positionWrapper() {

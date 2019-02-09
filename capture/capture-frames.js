@@ -40,12 +40,16 @@ const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributeFilter": ["id", "width", "height"]
 });
 
+const IFRAME_OBSERVER_OPS = Object.freeze({
+  "attributes": true,
+  "attributeFilter": ["src"],
+  "attributeOldValue": true
+});
+
 const Ext = Object.seal({
   "tabId": null,
   "frameId": null,
-  "port": browser.runtime.connect({
-    "name": FRAME_UUID
-  }),
+  "port": null,
   "mediaRecorder": null,
   "active": Object.seal({
     "capturing": false,
@@ -91,6 +95,7 @@ const Ext = Object.seal({
   },
   "bodyMutObs": new MutationObserver(observeBodyMutations),
   "canvasMutObs": new MutationObserver(observeCanvasMutations),
+  "iframeMutObs": new MutationObserver(observeIframeMutations),
   "freeObjectURLs": function() {
     for (let k = 0; k < this.objectURLs.length; k += 1) {
       window.URL.revokeObjectURL(this.objectURLs[k]);
@@ -110,13 +115,27 @@ const Ext = Object.seal({
   }
 });
 
-Ext.port.onMessage.addListener(onMessage);
-window.addEventListener("message", handleWindowMessage, true);
+if (document.readyState === "loading") {
+  window.addEventListener("load", handleWindowLoad, false);
+} else {
+  handleWindowLoad();
+}
 
-Ext.bodyMutObs.observe(document.body, {
-  "childList": true,
-  "subtree": true
-});
+function handleWindowLoad() {
+  Ext.port = browser.runtime.connect({"name": FRAME_UUID});
+  Ext.port.onMessage.addListener(onMessage);
+  window.addEventListener("message", handleWindowMessage, true);
+
+  Ext.bodyMutObs.observe(document.body, {
+    "childList": true,
+    "subtree": true
+  });
+
+  const frames = Array.from(document.querySelectorAll("iframe"));
+  if (frames.length) {
+    handleAddedIframes(frames);
+  }
+}
 
 function handleWindowMessage(evt) {
   const msg = evt.data;
@@ -259,24 +278,29 @@ function handleMessageHighlight(msg) {
 function observeBodyMutations(mutations) {
   mutations = mutations.filter((el) => el.type === "childList");
   var addedCanvases = false;
-  var removedCanvases = [];
+  const removedCanvases = [];
+  const addedIframes = [];
   const isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
+  const isIframe = (el) => el.nodeName.toUpperCase() === "IFRAME";
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
     const mutation = mutations[k];
     for (let iK = 0, iN = mutation.addedNodes.length; iK < iN; iK += 1) {
       if (isCanvas(mutation.addedNodes[iK])) {
         addedCanvases = true;
-        break;
+      } else if (isIframe(mutation.addedNodes[iK])) {
+        addedIframes.push(mutation.addedNodes[iK]);
       }
     }
 
-    removedCanvases = removedCanvases.concat(
-      Array.from(mutation.removedNodes).filter(isCanvas)
-    );
+    removedCanvases.push(...Array.from(mutation.removedNodes).filter(isCanvas));
   }
 
   const canvasesChanged = addedCanvases || removedCanvases.length;
+
+  if (addedIframes.length) {
+    handleAddedIframes(addedIframes);
+  }
 
   if (!canvasesChanged) {
     return;
@@ -334,6 +358,33 @@ function observeCanvasMutations(mutations) {
 
   if (mutations.length) {
     updateCanvases(canvases);
+  }
+}
+
+function observeIframeMutations(mutations) {
+  for (let k = 0, n = mutations.length; k < n; k += 1) {
+    const mutation = mutations[k];
+    const iframe = mutation.target;
+    Ext.port.postMessage({
+      "command": MessageCommands.IFRAME_NAVIGATED,
+      "tabId": Ext.tabId,
+      "frameUUID": FRAME_UUID,
+      "frameUrl": iframe.src,
+      "oldFrameUrl": mutation.oldValue
+    });
+  }
+}
+
+function handleAddedIframes(iframes) {
+  for (let k = 0, n = iframes.length; k < n; k += 1) {
+    const iframe = iframes[k];
+    Ext.iframeMutObs.observe(iframe, IFRAME_OBSERVER_OPS);
+    Ext.port.postMessage({
+      "command": MessageCommands.IFRAME_ADDED,
+      "tabId": Ext.tabId,
+      "frameUUID": FRAME_UUID,
+      "frameUrl": iframe.src
+    });
   }
 }
 

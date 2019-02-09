@@ -18,18 +18,20 @@
 const Utils = (function() {
 
 const MessageCommands = Object.freeze({
-  "CAPTURE_START":   0,
-  "CAPTURE_STOP":    1,
-  "DELAY":           2,
-  "DISABLE":         3,
-  "DISCONNECT":      4,
-  "DISPLAY":         5,
-  "DOWNLOAD":        6,
-  "HIGHLIGHT":       7,
-  "NOTIFY":          8,
-  "REGISTER":        9,
-  "UPDATE_CANVASES": 10,
-  "UPDATE_SETTINGS": 11
+  "CAPTURE_START":    0,
+  "CAPTURE_STOP":     1,
+  "DELAY":            2,
+  "DISABLE":          3,
+  "DISCONNECT":       4,
+  "DISPLAY":          5,
+  "DOWNLOAD":         6,
+  "HIGHLIGHT":        7,
+  "IFRAME_ADDED":     8,
+  "IFRAME_NAVIGATED": 9,
+  "NOTIFY":           10,
+  "REGISTER":         11,
+  "UPDATE_CANVASES":  12,
+  "UPDATE_SETTINGS":  13
 });
 
 const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
