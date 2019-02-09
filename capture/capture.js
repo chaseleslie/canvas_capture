@@ -86,12 +86,6 @@ const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributeFilter": ["id", "width", "height"]
 });
 
-/* Settings which get updated globally when changed on any canvas */
-const UPDATE_GLOBAL_SETTINGS_MAP = Object.freeze({
-  [LIST_CANVASES_CAPTURE_FPS_CLASS]: "fps",
-  [LIST_CANVASES_CAPTURE_BPS_CLASS]: "bps"
-});
-
 /* Settings which get saved per-canvas to persist page refresh */
 const SAVE_SETTINGS_MAP = Object.freeze({
   [LIST_CANVASES_CAPTURE_FPS_CLASS]:    "fps",
