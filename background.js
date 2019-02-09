@@ -81,13 +81,22 @@ function handleInstall(details) {
 function onNavigationCompleted(details) {
   const tabId = details.tabId;
   const frameId = details.frameId;
+  const url = details.url;
+  const haveTab = tabId in activeTabs;
 
-  if (
-    frameId === 0 ||
-    !(tabId in activeTabs) ||
-    activeTabs[tabId].settingsOrphaned ||
-    details.url.indexOf("http") !== 0
-  ) {
+  if (url.indexOf("http") !== 0 || !haveTab) {
+    return;
+  } else if (frameId === 0 && activeTabs[tabId].settingsOrphaned) {
+    const frames = activeTabs[tabId].frames;
+    const frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+    const frameUrl = frame.url.split("#")[0];
+    if (frameUrl in activeTabs[tabId].settings) {
+      onEnableTab({"id": tabId});
+    }
+    return;
+  } else if (frameId !== 0 && activeTabs[tabId].settingsOrphaned) {
+    return;
+  } else if (frameId === 0) {
     return;
   }
 
@@ -126,7 +135,12 @@ async function connected(port) {
   const frameUUID = port.name;
   const url = sender.url;
   const frames = activeTabs[tabId].frames;
-  const frame = {"frameUUID": frameUUID, "port": port, "url": url, "frameId": frameId};
+  const frame = {
+    "frameUUID": frameUUID,
+    "port": port,
+    "url": url,
+    "frameId": frameId
+  };
   frames.push(frame);
 
   port.onDisconnect.addListener(function() {
@@ -141,7 +155,8 @@ async function connected(port) {
   port.postMessage({
     "command": MessageCommands.REGISTER,
     "tabId": tabId,
-    "frameId": frameId
+    "frameId": frameId,
+    "settings": activeTabs[tabId].settings
   });
 
   if (frameUUID === TOP_FRAME_UUID) {
@@ -152,6 +167,13 @@ async function connected(port) {
       "tabId": tabId,
       "defaultSettings": settings
     });
+
+    const actTab = activeTabs[tabId];
+    delete actTab.settings;
+    delete actTab.settingsPreserve;
+    delete actTab.settingsReloaded;
+    delete actTab.settingsTimeout;
+    delete actTab.settingsOrphaned;
   }
 }
 
@@ -167,16 +189,20 @@ function onBrowserAction(tab) {
 
 function onEnableTab(tab) {
   const tabId = tab.id;
+  const delay = 1000;
 
-  browser.webNavigation.getAllFrames({"tabId": tabId})
+  Utils.makeDelay(delay).then(function() {
+    return browser.webNavigation.getAllFrames({"tabId": tabId});
+  })
   .then(function(frames) {
     for (let k = 0, n = frames.length; k < n; k += 1) {
       const frame = frames[k];
-      if (frame.frameId !== 0) {
+      if (frame.frameId !== 0 && frame.url.indexOf("http") === 0) {
         browser.tabs.executeScript({
           "file": BROWSER_POLYFILL_JS_PATH,
           "frameId": frame.frameId
-        }).then(function() {
+        })
+        .then(function() {
           return browser.tabs.executeScript({
             "file": UTILS_JS_PATH,
             "frameId": frame.frameId
@@ -210,7 +236,14 @@ function onEnableTab(tab) {
     browser.webNavigation.onCompleted.addListener(onNavigationCompleted);
   }
 
-  activeTabs[tabId] = {"frames": [], "tabId": tabId};
+  if (tabId in activeTabs) {
+    activeTabs[tabId].settingsReloaded = true;
+    clearTimeout(activeTabs[tabId].settingsTimeout);
+    activeTabs[tabId].frames = [];
+  } else {
+    activeTabs[tabId] = {"frames": [], "tabId": tabId};
+  }
+
   browser.browserAction.setIcon(
     {"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}
   ).then(nullifyError).catch(nullifyError);
@@ -291,7 +324,8 @@ function onMessage(msg) {
     case MessageCommands.HIGHLIGHT: {
       const tabId = msg.tabId;
       const frames = activeTabs[tabId].frames;
-      const targetFrame = frames.find((el) => el.frameUUID === msg.targetFrameUUID);
+      const targetFrameUUID = msg.targetFrameUUID;
+      const targetFrame = frames.find((el) => el.frameUUID === targetFrameUUID);
 
       if (targetFrame) {
         targetFrame.port.postMessage(msg);
@@ -303,8 +337,10 @@ function onMessage(msg) {
     case MessageCommands.UPDATE_CANVASES: {
       const tabId = msg.tabId;
       const frames = activeTabs[tabId].frames;
-      const targetFrame = frames.find((el) => el.frameUUID === msg.targetFrameUUID);
-      if (msg.targetFrameUUID === ALL_FRAMES_UUID && msg.frameUUID === TOP_FRAME_UUID) {
+      const targetFrameUUID = msg.targetFrameUUID;
+      const frameUUID = msg.frameUUID;
+      const targetFrame = frames.find((el) => el.frameUUID === targetFrameUUID);
+      if (targetFrameUUID === ALL_FRAMES_UUID && frameUUID === TOP_FRAME_UUID) {
         for (let k = 0, n = frames.length; k < n; k += 1) {
           const frame = frames[k];
           if (frame.frameUUID !== TOP_FRAME_UUID) {
@@ -368,6 +404,17 @@ function onTabNotify(msg) {
       }
     }
   }, NOTIFICATION_DURATION);
+}
+
+async function getAllFramesForTab(tabId) {
+  const tabFrames = [];
+
+  await browser.webNavigation.getAllFrames({"tabId": tabId})
+  .then(function(frames) {
+    tabFrames.push(...frames);
+  });
+
+  return tabFrames;
 }
 
 async function getSettings() {
