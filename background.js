@@ -178,6 +178,10 @@ function onEnableTab(tab) {
     browser.webNavigation.onCompleted.addListener(onNavigationCompleted);
   }
 
+  if (!browser.tabs.onRemoved.hasListener(onTabRemoved)) {
+    browser.tabs.onRemoved.addListener(onTabRemoved);
+  }
+
   if (tabId in activeTabs) {
     activeTabs[tabId].settingsReloaded = true;
     clearTimeout(activeTabs[tabId].settingsTimeout);
@@ -189,6 +193,17 @@ function onEnableTab(tab) {
   browser.browserAction.setIcon(
     {"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}
   );
+}
+
+function onTabRemoved(tabId) {
+  if (tabId in activeTabs) {
+    delete activeTabs[tabId];
+  }
+
+  const keys = Object.keys(activeTabs);
+  if (!keys.length && browser.tabs.onRemoved.hasListener(onTabRemoved)) {
+    browser.tabs.onRemoved.removeListener(onTabRemoved);
+  }
 }
 
 function onDisableTab(tabId) {
