@@ -82,7 +82,7 @@ function onNavigationCompleted(details) {
   const isTopFrame = details.frameId === 0;
   const haveTab = tabId in activeTabs;
   const haveValidUrl = details.url.indexOf("http") === 0;
-  const haveSettings = Boolean(activeTabs[tabId].settingsOrphaned);
+  const haveSettings = haveTab && Boolean(activeTabs[tabId].settingsOrphaned);
 
   if (isTopFrame && haveTab && haveValidUrl && haveSettings) {
     const frames = activeTabs[tabId].frames;
