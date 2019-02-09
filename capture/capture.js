@@ -516,11 +516,11 @@ function saveCanvasSettings() {
 
   for (const key of Object.keys(Ext.frames)) {
     delete Ext.frames[key].settings;
-    Ext.frames[key].settings = {};
+    Ext.frames[key].settings = Object.create(null);
   }
 
   for (let k = 0, n = rows.length; k < n; k += 1) {
-    const settings = {};
+    const settings = Object.create(null);
     const row = rows[k];
     const frameUUID = row.dataset.frameUUID;
     const pathSpec = row.dataset.pathSpec;
@@ -886,21 +886,7 @@ function handleInputFocus() {
   window.addEventListener("keyup", handleKeyEventsOnFocus, true);
 }
 
-function handleInputBlur(e) {
-  const el = e.target.parentElement;
-
-  if (el) {
-    for (const key of Object.keys(UPDATE_GLOBAL_SETTINGS_MAP)) {
-      if (el.classList.contains(key)) {
-        Ext.port.postMessage({
-          "command": MessageCommands.UPDATE_SETTINGS,
-          "setting": UPDATE_GLOBAL_SETTINGS_MAP[key],
-          "value": e.target.value
-        });
-      }
-    }
-  }
-
+function handleInputBlur() {
   window.removeEventListener("keypress", handleKeyEventsOnFocus, true);
   window.removeEventListener("keydown", handleKeyEventsOnFocus, true);
   window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
