@@ -537,7 +537,8 @@ function handleMessageUpdateSettings(msg) {
 
 function saveCanvasSettings() {
   const wrapper = document.getElementById(WRAPPER_ID);
-  const rows = Array.from(wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const rows = Array.from(wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`))
+    .filter((el) => el.dataset.frameUUID in Ext.frames);
 
   for (const key of Object.keys(Ext.frames)) {
     delete Ext.frames[key].settings;
@@ -1109,7 +1110,7 @@ function updateCanvases() {
 
   saveCanvasSettings();
 
-  oldRows.forEach((row) => row.parentElement.removeChild(row));
+  oldRows.forEach((row) => row.remove());
   canvases.forEach(function(canvas) {
     if (canvas.local) {
       Ext.canvasMutObs.observe(canvas.element, CANVAS_OBSERVER_OPS);
