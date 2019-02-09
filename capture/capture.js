@@ -223,11 +223,6 @@ function handleWindowLoad() {
     "childList": true,
     "subtree": true
   });
-
-  const frames = Array.from(document.querySelectorAll("iframe"));
-  if (frames.length) {
-    handleAddedIframes(frames);
-  }
 }
 
 function handleWindowMessage(evt) {
@@ -437,6 +432,11 @@ function handleMessageIframeAdded() {
 function handleMessageRegister(msg) {
   Ext.tabId = msg.tabId;
   Ext.frameId = msg.frameId;
+
+  const frames = Array.from(document.querySelectorAll("iframe"));
+  if (frames.length) {
+    handleAddedIframes(frames);
+  }
 }
 
 function handleMessageUpdateCanvases(msg) {
@@ -776,15 +776,21 @@ function observeIframeMutations(mutations) {
 }
 
 function handleAddedIframes(iframes) {
+  // console.log(iframes);
+  // console.trace();
   for (let k = 0, n = iframes.length; k < n; k += 1) {
     const iframe = iframes[k];
     Ext.iframeMutObs.observe(iframe, IFRAME_OBSERVER_OPS);
-    Ext.port.postMessage({
-      "command": MessageCommands.IFRAME_ADDED,
-      "tabId": Ext.tabId,
-      "frameUUID": TOP_FRAME_UUID,
-      "frameUrl": iframe.src
-    });
+    if (iframe.src.indexOf("http") === 0) {
+      // console.log("iframe.src.indexOf('http') === 0");
+      // console.log(iframe.src);
+      Ext.port.postMessage({
+        "command": MessageCommands.IFRAME_ADDED,
+        "tabId": Ext.tabId,
+        "frameUUID": TOP_FRAME_UUID,
+        "frameUrl": iframe.src
+      });
+    }
   }
 }
 

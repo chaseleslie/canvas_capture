@@ -39,7 +39,6 @@ const ICON_ACTIVE_PATH_MAP = Object.freeze({
 });
 
 const TOP_FRAME_UUID = Utils.TOP_FRAME_UUID;
-const BG_FRAME_UUID = Utils.BG_FRAME_UUID;
 const ALL_FRAMES_UUID = Utils.ALL_FRAMES_UUID;
 
 const CAPTURE_JS_PATH = "/capture/capture.js";
@@ -80,49 +79,19 @@ function handleInstall(details) {
 
 function onNavigationCompleted(details) {
   const tabId = details.tabId;
-  const frameId = details.frameId;
-  const url = details.url;
+  const isTopFrame = details.frameId === 0;
   const haveTab = tabId in activeTabs;
+  const haveValidUrl = details.url.indexOf("http") === 0;
+  const haveSettings = Boolean(activeTabs[tabId].settingsOrphaned);
 
-  if (url.indexOf("http") !== 0 || !haveTab) {
-    return;
-  } else if (frameId === 0 && activeTabs[tabId].settingsOrphaned) {
+  if (isTopFrame && haveTab && haveValidUrl && haveSettings) {
     const frames = activeTabs[tabId].frames;
     const frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
     const frameUrl = frame.url.split("#")[0];
     if (frameUrl in activeTabs[tabId].settings) {
       onEnableTab({"id": tabId});
     }
-    return;
-  } else if (frameId !== 0 && activeTabs[tabId].settingsOrphaned) {
-    return;
-  } else if (frameId === 0) {
-    return;
   }
-
-  browser.tabs.executeScript({
-    "file": BROWSER_POLYFILL_JS_PATH,
-    "frameId": frameId
-  }).then(function() {
-    return browser.tabs.executeScript({
-      "file": UTILS_JS_PATH,
-      "frameId": frameId
-    });
-  }).then(function() {
-    return browser.tabs.executeScript({
-      "file": CAPTURE_FRAMES_JS_PATH,
-      "frameId": frameId
-    });
-  }).then(function() {
-    const frames = activeTabs[tabId].frames;
-    const frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
-    frame.port.postMessage({
-      "command": MessageCommands.UPDATE_CANVASES,
-      "tabId": tabId,
-      "frameUUID": BG_FRAME_UUID,
-      "targetFrameUUID": TOP_FRAME_UUID
-    });
-  });
 }
 
 async function connected(port) {
@@ -189,46 +158,19 @@ function onBrowserAction(tab) {
 
 function onEnableTab(tab) {
   const tabId = tab.id;
-  const delay = 1000;
 
-  Utils.makeDelay(delay).then(function() {
-    return browser.webNavigation.getAllFrames({"tabId": tabId});
-  })
-  .then(function(frames) {
-    for (let k = 0, n = frames.length; k < n; k += 1) {
-      const frame = frames[k];
-      if (frame.frameId !== 0 && frame.url.indexOf("http") === 0) {
-        browser.tabs.executeScript({
-          "file": BROWSER_POLYFILL_JS_PATH,
-          "frameId": frame.frameId
-        })
-        .then(function() {
-          return browser.tabs.executeScript({
-            "file": UTILS_JS_PATH,
-            "frameId": frame.frameId
-          });
-        }).then(function() {
-          browser.tabs.executeScript({
-            "file": CAPTURE_FRAMES_JS_PATH,
-            "frameId": frame.frameId
-          });
-        });
-      }
-    }
-
-    browser.tabs.executeScript({
-      "file": BROWSER_POLYFILL_JS_PATH,
+  browser.tabs.executeScript({
+    "file": BROWSER_POLYFILL_JS_PATH,
+    "frameId": 0
+  }).then(function() {
+    return browser.tabs.executeScript({
+      "file": UTILS_JS_PATH,
       "frameId": 0
-    }).then(function() {
-      return browser.tabs.executeScript({
-        "file": UTILS_JS_PATH,
-        "frameId": 0
-      });
-    }).then(function() {
-      browser.tabs.executeScript({
-        "file": CAPTURE_JS_PATH,
-        "frameId": 0
-      });
+    });
+  }).then(function() {
+    browser.tabs.executeScript({
+      "file": CAPTURE_JS_PATH,
+      "frameId": 0
     });
   });
 
@@ -315,7 +257,7 @@ function onDisconnectTab(msg) {
   }
 }
 
-function injectFrameContentScripts(frameId) {
+function injectFrameContentScripts(tabId, frameId) {
   browser.tabs.executeScript({
     "file": BROWSER_POLYFILL_JS_PATH,
     "frameId": frameId
@@ -326,29 +268,42 @@ function injectFrameContentScripts(frameId) {
       "frameId": frameId
     });
   }).then(function() {
-    browser.tabs.executeScript({
+    return browser.tabs.executeScript({
       "file": CAPTURE_FRAMES_JS_PATH,
       "frameId": frameId
+    });
+  }).then(function() {
+    const frames = activeTabs[tabId].frames;
+    const topFrame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+    const port = topFrame.port;
+    port.postMessage({
+      "command": MessageCommands.UPDATE_CANVASES,
+      "tabId": tabId,
+      "frameUUID": Utils.BG_FRAME_UUID,
+      "targetFrameUUID": TOP_FRAME_UUID
     });
   });
 }
 
 async function handleIframeAdded(msg) {
-  console.log(msg);
+  await Utils.makeDelay(250);
+
   const tabId = msg.tabId;
   const frameUrl = msg.frameUrl.split("#")[0];
   const frames = await getAllFramesForTab(tabId);
-
+// console.log(frames);
   for (let k = 0, n = frames.length; k < n; k += 1) {
     const frame = frames[k];
+    // console.log(frame.url);
+    // console.log(frameUrl);
     if (frame.url === frameUrl) {
-      injectFrameContentScripts(frame.frameId);
+      // console.log("injecting content scripts");
+      injectFrameContentScripts(tabId, frame.frameId);
     }
   }
 }
 
 async function handleIframeNavigated(msg) {
-  console.log(msg);
   const frameUrl = msg.frameUrl.split("#")[0];
 
   if (frameUrl.indexOf("http") !== 0 || frameUrl.indexOf("data") !== 0) {
@@ -361,7 +316,7 @@ async function handleIframeNavigated(msg) {
   for (let k = 0, n = frames.length; k < n; k += 1) {
     const frame = frames[k];
     if (frame.url === frameUrl) {
-      injectFrameContentScripts(frame.frameId);
+      injectFrameContentScripts(tabId, frame.frameId);
     }
   }
 }

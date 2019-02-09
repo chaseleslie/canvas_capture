@@ -130,11 +130,6 @@ function handleWindowLoad() {
     "childList": true,
     "subtree": true
   });
-
-  const frames = Array.from(document.querySelectorAll("iframe"));
-  if (frames.length) {
-    handleAddedIframes(frames);
-  }
 }
 
 function handleWindowMessage(evt) {
@@ -163,8 +158,7 @@ function onMessage(msg) {
   } else if (msg.command === MessageCommands.HIGHLIGHT) {
     handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
-    Ext.tabId = msg.tabId;
-    Ext.frameId = msg.frameId;
+    handleMessageRegister(msg);
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     const canvases = Array.from(document.body.querySelectorAll("canvas"));
     Ext.frames[FRAME_UUID].canvases = canvases;
@@ -273,6 +267,19 @@ function handleMessageHighlight(msg) {
     },
     "canCapture": canCaptureStream(canvas)
   });
+}
+
+function handleMessageRegister(msg) {
+  Ext.tabId = msg.tabId;
+  Ext.frameId = msg.frameId;
+
+  const canvases = Array.from(document.querySelectorAll("canvas"));
+  updateCanvases(canvases);
+
+  const frames = Array.from(document.querySelectorAll("iframe"));
+  if (frames.length) {
+    handleAddedIframes(frames);
+  }
 }
 
 function observeBodyMutations(mutations) {
