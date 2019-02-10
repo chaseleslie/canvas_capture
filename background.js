@@ -317,13 +317,22 @@ async function handleIframeNavigated(msg) {
     }
   }
 
-  const frames = await getAllFramesForTab(tabId);
+  const frames = (await getAllFramesForTab(tabId)).filter(function(el) {
+    for (let k = 0, n = activeTabs[tabId].frames.length; k < n; k += 1) {
+      const frame = activeTabs[tabId].frames[k];
+      const url = frame.url.split("#")[0];
+
+      if (el.url === url) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 
   for (let k = 0, n = frames.length; k < n; k += 1) {
     const frame = frames[k];
-    if (frame.url === frameUrl) {
-      injectFrameContentScripts(tabId, frame.frameId);
-    }
+    injectFrameContentScripts(tabId, frame.frameId);
   }
 }
 
