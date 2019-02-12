@@ -159,16 +159,16 @@ function onBrowserAction(tab) {
 function onEnableTab(tab) {
   const tabId = tab.id;
 
-  browser.tabs.executeScript({
+  browser.tabs.executeScript(tabId, {
     "file": BROWSER_POLYFILL_JS_PATH,
     "frameId": 0
   }).then(function() {
-    return browser.tabs.executeScript({
+    return browser.tabs.executeScript(tabId, {
       "file": UTILS_JS_PATH,
       "frameId": 0
     });
   }).then(function() {
-    browser.tabs.executeScript({
+    browser.tabs.executeScript(tabId, {
       "file": CAPTURE_JS_PATH,
       "frameId": 0
     });
@@ -273,17 +273,17 @@ function onDisconnectTab(msg) {
 }
 
 function injectFrameContentScripts(tabId, frameId) {
-  browser.tabs.executeScript({
+  browser.tabs.executeScript(tabId, {
     "file": BROWSER_POLYFILL_JS_PATH,
     "frameId": frameId
   })
   .then(function() {
-    return browser.tabs.executeScript({
+    return browser.tabs.executeScript(tabId, {
       "file": UTILS_JS_PATH,
       "frameId": frameId
     });
   }).then(function() {
-    return browser.tabs.executeScript({
+    return browser.tabs.executeScript(tabId, {
       "file": CAPTURE_FRAMES_JS_PATH,
       "frameId": frameId
     });
@@ -318,6 +318,10 @@ async function handleIframeNavigated(msg) {
   }
 
   const frames = (await getAllFramesForTab(tabId)).filter(function(el) {
+    if (el.frameId === 0) {
+      return false;
+    }
+
     for (let k = 0, n = activeTabs[tabId].frames.length; k < n; k += 1) {
       const frame = activeTabs[tabId].frames[k];
       const url = frame.url.split("#")[0];
