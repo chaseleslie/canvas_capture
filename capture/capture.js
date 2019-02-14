@@ -178,6 +178,7 @@ const Ext = Object.seal({
       "settings": {}
     }
   },
+  "reloadedFrameSettings": {},
   "frameElementsTS": 0,
   "frameElementsKeys": [],
   "frameElementsTimeoutId": -1,
@@ -431,6 +432,10 @@ function handleMessageRegister(msg) {
   Ext.tabId = msg.tabId;
   Ext.frameId = msg.frameId;
 
+  if (msg.settings) {
+    Ext.reloadedFrameSettings = msg.settings;
+  }
+
   const frames = Array.from(document.querySelectorAll("iframe"));
   if (frames.length) {
     handleAddedIframes(frames);
@@ -524,6 +529,8 @@ function handleMessageUpdateCanvases(msg) {
   } else if (Ext.frameElementsTimeoutId < 0) {
     Ext.frameElementsTimeoutId = setTimeout(identifyFrames, 2000);
   }
+
+  loadSavedFrameSettings();
 }
 
 function handleMessageUpdateSettings(msg) {
@@ -586,9 +593,11 @@ function loadCanvasSettings() {
     const pathSpec = row.dataset.pathSpec;
     const frame = Ext.frames[frameUUID];
     const settings = frame && frame.settings[pathSpec];
+
     if (settings) {
       for (const key of Object.keys(SAVE_SETTINGS_MAP)) {
         const span = row.querySelector(`.${key}`);
+
         if (span) {
           const input = span.firstElementChild;
           const value = settings[SAVE_SETTINGS_MAP[key]];
@@ -602,6 +611,71 @@ function loadCanvasSettings() {
           } else if (input.type.toUpperCase() === "CHECKBOX") {
             input.checked = value;
           }
+        }
+      }
+    }
+  }
+}
+
+function loadSavedFrameSettings() {
+  const wrapper = document.getElementById(WRAPPER_ID);
+  const rows = Array.from(wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const reloadedFrameSettingsKeys = Object.keys(Ext.reloadedFrameSettings);
+
+  if (!reloadedFrameSettingsKeys.length) {
+    return;
+  }
+
+  for (const url of reloadedFrameSettingsKeys) {
+    let settingsLoaded = false;
+    for (const frameUUID of Object.keys(Ext.frames)) {
+      const frame = Ext.frames[frameUUID];
+
+      if (frame.frameUrl === url) {
+        const frameSettingsKeys = Object.keys(Ext.reloadedFrameSettings[url]);
+
+        if (!frameSettingsKeys.length) {
+          settingsLoaded = true;
+        }
+
+        for (const pathSpec of frameSettingsKeys) {
+          const settings = Ext.reloadedFrameSettings[url][pathSpec];
+
+          for (let k = 0, n = rows.length; k < n; k += 1) {
+            const row = rows[k];
+
+            if (row.dataSet.pathSpec === pathSpec) {
+              loadSavedSettingsToRow(row, settings);
+              settingsLoaded = true;
+            }
+          }
+        }
+      }
+    }
+
+    if (settingsLoaded) {
+      delete Ext.reloadedFrameSettings[url];
+    }
+  }
+}
+
+function loadSavedSettingsToRow(row, settings) {
+  if (settings) {
+    for (const key of Object.keys(SAVE_SETTINGS_MAP)) {
+      const span = row.querySelector(`.${key}`);
+
+      if (span) {
+        const input = span.firstElementChild;
+        const value = settings[SAVE_SETTINGS_MAP[key]];
+
+        if (key === LIST_CANVASES_CAPTURE_TIMER_CLASS) {
+          input.dataset.hasTimer = Boolean(parseInt(value, 10));
+          input.dataset.timerSeconds = value;
+          handleRowTimerModifyClose(input);
+        } else if (input.type.toUpperCase() === "TEXT") {
+          input.value = value;
+        } else if (input.type.toUpperCase() === "CHECKBOX") {
+          input.checked = value;
         }
       }
     }
@@ -1067,6 +1141,7 @@ function setupDisplay(html) {
     }
   });
 
+  loadSavedFrameSettings();
   updateCanvases();
 }
 
