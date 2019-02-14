@@ -644,7 +644,7 @@ function loadSavedFrameSettings() {
           for (let k = 0, n = rows.length; k < n; k += 1) {
             const row = rows[k];
 
-            if (row.dataSet.pathSpec === pathSpec) {
+            if (row.dataset.pathSpec === pathSpec) {
               loadSavedSettingsToRow(row, settings);
               settingsLoaded = true;
             }
@@ -1141,8 +1141,8 @@ function setupDisplay(html) {
     }
   });
 
-  loadSavedFrameSettings();
   updateCanvases();
+  loadSavedFrameSettings();
 }
 
 function getAllCanvases() {
@@ -1886,6 +1886,8 @@ function handlePageUnload() {
   if (!Ext.settings[Utils.AUTO_OPEN_KEY]) {
     return;
   }
+
+  saveCanvasSettings();
 
   const settings = Object.create(null);
 
