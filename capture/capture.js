@@ -86,12 +86,6 @@ const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributeFilter": ["id", "width", "height"]
 });
 
-const IFRAME_OBSERVER_OPS = Object.freeze({
-  "attributes": true,
-  "attributeFilter": ["src"],
-  "attributeOldValue": true
-});
-
 /* Settings which get saved per-canvas to persist page refresh */
 const SAVE_SETTINGS_MAP = Object.freeze({
   [LIST_CANVASES_CAPTURE_FPS_CLASS]:    "fps",
@@ -186,7 +180,6 @@ const Ext = Object.seal({
   "wrapperMouseHover": false,
   "bodyMutObs": new MutationObserver(observeBodyMutations),
   "canvasMutObs": new MutationObserver(observeCanvasMutations),
-  "iframeMutObs": new MutationObserver(observeIframeMutations),
   "highlighter": Object.seal({
     "left": null,
     "top": null,
@@ -834,25 +827,10 @@ function observeCanvasMutations(mutations) {
   }
 }
 
-function observeIframeMutations(mutations) {
-  for (let k = 0, n = mutations.length; k < n; k += 1) {
-    const mutation = mutations[k];
-    const iframe = mutation.target;
-    Ext.port.postMessage({
-      "command":      MessageCommands.IFRAME_NAVIGATED,
-      "tabId":        Ext.tabId,
-      "frameUUID":    TOP_FRAME_UUID,
-      "frameUrl":     iframe.src,
-      "oldFrameUrl":  mutation.oldValue
-    });
-  }
-}
-
 function handleAddedIframes(iframes) {
   for (let k = 0, n = iframes.length; k < n; k += 1) {
     const iframe = iframes[k];
     iframe.addEventListener("load", handleIframeLoaded, false);
-    Ext.iframeMutObs.observe(iframe, IFRAME_OBSERVER_OPS);
     Ext.port.postMessage({
       "command":      MessageCommands.IFRAME_NAVIGATED,
       "tabId":        Ext.tabId,
