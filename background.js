@@ -16,7 +16,7 @@
 
 "use strict";
 
-/* global browser */
+/* global browser Utils */
 /* exported sendUpdatedSettings */
 
 const APP_NAME = browser.runtime.getManifest().name;
@@ -38,72 +38,38 @@ const ICON_ACTIVE_PATH_MAP = Object.freeze({
   "128": "/img/icon_active_128.svg"
 });
 
+const TOP_FRAME_UUID = Utils.TOP_FRAME_UUID;
+const ALL_FRAMES_UUID = Utils.ALL_FRAMES_UUID;
+
 const CAPTURE_JS_PATH = "/capture/capture.js";
 const BROWSER_POLYFILL_JS_PATH = "/lib/webextension-polyfill/browser-polyfill.min.js";
 const CAPTURE_FRAMES_JS_PATH = "/capture/capture-frames.js";
-const TOP_FRAME_UUID = "top";
-const BG_FRAME_UUID = "background";
-const ALL_FRAMES_UUID = "*";
+const UTILS_JS_PATH = "/capture/utils.js";
 
-const MAX_VIDEO_SIZE_KEY = "maxVideoSize";
-const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
-
-const FPS_KEY = "fps";
-const DEFAULT_FPS = 30;
-
-const BPS_KEY = "bps";
-const DEFAULT_BPS = 2500000;
-
-const MessageCommands = Object.freeze({
-  "CAPTURE_START":   0,
-  "CAPTURE_STOP":    1,
-  "DELAY":           2,
-  "DISABLE":         3,
-  "DISCONNECT":      4,
-  "DISPLAY":         5,
-  "DOWNLOAD":        6,
-  "HIGHLIGHT":       7,
-  "NOTIFY":          8,
-  "REGISTER":        9,
-  "UPDATE_CANVASES": 10,
-  "UPDATE_SETTINGS": 11
-});
+const MessageCommands = Utils.MessageCommands;
 
 const NOTIFICATION_DURATION = 10000;
 const notifications = [];
 
+const SETTINGS_RELOAD_TIMEOUT = 15000;
+
 browser.browserAction.setIcon(
   {"path": ICON_PATH_MAP}
-).then(nullifyError).catch(nullifyError);
+);
 browser.runtime.onConnect.addListener(connected);
 browser.browserAction.onClicked.addListener(onBrowserAction);
-
-if ("onInstalled" in browser.runtime) {
-  /* New browser version support runtime.onInstalled */
-  browser.runtime.onInstalled.addListener(handleInstall);
-} else {
-  /* Fallback for older browser versions first install */
-  browser.storage.local.get("firstInstall").then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
-    if (!("firstInstall" in setting)) {
-      handleInstall({"reason": "install"});
-    }
-  }).catch(function() {
-    handleInstall({"reason": "install"});
-  });
-}
+browser.runtime.onInstalled.addListener(handleInstall);
 
 function handleInstall(details) {
   const reason = details.reason;
   switch (reason) {
     case "install": {
       const obj = {
-        [MAX_VIDEO_SIZE_KEY]: DEFAULT_MAX_VIDEO_SIZE,
-        [FPS_KEY]: DEFAULT_FPS,
-        [BPS_KEY]: DEFAULT_BPS,
-        "firstInstall": true
+        [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
+        [Utils.FPS_KEY]:            Utils.DEFAULT_FPS,
+        [Utils.BPS_KEY]:            Utils.DEFAULT_BPS,
+        [Utils.AUTO_OPEN_KEY]:      Utils.DEFAULT_AUTO_OPEN,
+        "firstInstall":             true
       };
       browser.storage.local.set(obj);
     }
@@ -113,34 +79,19 @@ function handleInstall(details) {
 
 function onNavigationCompleted(details) {
   const tabId = details.tabId;
-  const frameId = details.frameId;
+  const isTopFrame = details.frameId === 0;
+  const haveTab = tabId in activeTabs;
+  const haveValidUrl = details.url.indexOf("http") === 0;
+  const haveSettings = haveTab && Boolean(activeTabs[tabId].settingsOrphaned);
 
-  if (
-    frameId === 0 ||
-    !(tabId in activeTabs) ||
-    details.url.indexOf("http") !== 0
-  ) {
-    return;
-  }
-
-  browser.tabs.executeScript({
-    "file": BROWSER_POLYFILL_JS_PATH,
-    "frameId": frameId
-  }).then(function() {
-    return browser.tabs.executeScript({
-      "file": CAPTURE_FRAMES_JS_PATH,
-      "frameId": frameId
-    });
-  }).then(function() {
+  if (isTopFrame && haveTab && haveValidUrl && haveSettings) {
     const frames = activeTabs[tabId].frames;
     const frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
-    frame.port.postMessage({
-      "command": MessageCommands.UPDATE_CANVASES,
-      "tabId": tabId,
-      "frameUUID": BG_FRAME_UUID,
-      "targetFrameUUID": TOP_FRAME_UUID
-    });
-  });
+    const frameUrl = frame.url.split("#")[0];
+    if (frameUrl in activeTabs[tabId].settings) {
+      onEnableTab({"id": tabId});
+    }
+  }
 }
 
 async function connected(port) {
@@ -153,7 +104,12 @@ async function connected(port) {
   const frameUUID = port.name;
   const url = sender.url;
   const frames = activeTabs[tabId].frames;
-  const frame = {"frameUUID": frameUUID, "port": port, "url": url, "frameId": frameId};
+  const frame = {
+    "frameUUID": frameUUID,
+    "port": port,
+    "url": url,
+    "frameId": frameId
+  };
   frames.push(frame);
 
   port.onDisconnect.addListener(function() {
@@ -168,7 +124,8 @@ async function connected(port) {
   port.postMessage({
     "command": MessageCommands.REGISTER,
     "tabId": tabId,
-    "frameId": frameId
+    "frameId": frameId,
+    "settings": activeTabs[tabId].settings
   });
 
   if (frameUUID === TOP_FRAME_UUID) {
@@ -179,6 +136,13 @@ async function connected(port) {
       "tabId": tabId,
       "defaultSettings": settings
     });
+
+    const actTab = activeTabs[tabId];
+    delete actTab.settings;
+    delete actTab.settingsPreserve;
+    delete actTab.settingsReloaded;
+    delete actTab.settingsTimeout;
+    delete actTab.settingsOrphaned;
   }
 }
 
@@ -195,41 +159,51 @@ function onBrowserAction(tab) {
 function onEnableTab(tab) {
   const tabId = tab.id;
 
-  browser.webNavigation.getAllFrames({"tabId": tabId})
-  .then(function(frames) {
-    for (let k = 0, n = frames.length; k < n; k += 1) {
-      const frame = frames[k];
-      if (frame.frameId !== 0) {
-        browser.tabs.executeScript({
-          "file": BROWSER_POLYFILL_JS_PATH,
-          "frameId": frame.frameId
-        }).then(function() {
-          browser.tabs.executeScript({
-            "file": CAPTURE_FRAMES_JS_PATH,
-            "frameId": frame.frameId
-          });
-        });
-      }
-    }
-
-    browser.tabs.executeScript({
-      "file": BROWSER_POLYFILL_JS_PATH,
+  browser.tabs.executeScript(tabId, {
+    "file": BROWSER_POLYFILL_JS_PATH,
+    "frameId": 0
+  }).then(function() {
+    return browser.tabs.executeScript(tabId, {
+      "file": UTILS_JS_PATH,
       "frameId": 0
-    }).then(function() {
-      browser.tabs.executeScript({
-        "file": CAPTURE_JS_PATH,
-        "frameId": 0
-      });
+    });
+  }).then(function() {
+    browser.tabs.executeScript(tabId, {
+      "file": CAPTURE_JS_PATH,
+      "frameId": 0
     });
   });
 
   if (!browser.webNavigation.onCompleted.hasListener(onNavigationCompleted)) {
     browser.webNavigation.onCompleted.addListener(onNavigationCompleted);
   }
-  activeTabs[tabId] = {"frames": [], "tabId": tabId};
+
+  if (!browser.tabs.onRemoved.hasListener(onTabRemoved)) {
+    browser.tabs.onRemoved.addListener(onTabRemoved);
+  }
+
+  if (tabId in activeTabs) {
+    activeTabs[tabId].settingsReloaded = true;
+    clearTimeout(activeTabs[tabId].settingsTimeout);
+    activeTabs[tabId].frames = [];
+  } else {
+    activeTabs[tabId] = {"frames": [], "tabId": tabId};
+  }
+
   browser.browserAction.setIcon(
     {"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}
-  ).then(nullifyError).catch(nullifyError);
+  );
+}
+
+function onTabRemoved(tabId) {
+  if (tabId in activeTabs) {
+    delete activeTabs[tabId];
+  }
+
+  const keys = Object.keys(activeTabs);
+  if (!keys.length && browser.tabs.onRemoved.hasListener(onTabRemoved)) {
+    browser.tabs.onRemoved.removeListener(onTabRemoved);
+  }
 }
 
 function onDisableTab(tabId) {
@@ -253,15 +227,20 @@ function onDisconnectTab(msg) {
   const tabId = msg.tabId;
   const frameUUID = msg.frameUUID;
 
-  if (!(tabId in activeTabs)) {
+  if (!(tabId in activeTabs) || activeTabs[tabId].settingsOrphaned) {
     return;
   }
 
   if (frameUUID === TOP_FRAME_UUID) {
-    delete activeTabs[tabId];
+    if (activeTabs[tabId].settingsPreserve) {
+      activeTabs[tabId].settingsOrphaned = true;
+    } else {
+      delete activeTabs[tabId];
+    }
+
     browser.browserAction.setIcon(
       {"path": ICON_PATH_MAP, "tabId": tabId}
-    ).then(nullifyError).catch(nullifyError);
+    );
     if (
       !Object.keys(activeTabs).length &&
       browser.webNavigation.onCompleted.hasListener(onNavigationCompleted)
@@ -293,6 +272,74 @@ function onDisconnectTab(msg) {
   }
 }
 
+function injectFrameContentScripts(tabId, frameId) {
+  browser.tabs.executeScript(tabId, {
+    "file": BROWSER_POLYFILL_JS_PATH,
+    "frameId": frameId
+  })
+  .then(function() {
+    return browser.tabs.executeScript(tabId, {
+      "file": UTILS_JS_PATH,
+      "frameId": frameId
+    });
+  }).then(function() {
+    return browser.tabs.executeScript(tabId, {
+      "file": CAPTURE_FRAMES_JS_PATH,
+      "frameId": frameId
+    });
+  }).then(function() {
+    const frames = activeTabs[tabId].frames;
+    const topFrame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+    const port = topFrame.port;
+    port.postMessage({
+      "command": MessageCommands.UPDATE_CANVASES,
+      "tabId": tabId,
+      "frameUUID": Utils.BG_FRAME_UUID,
+      "targetFrameUUID": TOP_FRAME_UUID
+    });
+  });
+}
+
+async function handleIframeNavigated(msg) {
+  const frameUrl = msg.frameUrl.split("#")[0];
+  const tabId = msg.tabId;
+
+  if (frameUrl.indexOf("http") !== 0 && frameUrl.indexOf("data") !== 0) {
+    return;
+  }
+
+  for (let k = 0, n = activeTabs[tabId].frames.length; k < n; k += 1) {
+    const frame = activeTabs[tabId].frames[k];
+    const url = frame.url.split("#")[0];
+
+    if (frameUrl === url) {
+      return;
+    }
+  }
+
+  const frames = (await getAllFramesForTab(tabId)).filter(function(el) {
+    if (el.frameId === 0) {
+      return false;
+    }
+
+    for (let k = 0, n = activeTabs[tabId].frames.length; k < n; k += 1) {
+      const frame = activeTabs[tabId].frames[k];
+      const url = frame.url.split("#")[0];
+
+      if (el.url === url) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  for (let k = 0, n = frames.length; k < n; k += 1) {
+    const frame = frames[k];
+    injectFrameContentScripts(tabId, frame.frameId);
+  }
+}
+
 function onMessage(msg) {
   switch (msg.command) {
     case MessageCommands.CAPTURE_START:
@@ -302,7 +349,8 @@ function onMessage(msg) {
     case MessageCommands.HIGHLIGHT: {
       const tabId = msg.tabId;
       const frames = activeTabs[tabId].frames;
-      const targetFrame = frames.find((el) => el.frameUUID === msg.targetFrameUUID);
+      const targetFrameUUID = msg.targetFrameUUID;
+      const targetFrame = frames.find((el) => el.frameUUID === targetFrameUUID);
 
       if (targetFrame) {
         targetFrame.port.postMessage(msg);
@@ -314,8 +362,10 @@ function onMessage(msg) {
     case MessageCommands.UPDATE_CANVASES: {
       const tabId = msg.tabId;
       const frames = activeTabs[tabId].frames;
-      const targetFrame = frames.find((el) => el.frameUUID === msg.targetFrameUUID);
-      if (msg.targetFrameUUID === ALL_FRAMES_UUID && msg.frameUUID === TOP_FRAME_UUID) {
+      const targetFrameUUID = msg.targetFrameUUID;
+      const frameUUID = msg.frameUUID;
+      const targetFrame = frames.find((el) => el.frameUUID === targetFrameUUID);
+      if (targetFrameUUID === ALL_FRAMES_UUID && frameUUID === TOP_FRAME_UUID) {
         for (let k = 0, n = frames.length; k < n; k += 1) {
           const frame = frames[k];
           if (frame.frameUUID !== TOP_FRAME_UUID) {
@@ -344,6 +394,10 @@ function onMessage(msg) {
 
     case MessageCommands.UPDATE_SETTINGS:
       updateSettings(msg);
+    break;
+
+    case MessageCommands.IFRAME_NAVIGATED:
+      handleIframeNavigated(msg);
     break;
   }
 }
@@ -381,45 +435,61 @@ function onTabNotify(msg) {
   }, NOTIFICATION_DURATION);
 }
 
+async function getAllFramesForTab(tabId) {
+  const tabFrames = [];
+
+  await browser.webNavigation.getAllFrames({"tabId": tabId})
+  .then(function(frames) {
+    tabFrames.push(...frames);
+  });
+
+  return tabFrames;
+}
+
 async function getSettings() {
-  let maxVideoSize = DEFAULT_MAX_VIDEO_SIZE;
-  let fps = DEFAULT_FPS;
-  let bps = DEFAULT_BPS;
+  let maxVideoSize = Utils.DEFAULT_MAX_VIDEO_SIZE;
+  let fps = Utils.DEFAULT_FPS;
+  let bps = Utils.DEFAULT_BPS;
+  let autoOpen = Utils.DEFAULT_AUTO_OPEN;
 
-  await browser.storage.local.get(MAX_VIDEO_SIZE_KEY)
+  await browser.storage.local.get(Utils.MAX_VIDEO_SIZE_KEY)
   .then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
-    maxVideoSize = setting[MAX_VIDEO_SIZE_KEY] || DEFAULT_MAX_VIDEO_SIZE;
+    maxVideoSize = setting[Utils.MAX_VIDEO_SIZE_KEY] || Utils.DEFAULT_MAX_VIDEO_SIZE;
 
-    return browser.storage.local.get(FPS_KEY);
+    return browser.storage.local.get(Utils.FPS_KEY);
   }).then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
-    fps = setting[FPS_KEY] || DEFAULT_FPS;
+    fps = setting[Utils.FPS_KEY] || Utils.DEFAULT_FPS;
 
-    return browser.storage.local.get(BPS_KEY);
+    return browser.storage.local.get(Utils.BPS_KEY);
   }).then(function(setting) {
-    if (Array.isArray(setting)) {
-      setting = setting[0];
-    }
-    bps = setting[BPS_KEY] || DEFAULT_BPS;
+    bps = setting[Utils.BPS_KEY] || Utils.DEFAULT_BPS;
+
+    return browser.storage.local.get(Utils.AUTO_OPEN_KEY);
+  }).then(function(setting) {
+    autoOpen = setting[Utils.AUTO_OPEN_KEY] || Utils.DEFAULT_AUTO_OPEN;
   });
 
   return {
-    [MAX_VIDEO_SIZE_KEY]: maxVideoSize,
-    [FPS_KEY]:            fps,
-    [BPS_KEY]:            bps
+    [Utils.MAX_VIDEO_SIZE_KEY]: maxVideoSize,
+    [Utils.FPS_KEY]:            fps,
+    [Utils.BPS_KEY]:            bps,
+    [Utils.AUTO_OPEN_KEY]:      autoOpen
   };
 }
 
-/* Receive updated settings from top frame */
+/* Receive updated per-canvas settings from top frame on page unload */
 function updateSettings(msg) {
-  const obj = Object.create(null);
-  obj[msg.setting] = msg.value;
-  browser.storage.local.set(obj);
+  const tabId = msg.tabId;
+  const tab = activeTabs[tabId];
+
+  tab.settings = msg.settings;
+  tab.settingsPreserve = true;
+  tab.settingsReloaded = false;
+  tab.settingsTimeout = setTimeout(function() {
+    if (!tab.settingsReloaded) {
+      delete activeTabs[tabId];
+    }
+  }, SETTINGS_RELOAD_TIMEOUT);
 }
 
 /* Send updated settings to top frames */
@@ -436,11 +506,5 @@ async function sendUpdatedSettings() {
       "tabId":            tabId,
       "defaultSettings":  settings
     });
-  }
-}
-
-function nullifyError() {
-  if (browser.runtime.lastError) {
-    // eslint-disable-line no-empty
   }
 }

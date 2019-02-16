@@ -14,30 +14,17 @@
  */
 
 
- /* global browser */
+ /* global browser Utils */
 
 ; // eslint-disable-line no-extra-semi
 (function() {
 "use strict";
 
-const TOP_FRAME_UUID = "top";
-const BG_FRAME_UUID = "background";
-const ALL_FRAMES_UUID = "*";
+const TOP_FRAME_UUID = Utils.TOP_FRAME_UUID;
+const BG_FRAME_UUID = Utils.BG_FRAME_UUID;
+const ALL_FRAMES_UUID = Utils.ALL_FRAMES_UUID;
 
-const MessageCommands = Object.freeze({
-  "CAPTURE_START":   0,
-  "CAPTURE_STOP":    1,
-  "DELAY":           2,
-  "DISABLE":         3,
-  "DISCONNECT":      4,
-  "DISPLAY":         5,
-  "DOWNLOAD":        6,
-  "HIGHLIGHT":       7,
-  "NOTIFY":          8,
-  "REGISTER":        9,
-  "UPDATE_CANVASES": 10,
-  "UPDATE_SETTINGS": 11
-});
+const MessageCommands = Utils.MessageCommands;
 
 const MIME_TYPE_MAP = Object.freeze({
   "mp4":  "video/mp4",
@@ -46,7 +33,6 @@ const MIME_TYPE_MAP = Object.freeze({
 const DEFAULT_MIME_TYPE = "webm";
 const CAPTURE_INTERVAL_MS = 1000;
 const DEFAULT_DELAY = 0;
-const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
 const MSEC_PER_SEC = 1000;
 const CSS_FILE_PATH = "/capture/capture.css";
 const HTML_FILE_PATH = "/capture/capture.html";
@@ -75,6 +61,7 @@ const DELAY_OVERLAY_CANCEL_ID = "capture_delay_overlay_cancel";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
+const LIST_CANVASES_CAPTURE_TIMER_CLASS = "list_canvases_capture_timer";
 const LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS = "list_canvases_capture_timer_img";
 const LIST_CANVASES_CANVAS_ID_CLASS = "list_canvases_canvas_id";
 const LIST_CANVASES_CANVAS_DIMENS_CLASS = "list_canvases_canvas_dimens";
@@ -99,22 +86,30 @@ const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributeFilter": ["id", "width", "height"]
 });
 
-const INPUT_BLUR_UPDATE_SETTINGS_MAP = Object.freeze({
-  [LIST_CANVASES_CAPTURE_FPS_CLASS]: "fps",
-  [LIST_CANVASES_CAPTURE_BPS_CLASS]: "bps"
+const IFRAME_OBSERVER_OPS = Object.freeze({
+  "attributes": true,
+  "attributeFilter": ["src"],
+  "attributeOldValue": true
+});
+
+/* Settings which get saved per-canvas to persist page refresh */
+const SAVE_SETTINGS_MAP = Object.freeze({
+  [LIST_CANVASES_CAPTURE_FPS_CLASS]:    "fps",
+  [LIST_CANVASES_CAPTURE_BPS_CLASS]:    "bps",
+  [LIST_CANVASES_CAPTURE_DELAY_CLASS]:  "delay",
+  [LIST_CANVASES_CAPTURE_TIMER_CLASS]:  "timer"
 });
 
 const Ext = Object.seal({
   "tabId": null,
   "frameId": null,
-  "port": browser.runtime.connect({
-    "name": TOP_FRAME_UUID
-  }),
+  "port": null,
   "rowTemplate": null,
   "settings": Object.seal({
-    "maxVideoSize": DEFAULT_MAX_VIDEO_SIZE,
-    "fps": 0,
-    "bps": 0
+    [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
+    [Utils.FPS_KEY]:            Utils.DEFAULT_FPS,
+    [Utils.BPS_KEY]:            Utils.DEFAULT_BPS,
+    [Utils.AUTO_OPEN_KEY]:      Utils.DEFAULT_AUTO_OPEN
   }),
   "mediaRecorder": null,
   "displayed": false,
@@ -174,7 +169,16 @@ const Ext = Object.seal({
   "listCanvases": null,
   "chunks": null,
   "objectURLs": [],
-  "frames": {[TOP_FRAME_UUID]: {"frameUUID": TOP_FRAME_UUID, "canvases": []}},
+  "frames": {
+    [TOP_FRAME_UUID]: {
+      "frameUUID": TOP_FRAME_UUID,
+      "canvases": [],
+      "node": window,
+      "frameUrl": window.location.href.split("#")[0],
+      "settings": {}
+    }
+  },
+  "reloadedFrameSettings": {},
   "frameElementsTS": 0,
   "frameElementsKeys": [],
   "frameElementsTimeoutId": -1,
@@ -182,6 +186,7 @@ const Ext = Object.seal({
   "wrapperMouseHover": false,
   "bodyMutObs": new MutationObserver(observeBodyMutations),
   "canvasMutObs": new MutationObserver(observeCanvasMutations),
+  "iframeMutObs": new MutationObserver(observeIframeMutations),
   "highlighter": Object.seal({
     "left": null,
     "top": null,
@@ -202,13 +207,24 @@ const Ext = Object.seal({
   }
 });
 
-Ext.port.onMessage.addListener(onMessage);
-window.addEventListener("message", handleWindowMessage, true);
+if (document.readyState === "loading") {
+  window.addEventListener("load", handleWindowLoad, false);
+} else {
+  handleWindowLoad();
+}
 
-Ext.bodyMutObs.observe(document.body, {
-  "childList": true,
-  "subtree": true
-});
+function handleWindowLoad() {
+  Ext.port = browser.runtime.connect({"name": TOP_FRAME_UUID});
+  Ext.port.onMessage.addListener(onMessage);
+  window.addEventListener("message", handleWindowMessage, true);
+
+  window.addEventListener("beforeunload", handlePageUnload, false);
+
+  Ext.bodyMutObs.observe(document.body, {
+    "childList": true,
+    "subtree": true
+  });
+}
 
 function handleWindowMessage(evt) {
   const msg = evt.data;
@@ -239,7 +255,7 @@ function identifyFrames() {
   Ext.frameElementsTS = Date.now();
   for (let k = 0, n = frameElements.length; k < n; k += 1) {
     const frame = frameElements[k];
-    const key = genUUIDv4();
+    const key = Utils.genUUIDv4();
     Ext.frameElementsKeys.push(key);
     frame.contentWindow.postMessage({
       "command": "identify",
@@ -263,9 +279,10 @@ function onMessage(msg) {
     handleDisplay(msg);
   } else if (msg.command === MessageCommands.HIGHLIGHT) {
     handleMessageHighlight(msg);
+  } else if (msg.command === MessageCommands.IFRAME_NAVIGATED) {
+    handleMessageIframeAdded(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
-    Ext.tabId = msg.tabId;
-    Ext.frameId = msg.frameId;
+    handleMessageRegister(msg);
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     handleMessageUpdateCanvases(msg);
   } else if (msg.command === MessageCommands.UPDATE_SETTINGS) {
@@ -297,7 +314,7 @@ function handleMessageCaptureStop(msg) {
     const link = document.createElement("a");
     link.textContent = "Download";
     link.href = msg.videoURL;
-    link.title = prettyFileSize(msg.size);
+    link.title = Utils.prettyFileSize(msg.size);
 
     if (msg.size) {
       link.addEventListener("click", function(evt) {
@@ -401,6 +418,30 @@ function handleMessageHighlight(msg, node) {
   }
 }
 
+function handleMessageIframeAdded() {
+  Ext.port.postMessage({
+    "command": MessageCommands.UPDATE_CANVASES,
+    "tabId": Ext.tabId,
+    "frameId": Ext.frameId,
+    "frameUUID": TOP_FRAME_UUID,
+    "targetFrameUUID": ALL_FRAMES_UUID
+  });
+}
+
+function handleMessageRegister(msg) {
+  Ext.tabId = msg.tabId;
+  Ext.frameId = msg.frameId;
+
+  if (msg.settings) {
+    Ext.reloadedFrameSettings = msg.settings;
+  }
+
+  const frames = Array.from(document.querySelectorAll("iframe"));
+  if (frames.length) {
+    handleAddedIframes(frames);
+  }
+}
+
 function handleMessageUpdateCanvases(msg) {
   const frameUUID = msg.frameUUID;
 
@@ -419,7 +460,9 @@ function handleMessageUpdateCanvases(msg) {
     Ext.frames[frameUUID] = {
       "frameUUID": frameUUID,
       "canvases": msg.canvases,
-      "frameId": msg.frameId
+      "frameId": msg.frameId,
+      "frameUrl": msg.frameUrl,
+      "settings": {}
     };
   }
 
@@ -486,6 +529,8 @@ function handleMessageUpdateCanvases(msg) {
   } else if (Ext.frameElementsTimeoutId < 0) {
     Ext.frameElementsTimeoutId = setTimeout(identifyFrames, 2000);
   }
+
+  loadSavedFrameSettings();
 }
 
 function handleMessageUpdateSettings(msg) {
@@ -497,27 +542,172 @@ function handleMessageUpdateSettings(msg) {
   }
 }
 
+function saveCanvasSettings() {
+  const wrapper = document.getElementById(WRAPPER_ID);
+  const rows = Array.from(wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`))
+    .filter((el) => el.dataset.frameUUID in Ext.frames);
+
+  for (const key of Object.keys(Ext.frames)) {
+    delete Ext.frames[key].settings;
+    Ext.frames[key].settings = Object.create(null);
+  }
+
+  for (let k = 0, n = rows.length; k < n; k += 1) {
+    const settings = Object.create(null);
+    const row = rows[k];
+    const frameUUID = row.dataset.frameUUID;
+    const pathSpec = row.dataset.pathSpec;
+
+    for (const key of Object.keys(SAVE_SETTINGS_MAP)) {
+      const span = row.querySelector(`.${key}`);
+      let value = null;
+
+      if (span) {
+        const input = span.firstElementChild;
+
+        if (key === LIST_CANVASES_CAPTURE_TIMER_CLASS) {
+          const hasTimer = JSON.parse(input.dataset.hasTimer || "false");
+          const timerSeconds = parseInt(input.dataset.timerSeconds, 10);
+          value = (hasTimer && timerSeconds) ? timerSeconds : "0";
+        } else if (input.type.toUpperCase() === "TEXT") {
+          value = input.value;
+        } else if (input.type.toUpperCase() === "CHECKBOX") {
+          value = input.checked;
+        }
+
+        settings[SAVE_SETTINGS_MAP[key]] = value;
+      }
+    }
+
+    Ext.frames[frameUUID].settings[pathSpec] = settings;
+  }
+}
+
+function loadCanvasSettings() {
+  const wrapper = document.getElementById(WRAPPER_ID);
+  const rows = Array.from(wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+
+  for (let k = 0, n = rows.length; k < n; k += 1) {
+    const row = rows[k];
+    const frameUUID = row.dataset.frameUUID;
+    const pathSpec = row.dataset.pathSpec;
+    const frame = Ext.frames[frameUUID];
+    const settings = frame && frame.settings[pathSpec];
+
+    if (settings) {
+      for (const key of Object.keys(SAVE_SETTINGS_MAP)) {
+        const span = row.querySelector(`.${key}`);
+
+        if (span) {
+          const input = span.firstElementChild;
+          const value = settings[SAVE_SETTINGS_MAP[key]];
+
+          if (key === LIST_CANVASES_CAPTURE_TIMER_CLASS) {
+            input.dataset.hasTimer = Boolean(parseInt(value, 10));
+            input.dataset.timerSeconds = value;
+            handleRowTimerModifyClose(input);
+          } else if (input.type.toUpperCase() === "TEXT") {
+            input.value = value;
+          } else if (input.type.toUpperCase() === "CHECKBOX") {
+            input.checked = value;
+          }
+        }
+      }
+    }
+  }
+}
+
+function loadSavedFrameSettings() {
+  const wrapper = document.getElementById(WRAPPER_ID);
+  const rows = Array.from(wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const reloadedFrameSettingsKeys = Object.keys(Ext.reloadedFrameSettings);
+
+  if (!reloadedFrameSettingsKeys.length) {
+    return;
+  }
+
+  for (const url of reloadedFrameSettingsKeys) {
+    let settingsLoaded = false;
+    for (const frameUUID of Object.keys(Ext.frames)) {
+      const frame = Ext.frames[frameUUID];
+
+      if (frame.frameUrl === url) {
+        const frameSettingsKeys = Object.keys(Ext.reloadedFrameSettings[url]);
+
+        if (!frameSettingsKeys.length) {
+          settingsLoaded = true;
+        }
+
+        for (const pathSpec of frameSettingsKeys) {
+          const settings = Ext.reloadedFrameSettings[url][pathSpec];
+
+          for (let k = 0, n = rows.length; k < n; k += 1) {
+            const row = rows[k];
+
+            if (row.dataset.pathSpec === pathSpec) {
+              loadSavedSettingsToRow(row, settings);
+              settingsLoaded = true;
+            }
+          }
+        }
+      }
+    }
+
+    if (settingsLoaded) {
+      delete Ext.reloadedFrameSettings[url];
+    }
+  }
+}
+
+function loadSavedSettingsToRow(row, settings) {
+  if (settings) {
+    for (const key of Object.keys(SAVE_SETTINGS_MAP)) {
+      const span = row.querySelector(`.${key}`);
+
+      if (span) {
+        const input = span.firstElementChild;
+        const value = settings[SAVE_SETTINGS_MAP[key]];
+
+        if (key === LIST_CANVASES_CAPTURE_TIMER_CLASS) {
+          input.dataset.hasTimer = Boolean(parseInt(value, 10));
+          input.dataset.timerSeconds = value;
+          handleRowTimerModifyClose(input);
+        } else if (input.type.toUpperCase() === "TEXT") {
+          input.value = value;
+        } else if (input.type.toUpperCase() === "CHECKBOX") {
+          input.checked = value;
+        }
+      }
+    }
+  }
+}
+
 function observeBodyMutations(mutations) {
   mutations = mutations.filter((el) => el.type === "childList");
   var addedCanvases = false;
-  var removedCanvases = [];
-  const isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
+  const removedCanvases = [];
+  const addedIframes = [];
+  const isCanvas = (el) => el.nodeName.toUpperCase() === "CANVAS";
+  const isIframe = (el) => el.nodeName.toUpperCase() === "IFRAME";
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
     const mutation = mutations[k];
     for (let iK = 0, iN = mutation.addedNodes.length; iK < iN; iK += 1) {
       if (isCanvas(mutation.addedNodes[iK])) {
         addedCanvases = true;
-        break;
+      } else if (isIframe(mutation.addedNodes[iK])) {
+        addedIframes.push(mutation.addedNodes[iK]);
       }
     }
 
-    removedCanvases = removedCanvases.concat(
-      Array.from(mutation.removedNodes).filter(isCanvas)
-    );
+    removedCanvases.push(...Array.from(mutation.removedNodes).filter(isCanvas));
   }
 
   const canvasesChanged = addedCanvases || removedCanvases.length;
+
+  if (addedIframes.length) {
+    handleAddedIframes(addedIframes);
+  }
 
   if (!canvasesChanged) {
     return;
@@ -644,6 +834,46 @@ function observeCanvasMutations(mutations) {
   }
 }
 
+function observeIframeMutations(mutations) {
+  for (let k = 0, n = mutations.length; k < n; k += 1) {
+    const mutation = mutations[k];
+    const iframe = mutation.target;
+    Ext.port.postMessage({
+      "command":      MessageCommands.IFRAME_NAVIGATED,
+      "tabId":        Ext.tabId,
+      "frameUUID":    TOP_FRAME_UUID,
+      "frameUrl":     iframe.src,
+      "oldFrameUrl":  mutation.oldValue
+    });
+  }
+}
+
+function handleAddedIframes(iframes) {
+  for (let k = 0, n = iframes.length; k < n; k += 1) {
+    const iframe = iframes[k];
+    iframe.addEventListener("load", handleIframeLoaded, false);
+    Ext.iframeMutObs.observe(iframe, IFRAME_OBSERVER_OPS);
+    Ext.port.postMessage({
+      "command":      MessageCommands.IFRAME_NAVIGATED,
+      "tabId":        Ext.tabId,
+      "frameUUID":    TOP_FRAME_UUID,
+      "frameUrl":     iframe.src,
+      "oldFrameUrl":  ""
+    });
+  }
+}
+
+function handleIframeLoaded(e) {
+  const iframe = e.target;
+  Ext.port.postMessage({
+    "command":      MessageCommands.IFRAME_NAVIGATED,
+    "tabId":        Ext.tabId,
+    "frameUUID":    TOP_FRAME_UUID,
+    "frameUrl":     iframe.src,
+    "oldFrameUrl":  ""
+  });
+}
+
 function handleDisable(notify) {
   showNotification(notify);
   Ext.port.disconnect();
@@ -698,9 +928,12 @@ function handleDisable(notify) {
 }
 
 function handleDisplay(msg) {
-  Ext.settings.maxVideoSize = msg.defaultSettings.maxVideoSize;
-  Ext.settings.fps = msg.defaultSettings.fps;
-  Ext.settings.bps = msg.defaultSettings.bps;
+  for (const key of Object.keys(msg.defaultSettings)) {
+    if (key in Ext.settings) {
+      Ext.settings[key] = msg.defaultSettings[key];
+    }
+  }
+
   const cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
   const htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
   const htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
@@ -762,6 +995,14 @@ function handleDisplay(msg) {
   highlighter.top.classList.add(HIGHLIGHTER_HORIZONTAL_CLASS);
   highlighter.right.classList.add(HIGHLIGHTER_VERTICAL_CLASS);
   highlighter.bottom.classList.add(HIGHLIGHTER_HORIZONTAL_CLASS);
+
+  Ext.port.postMessage({
+    "command": MessageCommands.UPDATE_CANVASES,
+    "tabId": Ext.tabId,
+    "frameId": Ext.frameId,
+    "frameUUID": TOP_FRAME_UUID,
+    "targetFrameUUID": ALL_FRAMES_UUID
+  });
 }
 
 function positionWrapper() {
@@ -801,24 +1042,12 @@ function handleInputFocus() {
   window.addEventListener("keyup", handleKeyEventsOnFocus, true);
 }
 
-function handleInputBlur(e) {
-  const el = e.target.parentElement;
-
-  if (el) {
-    for (const key of Object.keys(INPUT_BLUR_UPDATE_SETTINGS_MAP)) {
-      if (el.classList.contains(key)) {
-        Ext.port.postMessage({
-          "command": MessageCommands.UPDATE_SETTINGS,
-          "setting": INPUT_BLUR_UPDATE_SETTINGS_MAP[key],
-          "value": e.target.value
-        });
-      }
-    }
-  }
-
+function handleInputBlur() {
   window.removeEventListener("keypress", handleKeyEventsOnFocus, true);
   window.removeEventListener("keydown", handleKeyEventsOnFocus, true);
   window.removeEventListener("keyup", handleKeyEventsOnFocus, true);
+
+  saveCanvasSettings();
 }
 
 function handleCaptureClose(evt) {
@@ -913,6 +1142,7 @@ function setupDisplay(html) {
   });
 
   updateCanvases();
+  loadSavedFrameSettings();
 }
 
 function getAllCanvases() {
@@ -925,7 +1155,8 @@ function getAllCanvases() {
       "local": true,
       "id": el.id,
       "width": el.width,
-      "height": el.height
+      "height": el.height,
+      "pathSpec": Utils.pathSpecFromElement(el)
     };
   });
 
@@ -936,11 +1167,13 @@ function getAllCanvases() {
         obj.local = false;
         obj.frameUUID = key;
         obj.index = index;
+        obj.frameUrl = Ext.frames[key].frameUrl;
         return obj;
       });
       canvases = canvases.concat(frameCanvases);
     }
   }
+
   return canvases;
 }
 
@@ -950,7 +1183,9 @@ function updateCanvases() {
   const canvases = getAllCanvases();
   const addTimerImgUrl = browser.runtime.getURL(ICON_ADD_PATH);
 
-  oldRows.forEach((row) => row.parentElement.removeChild(row));
+  saveCanvasSettings();
+
+  oldRows.forEach((row) => row.remove());
   canvases.forEach(function(canvas) {
     if (canvas.local) {
       Ext.canvasMutObs.observe(canvas.element, CANVAS_OBSERVER_OPS);
@@ -969,6 +1204,7 @@ function updateCanvases() {
     const addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`);
     addTimerImg.src = addTimerImgUrl;
     addTimerImg.dataset.hasTimer = false;
+    addTimerImg.dataset.timerSeconds = 0;
     const fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
     fpsInput.value = Ext.settings.fps;
     fpsInput.addEventListener("focus", handleInputFocus, false);
@@ -992,12 +1228,17 @@ function updateCanvases() {
     row.dataset.canvasIsLocal = canvasIsLocal;
     row.dataset.frameUUID = canvas.frameUUID;
     row.dataset.canvasIndex = canvas.index;
+    row.dataset.frameUrl = canvas.frameUrl;
+    row.dataset.pathSpec = canvas.pathSpec;
     setRowEventListeners(row);
     docFrag.appendChild(row);
   }
 
   Ext.listCanvases.appendChild(docFrag);
   Ext.active.updateTS = Date.now();
+
+  loadCanvasSettings();
+  saveCanvasSettings();
 }
 
 function setRowEventListeners(
@@ -1068,7 +1309,7 @@ function handleRowTimerModify(evt) {
 
   if (hasTimer) {
     const secs = parseInt(img.dataset.timerSeconds, 10) || 0;
-    const {hours, minutes, seconds} = secondsToHMS(secs);
+    const {hours, minutes, seconds} = Utils.secondsToHMS(secs);
     hoursInput.value = hours;
     minutesInput.value = minutes;
     secondsInput.value = seconds;
@@ -1124,6 +1365,7 @@ function handleRowTimerModifyClose(img) {
   }
 
   container.classList.add(HIDDEN_CLASS);
+  img.classList.remove(TIMER_MODIFYING_CLASS);
 }
 
 function handleRowSetTimer() {
@@ -1143,7 +1385,7 @@ function handleRowSetTimer() {
   const hours = parseInt(hoursInput.value, 10) || 0;
   const minutes = parseInt(minutesInput.value, 10) || 0;
   const seconds = parseInt(secondsInput.value, 10) || 0;
-  const totalSecs = hmsToSeconds({hours, minutes, seconds});
+  const totalSecs = Utils.hmsToSeconds({hours, minutes, seconds});
 
   img.dataset.hasTimer = Boolean(totalSecs);
   img.dataset.timerSeconds = totalSecs;
@@ -1588,7 +1830,7 @@ function createVideoURL(blob) {
   link.textContent = "Download";
   link.download = `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`;
   link.href = videoURL;
-  link.title = prettyFileSize(size);
+  link.title = Utils.prettyFileSize(size);
   col.appendChild(link);
   Ext.objectURLs.push(videoURL);
 }
@@ -1640,6 +1882,29 @@ function canCaptureStream(canvas) {
   }
 }
 
+function handlePageUnload() {
+  if (!Ext.settings[Utils.AUTO_OPEN_KEY]) {
+    return;
+  }
+
+  saveCanvasSettings();
+
+  const settings = Object.create(null);
+
+  for (const key of Object.keys(Ext.frames)) {
+    const frame = Ext.frames[key];
+    const frameUrl = frame.frameUrl;
+    settings[frameUrl] = frame.settings;
+  }
+
+  Ext.port.postMessage({
+    "command": MessageCommands.UPDATE_SETTINGS,
+    "tabId": Ext.tabId,
+    "frameUUID": TOP_FRAME_UUID,
+    "settings": settings
+  });
+}
+
 function showNotification(notification) {
   Ext.port.postMessage({
     "command": MessageCommands.NOTIFY,
@@ -1647,52 +1912,6 @@ function showNotification(notification) {
     "frameUUID": TOP_FRAME_UUID,
     "notification": notification
   });
-}
-
-function prettyFileSize(nBytes, useSI) {
-  const SI_UNITS = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-  const IEC_UNITS = ["B", "kiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"];
-  const mult = useSI ? 1000 : 1024;
-  const units = useSI ? SI_UNITS : IEC_UNITS;
-  var index = 0;
-
-  while (Math.abs(nBytes) >= mult) {
-    index += 1;
-    nBytes /= mult;
-  }
-
-  return `${nBytes.toFixed(Boolean(index))} ${units[index]}`;
-}
-
-function hmsToSeconds({hours, minutes, seconds}) {
-  return (hours * 3600) + (minutes * 60) + seconds;
-}
-
-function secondsToHMS(secs) {
-  var hours = Math.trunc(secs / 3600);
-  var minutes = Math.trunc((secs - (hours * 3600)) / 60);
-  var seconds = secs - (hours * 3600) - (minutes * 60);
-
-  if (seconds >= 60) {
-    seconds -= (seconds % 60);
-    minutes += 1;
-  }
-
-  if (minutes >= 60) {
-    minutes -= (minutes % 60);
-    hours += 1;
-  }
-
-  return {hours, minutes, seconds};
-}
-
-function genUUIDv4() {
-  /* https://stackoverflow.com/a/2117523/1031545 */
-  /* eslint-disable no-bitwise, id-length, no-mixed-operators */
-  return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
-    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-  );
-  /* eslint-enable no-bitwise, id-length, no-mixed-operators */
 }
 
 }());

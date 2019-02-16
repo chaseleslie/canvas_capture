@@ -14,29 +14,16 @@
  */
 
 
- /* global browser */
+ /* global browser Utils */
 
 ; // eslint-disable-line no-extra-semi
 (function() {
 "use strict";
 
-const FRAME_UUID = genUUIDv4();
-const TOP_FRAME_UUID = "top";
+const FRAME_UUID = Utils.genUUIDv4();
+const TOP_FRAME_UUID = Utils.TOP_FRAME_UUID;
 
-const MessageCommands = Object.freeze({
-  "CAPTURE_START":   0,
-  "CAPTURE_STOP":    1,
-  "DELAY":           2,
-  "DISABLE":         3,
-  "DISCONNECT":      4,
-  "DISPLAY":         5,
-  "DOWNLOAD":        6,
-  "HIGHLIGHT":       7,
-  "NOTIFY":          8,
-  "REGISTER":        9,
-  "UPDATE_CANVASES": 10,
-  "UPDATE_SETTINGS": 11
-});
+const MessageCommands = Utils.MessageCommands;
 
 const MIME_TYPE_MAP = Object.freeze({
   "mp4":  "video/mp4",
@@ -44,7 +31,6 @@ const MIME_TYPE_MAP = Object.freeze({
 });
 const DEFAULT_MIME_TYPE = "webm";
 const CAPTURE_INTERVAL_MS = 1000;
-const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
 
 const CANVAS_ACTIVE_CAPTURING_CLASS = "canvas_active_capturing";
 const CANVAS_ACTIVE_DELAYED_CLASS = "canvas_active_delayed";
@@ -54,12 +40,16 @@ const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributeFilter": ["id", "width", "height"]
 });
 
+const IFRAME_OBSERVER_OPS = Object.freeze({
+  "attributes": true,
+  "attributeFilter": ["src"],
+  "attributeOldValue": true
+});
+
 const Ext = Object.seal({
   "tabId": null,
   "frameId": null,
-  "port": browser.runtime.connect({
-    "name": FRAME_UUID
-  }),
+  "port": null,
   "mediaRecorder": null,
   "active": Object.seal({
     "capturing": false,
@@ -101,10 +91,11 @@ const Ext = Object.seal({
   "objectURLs": [],
   "downloadLinks": [],
   "settings": {
-    "maxVideoSize": DEFAULT_MAX_VIDEO_SIZE
+    "maxVideoSize": Utils.DEFAULT_MAX_VIDEO_SIZE
   },
   "bodyMutObs": new MutationObserver(observeBodyMutations),
   "canvasMutObs": new MutationObserver(observeCanvasMutations),
+  "iframeMutObs": new MutationObserver(observeIframeMutations),
   "freeObjectURLs": function() {
     for (let k = 0; k < this.objectURLs.length; k += 1) {
       window.URL.revokeObjectURL(this.objectURLs[k]);
@@ -124,13 +115,22 @@ const Ext = Object.seal({
   }
 });
 
-Ext.port.onMessage.addListener(onMessage);
-window.addEventListener("message", handleWindowMessage, true);
+if (document.readyState === "loading") {
+  window.addEventListener("load", handleWindowLoad, false);
+} else {
+  handleWindowLoad();
+}
 
-Ext.bodyMutObs.observe(document.body, {
-  "childList": true,
-  "subtree": true
-});
+function handleWindowLoad() {
+  Ext.port = browser.runtime.connect({"name": FRAME_UUID});
+  Ext.port.onMessage.addListener(onMessage);
+  window.addEventListener("message", handleWindowMessage, true);
+
+  Ext.bodyMutObs.observe(document.body, {
+    "childList": true,
+    "subtree": true
+  });
+}
 
 function handleWindowMessage(evt) {
   const msg = evt.data;
@@ -158,8 +158,7 @@ function onMessage(msg) {
   } else if (msg.command === MessageCommands.HIGHLIGHT) {
     handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
-    Ext.tabId = msg.tabId;
-    Ext.frameId = msg.frameId;
+    handleMessageRegister(msg);
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     const canvases = Array.from(document.body.querySelectorAll("canvas"));
     Ext.frames[FRAME_UUID].canvases = canvases;
@@ -270,27 +269,45 @@ function handleMessageHighlight(msg) {
   });
 }
 
+function handleMessageRegister(msg) {
+  Ext.tabId = msg.tabId;
+  Ext.frameId = msg.frameId;
+
+  const canvases = Array.from(document.querySelectorAll("canvas"));
+  updateCanvases(canvases);
+
+  const frames = Array.from(document.querySelectorAll("iframe"));
+  if (frames.length) {
+    handleAddedIframes(frames);
+  }
+}
+
 function observeBodyMutations(mutations) {
   mutations = mutations.filter((el) => el.type === "childList");
   var addedCanvases = false;
-  var removedCanvases = [];
+  const removedCanvases = [];
+  const addedIframes = [];
   const isCanvas = (el) => el.nodeName.toLowerCase() === "canvas";
+  const isIframe = (el) => el.nodeName.toUpperCase() === "IFRAME";
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
     const mutation = mutations[k];
     for (let iK = 0, iN = mutation.addedNodes.length; iK < iN; iK += 1) {
       if (isCanvas(mutation.addedNodes[iK])) {
         addedCanvases = true;
-        break;
+      } else if (isIframe(mutation.addedNodes[iK])) {
+        addedIframes.push(mutation.addedNodes[iK]);
       }
     }
 
-    removedCanvases = removedCanvases.concat(
-      Array.from(mutation.removedNodes).filter(isCanvas)
-    );
+    removedCanvases.push(...Array.from(mutation.removedNodes).filter(isCanvas));
   }
 
   const canvasesChanged = addedCanvases || removedCanvases.length;
+
+  if (addedIframes.length) {
+    handleAddedIframes(addedIframes);
+  }
 
   if (!canvasesChanged) {
     return;
@@ -351,12 +368,53 @@ function observeCanvasMutations(mutations) {
   }
 }
 
+function observeIframeMutations(mutations) {
+  for (let k = 0, n = mutations.length; k < n; k += 1) {
+    const mutation = mutations[k];
+    const iframe = mutation.target;
+    Ext.port.postMessage({
+      "command":      MessageCommands.IFRAME_NAVIGATED,
+      "tabId":        Ext.tabId,
+      "frameUUID":    FRAME_UUID,
+      "frameUrl":     iframe.src,
+      "oldFrameUrl":  mutation.oldValue
+    });
+  }
+}
+
+function handleAddedIframes(iframes) {
+  for (let k = 0, n = iframes.length; k < n; k += 1) {
+    const iframe = iframes[k];
+    iframe.addEventListener("load", handleIframeLoaded, false);
+    Ext.iframeMutObs.observe(iframe, IFRAME_OBSERVER_OPS);
+    Ext.port.postMessage({
+      "command":      MessageCommands.IFRAME_NAVIGATED,
+      "tabId":        Ext.tabId,
+      "frameUUID":    FRAME_UUID,
+      "frameUrl":     iframe.src,
+      "oldFrameUrl":  ""
+    });
+  }
+}
+
+function handleIframeLoaded(e) {
+  const iframe = e.target;
+  Ext.port.postMessage({
+    "command":      MessageCommands.IFRAME_NAVIGATED,
+    "tabId":        Ext.tabId,
+    "frameUUID":    TOP_FRAME_UUID,
+    "frameUrl":     iframe.src,
+    "oldFrameUrl":  ""
+  });
+}
+
 function updateCanvases(canvases) {
   const canvasData = canvases.map(function(el) {
     return {
       "id": el.id,
       "width": el.width,
-      "height": el.height
+      "height": el.height,
+      "pathSpec": Utils.pathSpecFromElement(el)
     };
   });
 
@@ -368,6 +426,7 @@ function updateCanvases(canvases) {
     "frameId": Ext.frameId,
     "frameUUID": FRAME_UUID,
     "targetFrameUUID": TOP_FRAME_UUID,
+    "frameUrl": window.location.href.split("#")[0],
     "canvases": canvasData,
     "activeCanvasIndex": Ext.active.index,
     "delayCanvasIndex": Ext.active.delayCanvasIndex
@@ -531,12 +590,4 @@ function showNotification(notification) {
   });
 }
 
-function genUUIDv4() {
-  /* https://stackoverflow.com/a/2117523/1031545 */
-  /* eslint-disable no-bitwise, id-length, no-mixed-operators */
-  return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
-    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-  );
-  /* eslint-enable no-bitwise, id-length, no-mixed-operators */
-}
 }());

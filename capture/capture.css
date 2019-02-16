@@ -338,6 +338,7 @@
 .list_canvases_capture_timer_img {
   height: 1.5em;
   width: 1.5em;
+  cursor: pointer;
 }
 
 .list_canvases_capture_timer_img:active {

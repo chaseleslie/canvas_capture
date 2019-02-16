@@ -16,16 +16,19 @@
 
 "use strict";
 
-/* global browser */
+/* global browser Utils */
 
-const MAX_VIDEO_SIZE_KEY = "maxVideoSize";
+const MAX_VIDEO_SIZE_KEY = Utils.MAX_VIDEO_SIZE_KEY;
 const OPTION_MAX_VIDEO_SIZE_ID = "option_max_video_size";
 
-const FPS_KEY = "fps";
+const FPS_KEY = Utils.FPS_KEY;
 const OPTION_FPS_ID = "option_fps";
 
-const BPS_KEY = "bps";
+const BPS_KEY = Utils.BPS_KEY;
 const OPTION_BPS_ID = "option_bps";
+
+const AUTO_OPEN_KEY = Utils.AUTO_OPEN_KEY;
+const OPTION_AUTO_OPEN_ID = "option_auto_open";
 
 window.addEventListener("load", initOptions, false);
 
@@ -36,36 +39,28 @@ function initOptions() {
   inputFPS.addEventListener("blur", updateFPS, false);
   const inputBPS = document.getElementById(OPTION_BPS_ID);
   inputBPS.addEventListener("blur", updateBPS, false);
+  const inputAutoOpen = document.getElementById(OPTION_AUTO_OPEN_ID);
+  inputAutoOpen.addEventListener("change", updateAutoOpen, false);
 
-  const inputMaxSizeSetting = browser.storage.local.get(MAX_VIDEO_SIZE_KEY);
-  if (inputMaxSizeSetting) {
-    inputMaxSizeSetting.then(function(setting) {
-      if (Array.isArray(setting)) {
-        setting = setting[0];
-      }
-      inputMaxSize.value = setting[MAX_VIDEO_SIZE_KEY];
-    });
-  }
+  browser.storage.local.get(MAX_VIDEO_SIZE_KEY)
+  .then(function(setting) {
+    inputMaxSize.value = setting[MAX_VIDEO_SIZE_KEY];
+  });
 
-  const inputFPSSetting = browser.storage.local.get(FPS_KEY);
-  if (inputFPSSetting) {
-    inputFPSSetting.then(function(setting) {
-      if (Array.isArray(setting)) {
-        setting = setting[0];
-      }
-      inputFPS.value = setting[FPS_KEY];
-    });
-  }
+  browser.storage.local.get(FPS_KEY)
+  .then(function(setting) {
+    inputFPS.value = setting[FPS_KEY];
+  });
 
-  const inputBPSSetting = browser.storage.local.get(BPS_KEY);
-  if (inputBPSSetting) {
-    inputBPSSetting.then(function(setting) {
-      if (Array.isArray(setting)) {
-        setting = setting[0];
-      }
-      inputBPS.value = setting[BPS_KEY];
-    });
-  }
+  browser.storage.local.get(BPS_KEY)
+  .then(function(setting) {
+    inputBPS.value = setting[BPS_KEY];
+  });
+
+  browser.storage.local.get(AUTO_OPEN_KEY)
+  .then(function(setting) {
+    inputAutoOpen.checked = setting[AUTO_OPEN_KEY];
+  });
 }
 
 function updateMaxVideoSize(e) {
@@ -105,6 +100,17 @@ function updateBPS(e) {
 
   const obj = Object.create(null);
   obj[BPS_KEY] = bps;
+  browser.storage.local.set(obj);
+
+  updateBackgroundPage();
+}
+
+function updateAutoOpen(e) {
+  const input = e.target;
+  const checked = input.checked;
+
+  const obj = Object.create(null);
+  obj[AUTO_OPEN_KEY] = checked;
   browser.storage.local.set(obj);
 
   updateBackgroundPage();
