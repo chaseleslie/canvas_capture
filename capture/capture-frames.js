@@ -43,6 +43,7 @@ const CANVAS_OBSERVER_OPS = Object.freeze({
 const Ext = Object.seal({
   "tabId": null,
   "frameId": null,
+  "tabKey": null,
   "port": null,
   "mediaRecorder": null,
   "active": Object.seal({
@@ -128,10 +129,35 @@ function handleWindowLoad() {
 function handleWindowMessage(evt) {
   const msg = evt.data;
 
-  if (msg.command === "identify") {
+  if (!msg || !("command" in msg)) {
     const obj = JSON.parse(JSON.stringify(msg));
     obj.frameUUID = FRAME_UUID;
     evt.source.postMessage(obj, evt.origin);
+  }
+
+  if (msg.command === MessageCommands.HIGHLIGHT) {
+    const rect = msg.rect;
+    const frames = Array.from(document.querySelectorAll("iframe"));
+    let frameRect = null;
+
+    for (let k = 0, n = frames.length; k < n; k += 1) {
+      const frame = frames[k];
+
+      if (frame.contentWindow === evt.source) {
+        frameRect = Utils.getElementDocumentOffset(frame);
+      }
+    }
+
+    if (!frameRect) {
+      return;
+    }
+
+    rect.left += frameRect.left;
+    rect.top += frameRect.top;
+    rect.right = rect.left + rect.width;
+    rect.bottom = rect.top + rect.height;
+
+    window.parent.postMessage(msg);
   }
 }
 
@@ -240,10 +266,11 @@ function handleMessageDownload(msg) {
 function handleMessageHighlight(msg) {
   const canvasIndex = msg.canvasIndex;
   const canvas = Ext.frames[FRAME_UUID].canvases[canvasIndex];
-  const rect = canvas.getBoundingClientRect();
+  const rect = Utils.getElementDocumentOffset(canvas);
 
-  Ext.port.postMessage({
+  window.parent.postMessage({
     "command": MessageCommands.HIGHLIGHT,
+    "tabKey": Ext.tabKey,
     "tabId": Ext.tabId,
     "frameId": Ext.frameId,
     "frameUUID": FRAME_UUID,
@@ -254,9 +281,7 @@ function handleMessageHighlight(msg) {
       "right": rect.right,
       "bottom": rect.bottom,
       "width": rect.width,
-      "height": rect.height,
-      "x": rect.x,
-      "y": rect.y
+      "height": rect.height
     },
     "canCapture": canCaptureStream(canvas)
   });
@@ -265,6 +290,7 @@ function handleMessageHighlight(msg) {
 function handleMessageRegister(msg) {
   Ext.tabId = msg.tabId;
   Ext.frameId = msg.frameId;
+  Ext.tabKey = msg.tabKey;
 
   const canvases = Array.from(document.querySelectorAll("canvas"));
   updateCanvases(canvases);

@@ -97,6 +97,7 @@ const SAVE_SETTINGS_MAP = Object.freeze({
 const Ext = Object.seal({
   "tabId": null,
   "frameId": null,
+  "tabKey": null,
   "port": null,
   "rowTemplate": null,
   "settings": Object.seal({
@@ -173,9 +174,6 @@ const Ext = Object.seal({
     }
   },
   "reloadedFrameSettings": {},
-  "frameElementsTS": 0,
-  "frameElementsKeys": [],
-  "frameElementsTimeoutId": -1,
   "numBytesRecorded": 0,
   "wrapperMouseHover": false,
   "bodyMutObs": new MutationObserver(observeBodyMutations),
@@ -221,42 +219,27 @@ function handleWindowLoad() {
 
 function handleWindowMessage(evt) {
   const msg = evt.data;
-  const key = msg.key;
-  const keyPos = Ext.frameElementsKeys.indexOf(key);
+  const tabKey = msg && msg.tabKey;
 
-  if (!key || keyPos < 0) {
+  if (!msg || !("command" in msg) || tabKey !== Ext.tabKey) {
     return;
-  } else if (msg.ts < Ext.frameElementsTS) {
-    if (Ext.frameElementsTimeoutId < 0) {
-      // Delay immediate retry to try and avoid race condition
-      Ext.frameElementsTimeoutId = setTimeout(identifyFrames, 2000);
+  }
+
+  if (msg.command === MessageCommands.HIGHLIGHT) {
+    const frames = Array.from(document.querySelectorAll("iframe"));
+    let frame = null;
+
+    for (let k = 0, n = frames.length; k < n; k += 1) {
+      if (frames[k].contentWindow === evt.source) {
+        frame = frames[k];
+        break;
+      }
     }
-    Ext.frameElementsKeys.splice(keyPos, 1);
-    evt.stopPropagation();
-    return;
+
+    handleMessageHighlight(msg, frame);
   }
 
-  const frameElements = Array.from(document.querySelectorAll("iframe"));
-  Ext.frameElementsKeys.splice(keyPos, 1);
-  Ext.frames[msg.frameUUID].node = frameElements[msg.index];
   evt.stopPropagation();
-}
-
-function identifyFrames() {
-  const frameElements = Array.from(document.querySelectorAll("iframe"));
-  Ext.frameElementsTimeoutId = -1;
-  Ext.frameElementsTS = Date.now();
-  for (let k = 0, n = frameElements.length; k < n; k += 1) {
-    const frame = frameElements[k];
-    const key = Utils.genUUIDv4();
-    Ext.frameElementsKeys.push(key);
-    frame.contentWindow.postMessage({
-      "command": "identify",
-      "key": key,
-      "ts": Date.now(),
-      "index": k
-    }, "*");
-  }
 }
 
 function onMessage(msg) {
@@ -354,6 +337,7 @@ function handleMessageDisconnect(msg) {
 }
 
 function handleMessageHighlight(msg, node) {
+  const min = Math.min;
   const highlighter = Ext.highlighter;
   const frame = Ext.frames[msg.frameUUID];
   node = node || frame.node;
@@ -377,15 +361,9 @@ function handleMessageHighlight(msg, node) {
     const left = nodeRect.left + rect.left + borderWidthLeft;
     const top = nodeRect.top + rect.top + borderWidthTop;
     let right = nodeRect.left + rect.left + rect.width + borderWidthLeft;
-    right = Math.min(
-      document.documentElement.clientWidth - vertTracerWidth,
-      right
-    );
+    right = min(document.documentElement.clientWidth - vertTracerWidth, right);
     let bottom = nodeRect.top + rect.top + rect.height + borderWidthTop;
-    bottom = Math.min(
-      document.documentElement.clientHeight - horizTracerWidth,
-      bottom
-    );
+    bottom = min(document.documentElement.clientHeight - horizTracerWidth, bottom);
 
     if (left >= 0 && left <= window.innerWidth) {
       highlighter.left.classList.remove(HIDDEN_CLASS);
@@ -424,6 +402,7 @@ function handleMessageIframeAdded() {
 function handleMessageRegister(msg) {
   Ext.tabId = msg.tabId;
   Ext.frameId = msg.frameId;
+  Ext.tabKey = msg.tabKey;
 
   if (msg.settings) {
     Ext.reloadedFrameSettings = msg.settings;
@@ -515,12 +494,6 @@ function handleMessageUpdateCanvases(msg) {
     }
 
     setRowActive(canvasIndex);
-  }
-
-  if (Date.now() > Ext.frameElementsTS + 2000) {
-    identifyFrames();
-  } else if (Ext.frameElementsTimeoutId < 0) {
-    Ext.frameElementsTimeoutId = setTimeout(identifyFrames, 2000);
   }
 
   loadSavedFrameSettings();
