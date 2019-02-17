@@ -357,7 +357,7 @@ function handleMessageHighlight(msg, node) {
     const borderWidthTop = parseInt(nodeStyle.borderTopWidth, 10);
     const left = nodeRect.left + rect.left + borderWidthLeft;
     const top = nodeRect.top + rect.top + borderWidthTop;
-    const right = nodeRect.left + rect.left + rect.width + borderWidthLeft;
+    const right = nodeRect.left + rect.left + rect.width + (2 * borderWidthLeft);
     const bottom = top + rect.height + borderWidthTop;
 
     if (left >= 0 && left <= window.innerWidth) {
