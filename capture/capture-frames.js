@@ -128,8 +128,9 @@ function handleWindowLoad() {
 
 function handleWindowMessage(evt) {
   const msg = evt.data;
+  const tabKey = msg && msg.tabKey;
 
-  if (!msg || !("command" in msg)) {
+  if (!msg || !("command" in msg) || tabKey !== Ext.tabKey) {
     return;
   }
 
