@@ -80,6 +80,7 @@ const HIDDEN_CLASS = "hidden";
 const HIGHLIGHTER_UNAVAILABLE_CLASS = "highlighter_unavailable";
 const HIGHLIGHTER_HORIZONTAL_CLASS = "highlighter_horizontal";
 const HIGHLIGHTER_VERTICAL_CLASS = "highlighter_vertical";
+const HIGHLIGHTER_OVERLAY_CLASS = "highlighter_overlay";
 
 const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributes": true,
@@ -179,12 +180,13 @@ const Ext = Object.seal({
   "bodyMutObs": new MutationObserver(observeBodyMutations),
   "canvasMutObs": new MutationObserver(observeCanvasMutations),
   "highlighter": Object.seal({
-    "left": null,
-    "top": null,
-    "right": null,
-    "bottom": null,
-    "current": null
+    "left":     null,
+    "top":      null,
+    "right":    null,
+    "bottom":   null,
+    "overlay":  null
   }),
+  "highlighterCurrent": null,
   "freeObjectURLs": function() {
     for (let k = 0; k < this.objectURLs.length; k += 1) {
       window.URL.revokeObjectURL(this.objectURLs[k]);
@@ -347,7 +349,7 @@ function handleMessageHighlight(msg, node) {
   const frame = Ext.frames[msg.frameUUID];
   node = node || frame.node;
 
-  if (node && highlighter.current) {
+  if (node && Ext.highlighterCurrent) {
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
     const rect = msg.rect;
@@ -381,10 +383,16 @@ function handleMessageHighlight(msg, node) {
     highlighter.right.style.left = `${right}px`;
     highlighter.bottom.style.top = `${bottom}px`;
     highlighter.bottom.style.left = `${scrollX}px`;
+
+    highlighter.overlay.classList.remove(HIDDEN_CLASS);
+    highlighter.overlay.style.left = `${left + borderWidthLeft}px`;
+    highlighter.overlay.style.top = `${top + borderWidthTop}px`;
+    highlighter.overlay.style.width = `${rect.width}px`;
+    highlighter.overlay.style.height = `${rect.height}px`;
   }
 
-  if (!msg.canCapture && highlighter.current) {
-    highlighter.current.classList.add(HIGHLIGHTER_UNAVAILABLE_CLASS);
+  if (!msg.canCapture && Ext.highlighterCurrent) {
+    Ext.highlighterCurrent.classList.add(HIGHLIGHTER_UNAVAILABLE_CLASS);
   }
 }
 
@@ -852,9 +860,7 @@ function handleDisable(notify) {
   }
 
   for (const key of Object.keys(Ext.highlighter)) {
-    if (key !== "current") {
-      Ext.highlighter[key].parentElement.removeChild(Ext.highlighter[key]);
-    }
+    Ext.highlighter[key].parentElement.removeChild(Ext.highlighter[key]);
   }
 
   if (Ext.mediaRecorder) {
@@ -933,18 +939,17 @@ function handleDisplay(msg) {
   const highlighter = Ext.highlighter;
 
   for (const key of Object.keys(highlighter)) {
-    if (key !== "current") {
-      highlighter[key] = document.createElement("div");
-      highlighter[key].textContent = " ";
-      highlighter[key].classList.add(HIDDEN_CLASS);
-      document.body.appendChild(highlighter[key]);
-    }
+    highlighter[key] = document.createElement("div");
+    highlighter[key].textContent = " ";
+    highlighter[key].classList.add(HIDDEN_CLASS);
+    document.body.appendChild(highlighter[key]);
   }
 
   highlighter.left.classList.add(HIGHLIGHTER_VERTICAL_CLASS);
   highlighter.top.classList.add(HIGHLIGHTER_HORIZONTAL_CLASS);
   highlighter.right.classList.add(HIGHLIGHTER_VERTICAL_CLASS);
   highlighter.bottom.classList.add(HIGHLIGHTER_HORIZONTAL_CLASS);
+  highlighter.overlay.classList.add(HIGHLIGHTER_OVERLAY_CLASS);
 
   Ext.port.postMessage({
     "command": MessageCommands.UPDATE_CANVASES,
@@ -1413,7 +1418,7 @@ function highlightCanvas(evt) {
     return;
   }
 
-  Ext.highlighter.current = el;
+  Ext.highlighterCurrent = el;
 
   if (JSON.parse(el.dataset.canvasIsLocal)) {
     const canvas = Ext.frames[TOP_FRAME_UUID].canvases[el.dataset.index];
@@ -1427,9 +1432,7 @@ function highlightCanvas(evt) {
         "left": window.scrollX,
         "top": window.scrollY,
         "right": 0,
-        "bottom": 0,
-        "x": 0,
-        "y": 0
+        "bottom": 0
       },
       "canCapture": canCaptureStream(canvas)
     }, Ext.frames[TOP_FRAME_UUID].canvases[el.dataset.index]);
@@ -1453,19 +1456,17 @@ function unhighlightCanvas(evt) {
 
   if (
     !el.classList.contains(LIST_CANVASES_ROW_CLASS) ||
-    el !== highlighter.current
+    el !== Ext.highlighterCurrent
   ) {
     return;
   }
 
   for (const key of Object.keys(highlighter)) {
-    if (key !== "current") {
-      highlighter[key].classList.add(HIDDEN_CLASS);
-    }
+    highlighter[key].classList.add(HIDDEN_CLASS);
   }
 
   el.classList.remove(HIGHLIGHTER_UNAVAILABLE_CLASS);
-  highlighter.current = null;
+  Ext.highlighterCurrent = null;
 }
 
 function onToggleCapture(evt) {
