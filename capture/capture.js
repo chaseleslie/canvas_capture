@@ -80,6 +80,7 @@ const HIDDEN_CLASS = "hidden";
 const HIGHLIGHTER_UNAVAILABLE_CLASS = "highlighter_unavailable";
 const HIGHLIGHTER_HORIZONTAL_CLASS = "highlighter_horizontal";
 const HIGHLIGHTER_VERTICAL_CLASS = "highlighter_vertical";
+const HIGHLIGHTER_OVERLAY_CLASS = "highlighter_overlay";
 
 const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributes": true,
@@ -97,6 +98,7 @@ const SAVE_SETTINGS_MAP = Object.freeze({
 const Ext = Object.seal({
   "tabId": null,
   "frameId": null,
+  "tabKey": null,
   "port": null,
   "rowTemplate": null,
   "settings": Object.seal({
@@ -173,20 +175,18 @@ const Ext = Object.seal({
     }
   },
   "reloadedFrameSettings": {},
-  "frameElementsTS": 0,
-  "frameElementsKeys": [],
-  "frameElementsTimeoutId": -1,
   "numBytesRecorded": 0,
   "wrapperMouseHover": false,
   "bodyMutObs": new MutationObserver(observeBodyMutations),
   "canvasMutObs": new MutationObserver(observeCanvasMutations),
   "highlighter": Object.seal({
-    "left": null,
-    "top": null,
-    "right": null,
-    "bottom": null,
-    "current": null
+    "left":     null,
+    "top":      null,
+    "right":    null,
+    "bottom":   null,
+    "overlay":  null
   }),
+  "highlighterCurrent": null,
   "freeObjectURLs": function() {
     for (let k = 0; k < this.objectURLs.length; k += 1) {
       window.URL.revokeObjectURL(this.objectURLs[k]);
@@ -221,42 +221,35 @@ function handleWindowLoad() {
 
 function handleWindowMessage(evt) {
   const msg = evt.data;
-  const key = msg.key;
-  const keyPos = Ext.frameElementsKeys.indexOf(key);
+  const tabKey = msg && msg.tabKey;
 
-  if (!key || keyPos < 0) {
+  if (!msg || !("command" in msg) || tabKey !== Ext.tabKey) {
     return;
-  } else if (msg.ts < Ext.frameElementsTS) {
-    if (Ext.frameElementsTimeoutId < 0) {
-      // Delay immediate retry to try and avoid race condition
-      Ext.frameElementsTimeoutId = setTimeout(identifyFrames, 2000);
+  }
+
+  if (msg.command === MessageCommands.HIGHLIGHT) {
+    const frames = Array.from(document.querySelectorAll("iframe"));
+    let frame = null;
+
+    for (let k = 0, n = frames.length; k < n; k += 1) {
+      if (frames[k].contentWindow === evt.source) {
+        frame = frames[k];
+        break;
+      }
     }
-    Ext.frameElementsKeys.splice(keyPos, 1);
-    evt.stopPropagation();
-    return;
+
+    if (!frame) {
+      return;
+    }
+
+    const rect = msg.rect;
+    rect.left += window.scrollX;
+    rect.top += window.scrollY;
+
+    handleMessageHighlight(msg, frame);
   }
 
-  const frameElements = Array.from(document.querySelectorAll("iframe"));
-  Ext.frameElementsKeys.splice(keyPos, 1);
-  Ext.frames[msg.frameUUID].node = frameElements[msg.index];
   evt.stopPropagation();
-}
-
-function identifyFrames() {
-  const frameElements = Array.from(document.querySelectorAll("iframe"));
-  Ext.frameElementsTimeoutId = -1;
-  Ext.frameElementsTS = Date.now();
-  for (let k = 0, n = frameElements.length; k < n; k += 1) {
-    const frame = frameElements[k];
-    const key = Utils.genUUIDv4();
-    Ext.frameElementsKeys.push(key);
-    frame.contentWindow.postMessage({
-      "command": "identify",
-      "key": key,
-      "ts": Date.now(),
-      "index": k
-    }, "*");
-  }
 }
 
 function onMessage(msg) {
@@ -270,8 +263,6 @@ function onMessage(msg) {
     handleMessageDisconnect(msg);
   } else if (msg.command === MessageCommands.DISPLAY) {
     handleDisplay(msg);
-  } else if (msg.command === MessageCommands.HIGHLIGHT) {
-    handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.IFRAME_NAVIGATED) {
     handleMessageIframeAdded(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
@@ -358,34 +349,18 @@ function handleMessageHighlight(msg, node) {
   const frame = Ext.frames[msg.frameUUID];
   node = node || frame.node;
 
-  if (node && highlighter.current) {
+  if (node && Ext.highlighterCurrent) {
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
     const rect = msg.rect;
     const nodeRect = node.getBoundingClientRect();
     const nodeStyle = window.getComputedStyle(node);
     const borderWidthLeft = parseInt(nodeStyle.borderLeftWidth, 10);
     const borderWidthTop = parseInt(nodeStyle.borderTopWidth, 10);
-    const vertTracerStyle = window.getComputedStyle(highlighter.left);
-    const horizTracerStyle = window.getComputedStyle(highlighter.top);
-    const vertTracerWidth = (
-      highlighter.left.offsetWidth +
-      (2 * parseInt(vertTracerStyle.borderLeftWidth, 10) || 0)
-    );
-    const horizTracerWidth = (
-      highlighter.top.offsetHeight +
-      (2 * parseInt(horizTracerStyle.borderTopWidth, 10) || 0)
-    );
     const left = nodeRect.left + rect.left + borderWidthLeft;
     const top = nodeRect.top + rect.top + borderWidthTop;
-    let right = nodeRect.left + rect.left + rect.width + borderWidthLeft;
-    right = Math.min(
-      document.documentElement.clientWidth - vertTracerWidth,
-      right
-    );
-    let bottom = nodeRect.top + rect.top + rect.height + borderWidthTop;
-    bottom = Math.min(
-      document.documentElement.clientHeight - horizTracerWidth,
-      bottom
-    );
+    const right = nodeRect.left + rect.left + rect.width + (2 * borderWidthLeft);
+    const bottom = top + rect.height + borderWidthTop;
 
     if (left >= 0 && left <= window.innerWidth) {
       highlighter.left.classList.remove(HIDDEN_CLASS);
@@ -400,14 +375,24 @@ function handleMessageHighlight(msg, node) {
       highlighter.bottom.classList.remove(HIDDEN_CLASS);
     }
 
+    highlighter.left.style.top = `${scrollY}px`;
     highlighter.left.style.left = `${left}px`;
     highlighter.top.style.top = `${top}px`;
+    highlighter.top.style.left = `${scrollX}px`;
+    highlighter.right.style.top = `${scrollY}px`;
     highlighter.right.style.left = `${right}px`;
     highlighter.bottom.style.top = `${bottom}px`;
+    highlighter.bottom.style.left = `${scrollX}px`;
+
+    highlighter.overlay.classList.remove(HIDDEN_CLASS);
+    highlighter.overlay.style.left = `${left + borderWidthLeft}px`;
+    highlighter.overlay.style.top = `${top + borderWidthTop}px`;
+    highlighter.overlay.style.width = `${rect.width}px`;
+    highlighter.overlay.style.height = `${rect.height}px`;
   }
 
-  if (!msg.canCapture && highlighter.current) {
-    highlighter.current.classList.add(HIGHLIGHTER_UNAVAILABLE_CLASS);
+  if (!msg.canCapture && Ext.highlighterCurrent) {
+    Ext.highlighterCurrent.classList.add(HIGHLIGHTER_UNAVAILABLE_CLASS);
   }
 }
 
@@ -424,6 +409,7 @@ function handleMessageIframeAdded() {
 function handleMessageRegister(msg) {
   Ext.tabId = msg.tabId;
   Ext.frameId = msg.frameId;
+  Ext.tabKey = msg.tabKey;
 
   if (msg.settings) {
     Ext.reloadedFrameSettings = msg.settings;
@@ -515,12 +501,6 @@ function handleMessageUpdateCanvases(msg) {
     }
 
     setRowActive(canvasIndex);
-  }
-
-  if (Date.now() > Ext.frameElementsTS + 2000) {
-    identifyFrames();
-  } else if (Ext.frameElementsTimeoutId < 0) {
-    Ext.frameElementsTimeoutId = setTimeout(identifyFrames, 2000);
   }
 
   loadSavedFrameSettings();
@@ -880,9 +860,7 @@ function handleDisable(notify) {
   }
 
   for (const key of Object.keys(Ext.highlighter)) {
-    if (key !== "current") {
-      Ext.highlighter[key].parentElement.removeChild(Ext.highlighter[key]);
-    }
+    Ext.highlighter[key].parentElement.removeChild(Ext.highlighter[key]);
   }
 
   if (Ext.mediaRecorder) {
@@ -961,18 +939,17 @@ function handleDisplay(msg) {
   const highlighter = Ext.highlighter;
 
   for (const key of Object.keys(highlighter)) {
-    if (key !== "current") {
-      highlighter[key] = document.createElement("div");
-      highlighter[key].textContent = " ";
-      highlighter[key].classList.add(HIDDEN_CLASS);
-      document.body.appendChild(highlighter[key]);
-    }
+    highlighter[key] = document.createElement("div");
+    highlighter[key].textContent = " ";
+    highlighter[key].classList.add(HIDDEN_CLASS);
+    document.body.appendChild(highlighter[key]);
   }
 
   highlighter.left.classList.add(HIGHLIGHTER_VERTICAL_CLASS);
   highlighter.top.classList.add(HIGHLIGHTER_HORIZONTAL_CLASS);
   highlighter.right.classList.add(HIGHLIGHTER_VERTICAL_CLASS);
   highlighter.bottom.classList.add(HIGHLIGHTER_HORIZONTAL_CLASS);
+  highlighter.overlay.classList.add(HIGHLIGHTER_OVERLAY_CLASS);
 
   Ext.port.postMessage({
     "command": MessageCommands.UPDATE_CANVASES,
@@ -1441,7 +1418,7 @@ function highlightCanvas(evt) {
     return;
   }
 
-  Ext.highlighter.current = el;
+  Ext.highlighterCurrent = el;
 
   if (JSON.parse(el.dataset.canvasIsLocal)) {
     const canvas = Ext.frames[TOP_FRAME_UUID].canvases[el.dataset.index];
@@ -1452,12 +1429,10 @@ function highlightCanvas(evt) {
       "rect": {
         "width": rect.width,
         "height": rect.height,
-        "left": 0,
-        "top": 0,
+        "left": window.scrollX,
+        "top": window.scrollY,
         "right": 0,
-        "bottom": 0,
-        "x": 0,
-        "y": 0
+        "bottom": 0
       },
       "canCapture": canCaptureStream(canvas)
     }, Ext.frames[TOP_FRAME_UUID].canvases[el.dataset.index]);
@@ -1481,19 +1456,17 @@ function unhighlightCanvas(evt) {
 
   if (
     !el.classList.contains(LIST_CANVASES_ROW_CLASS) ||
-    el !== highlighter.current
+    el !== Ext.highlighterCurrent
   ) {
     return;
   }
 
   for (const key of Object.keys(highlighter)) {
-    if (key !== "current") {
-      highlighter[key].classList.add(HIDDEN_CLASS);
-    }
+    highlighter[key].classList.add(HIDDEN_CLASS);
   }
 
   el.classList.remove(HIGHLIGHTER_UNAVAILABLE_CLASS);
-  highlighter.current = null;
+  Ext.highlighterCurrent = null;
 }
 
 function onToggleCapture(evt) {

@@ -100,6 +100,7 @@ async function connected(port) {
   const sender = port.sender;
   const tab = sender.tab;
   const tabId = tab.id;
+  const tabKey = activeTabs[tabId].tabKey;
   const frameId = sender.frameId;
   const frameUUID = port.name;
   const url = sender.url;
@@ -125,6 +126,7 @@ async function connected(port) {
     "command": MessageCommands.REGISTER,
     "tabId": tabId,
     "frameId": frameId,
+    "tabKey": tabKey,
     "settings": activeTabs[tabId].settings
   });
 
@@ -187,7 +189,11 @@ function onEnableTab(tab) {
     clearTimeout(activeTabs[tabId].settingsTimeout);
     activeTabs[tabId].frames = [];
   } else {
-    activeTabs[tabId] = {"frames": [], "tabId": tabId};
+    activeTabs[tabId] = {
+      "frames": [],
+      "tabId": tabId,
+      "tabKey": Utils.genUUIDv4()
+    };
   }
 
   browser.browserAction.setIcon(

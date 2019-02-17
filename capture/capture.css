@@ -253,6 +253,13 @@
   background-color: #A24;
 }
 
+.highlighter_overlay {
+  position: absolute;
+  background-color: #AAE;
+  opacity: 0.8;
+  z-index: 20000;
+}
+
 #modify_timer_container {
   display: grid;
   grid-template-columns: 1fr 1fr;
