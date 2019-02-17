@@ -130,9 +130,7 @@ function handleWindowMessage(evt) {
   const msg = evt.data;
 
   if (!msg || !("command" in msg)) {
-    const obj = JSON.parse(JSON.stringify(msg));
-    obj.frameUUID = FRAME_UUID;
-    evt.source.postMessage(obj, evt.origin);
+    return;
   }
 
   if (msg.command === MessageCommands.HIGHLIGHT) {
@@ -157,7 +155,7 @@ function handleWindowMessage(evt) {
     rect.right = rect.left + rect.width;
     rect.bottom = rect.top + rect.height;
 
-    window.parent.postMessage(msg);
+    window.parent.postMessage(msg, "*");
   }
 }
 
@@ -284,7 +282,7 @@ function handleMessageHighlight(msg) {
       "height": rect.height
     },
     "canCapture": canCaptureStream(canvas)
-  });
+  }, "*");
 }
 
 function handleMessageRegister(msg) {
