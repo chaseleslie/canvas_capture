@@ -164,33 +164,6 @@ function makeDelay(delay) {
   });
 }
 
-function getElementDocumentOffset(elem) {
-  /* https://stackoverflow.com/a/26230989/1031545 */
-  const round = Math.round;
-  const box = elem.getBoundingClientRect();
-
-  const body = document.body;
-  const docEl = document.documentElement;
-
-  const scrollTop = window.pageYOffset || docEl.scrollTop || body.scrollTop;
-  const scrollLeft = window.pageXOffset || docEl.scrollLeft || body.scrollLeft;
-
-  const clientTop = docEl.clientTop || body.clientTop || 0;
-  const clientLeft = docEl.clientLeft || body.clientLeft || 0;
-
-  const top = round(box.top + scrollTop - clientTop);
-  const left = round(box.left + scrollLeft - clientLeft);
-
-  return {
-    "top": top,
-    "left": left,
-    "bottom": top + box.height,
-    "right": left + box.width,
-    "width": box.width,
-    "height": box.height
-  };
-}
-
 return {
   "MessageCommands": MessageCommands,
   "DEFAULT_MAX_VIDEO_SIZE": DEFAULT_MAX_VIDEO_SIZE,
@@ -210,8 +183,7 @@ return {
   "hmsToSeconds": hmsToSeconds,
   "secondsToHMS": secondsToHMS,
   "genUUIDv4": genUUIDv4,
-  "makeDelay": makeDelay,
-  "getElementDocumentOffset": getElementDocumentOffset
+  "makeDelay": makeDelay
 };
 
 }());

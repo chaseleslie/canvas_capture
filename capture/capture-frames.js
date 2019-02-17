@@ -143,7 +143,7 @@ function handleWindowMessage(evt) {
       const frame = frames[k];
 
       if (frame.contentWindow === evt.source) {
-        frameRect = Utils.getElementDocumentOffset(frame);
+        frameRect = frame.getBoundingClientRect();
       }
     }
 
@@ -265,7 +265,7 @@ function handleMessageDownload(msg) {
 function handleMessageHighlight(msg) {
   const canvasIndex = msg.canvasIndex;
   const canvas = Ext.frames[FRAME_UUID].canvases[canvasIndex];
-  const rect = Utils.getElementDocumentOffset(canvas);
+  const rect = canvas.getBoundingClientRect();
 
   window.parent.postMessage({
     "command": MessageCommands.HIGHLIGHT,

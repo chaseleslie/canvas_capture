@@ -236,6 +236,14 @@ function handleWindowMessage(evt) {
       }
     }
 
+    if (!frame) {
+      return;
+    }
+
+    const rect = msg.rect;
+    rect.left += window.scrollX;
+    rect.top += window.scrollY;
+
     handleMessageHighlight(msg, frame);
   }
 
@@ -253,8 +261,6 @@ function onMessage(msg) {
     handleMessageDisconnect(msg);
   } else if (msg.command === MessageCommands.DISPLAY) {
     handleDisplay(msg);
-  } else if (msg.command === MessageCommands.HIGHLIGHT) {
-    handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.IFRAME_NAVIGATED) {
     handleMessageIframeAdded(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
@@ -337,33 +343,22 @@ function handleMessageDisconnect(msg) {
 }
 
 function handleMessageHighlight(msg, node) {
-  const min = Math.min;
   const highlighter = Ext.highlighter;
   const frame = Ext.frames[msg.frameUUID];
   node = node || frame.node;
 
   if (node && highlighter.current) {
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
     const rect = msg.rect;
     const nodeRect = node.getBoundingClientRect();
     const nodeStyle = window.getComputedStyle(node);
     const borderWidthLeft = parseInt(nodeStyle.borderLeftWidth, 10);
     const borderWidthTop = parseInt(nodeStyle.borderTopWidth, 10);
-    const vertTracerStyle = window.getComputedStyle(highlighter.left);
-    const horizTracerStyle = window.getComputedStyle(highlighter.top);
-    const vertTracerWidth = (
-      highlighter.left.offsetWidth +
-      (2 * parseInt(vertTracerStyle.borderLeftWidth, 10) || 0)
-    );
-    const horizTracerWidth = (
-      highlighter.top.offsetHeight +
-      (2 * parseInt(horizTracerStyle.borderTopWidth, 10) || 0)
-    );
     const left = nodeRect.left + rect.left + borderWidthLeft;
     const top = nodeRect.top + rect.top + borderWidthTop;
-    let right = nodeRect.left + rect.left + rect.width + borderWidthLeft;
-    right = min(document.documentElement.clientWidth - vertTracerWidth, right);
-    let bottom = nodeRect.top + rect.top + rect.height + borderWidthTop;
-    bottom = min(document.documentElement.clientHeight - horizTracerWidth, bottom);
+    const right = nodeRect.left + rect.left + rect.width + borderWidthLeft;
+    const bottom = top + rect.height + borderWidthTop;
 
     if (left >= 0 && left <= window.innerWidth) {
       highlighter.left.classList.remove(HIDDEN_CLASS);
@@ -378,10 +373,14 @@ function handleMessageHighlight(msg, node) {
       highlighter.bottom.classList.remove(HIDDEN_CLASS);
     }
 
+    highlighter.left.style.top = `${scrollY}px`;
     highlighter.left.style.left = `${left}px`;
     highlighter.top.style.top = `${top}px`;
+    highlighter.top.style.left = `${scrollX}px`;
+    highlighter.right.style.top = `${scrollY}px`;
     highlighter.right.style.left = `${right}px`;
     highlighter.bottom.style.top = `${bottom}px`;
+    highlighter.bottom.style.left = `${scrollX}px`;
   }
 
   if (!msg.canCapture && highlighter.current) {
@@ -1425,8 +1424,8 @@ function highlightCanvas(evt) {
       "rect": {
         "width": rect.width,
         "height": rect.height,
-        "left": 0,
-        "top": 0,
+        "left": window.scrollX,
+        "top": window.scrollY,
         "right": 0,
         "bottom": 0,
         "x": 0,
