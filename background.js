@@ -85,12 +85,7 @@ function onNavigationCompleted(details) {
   const haveSettings = haveTab && Boolean(activeTabs[tabId].settingsOrphaned);
 
   if (isTopFrame && haveTab && haveValidUrl && haveSettings) {
-    const frames = activeTabs[tabId].frames;
-    const frame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
-    const frameUrl = frame.url.split("#")[0];
-    if (frameUrl in activeTabs[tabId].settings) {
-      onEnableTab({"id": tabId});
-    }
+    onEnableTab({"id": tabId});
   }
 }
 

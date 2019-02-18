@@ -171,6 +171,7 @@ const Ext = Object.seal({
       "canvases": [],
       "node": window,
       "frameUrl": window.location.href.split("#")[0],
+      "framePathSpec": "",
       "settings": {}
     }
   },
@@ -227,26 +228,43 @@ function handleWindowMessage(evt) {
     return;
   }
 
+  const frames = Array.from(document.querySelectorAll("iframe"));
+  let frame = null;
+
+  for (let k = 0, n = frames.length; k < n; k += 1) {
+    if (frames[k].contentWindow === evt.source) {
+      frame = frames[k];
+      break;
+    }
+  }
+
+  if (!frame) {
+    return;
+  }
+
   if (msg.command === MessageCommands.HIGHLIGHT) {
-    const frames = Array.from(document.querySelectorAll("iframe"));
-    let frame = null;
-
-    for (let k = 0, n = frames.length; k < n; k += 1) {
-      if (frames[k].contentWindow === evt.source) {
-        frame = frames[k];
-        break;
-      }
-    }
-
-    if (!frame) {
-      return;
-    }
-
     const rect = msg.rect;
     rect.left += window.scrollX;
     rect.top += window.scrollY;
 
     handleMessageHighlight(msg, frame);
+  } else if (msg.command === MessageCommands.IDENTIFY) {
+    const frameUUID = msg.frameUUID;
+    const pathSpec = Utils.pathSpecFromElement(frame);
+    const framePathSpec = `${pathSpec}:${msg.pathSpec}`;
+
+    if (frameUUID in Ext.frames) {
+      Ext.frames[frameUUID].framePathSpec = framePathSpec;
+    } else {
+      Ext.frames[frameUUID] = {
+        "frameUUID":      frameUUID,
+        "canvases":       [],
+        "frameId":        msg.frameId,
+        "frameUrl":       msg.frameUrl,
+        "framePathSpec":  framePathSpec,
+        "settings":       {}
+      };
+    }
   }
 
   evt.stopPropagation();
@@ -599,25 +617,27 @@ function loadSavedFrameSettings() {
     return;
   }
 
-  for (const url of reloadedFrameSettingsKeys) {
+  for (const framePathSpec of reloadedFrameSettingsKeys) {
     let settingsLoaded = false;
     for (const frameUUID of Object.keys(Ext.frames)) {
       const frame = Ext.frames[frameUUID];
 
-      if (frame.frameUrl === url) {
-        const frameSettingsKeys = Object.keys(Ext.reloadedFrameSettings[url]);
+      if (frame.framePathSpec === framePathSpec) {
+        const frameSettingsKeys = Object.keys(Ext.reloadedFrameSettings[framePathSpec]);
 
         if (!frameSettingsKeys.length) {
           settingsLoaded = true;
         }
 
         for (const pathSpec of frameSettingsKeys) {
-          const settings = Ext.reloadedFrameSettings[url][pathSpec];
+          const settings = Ext.reloadedFrameSettings[framePathSpec][pathSpec];
 
           for (let k = 0, n = rows.length; k < n; k += 1) {
             const row = rows[k];
+            const pathSpecMatches = row.dataset.pathSpec === pathSpec;
+            const frameUUIDMatches = row.dataset.frameUUID === frameUUID;
 
-            if (row.dataset.pathSpec === pathSpec) {
+            if (pathSpecMatches && frameUUIDMatches) {
               loadSavedSettingsToRow(row, settings);
               settingsLoaded = true;
             }
@@ -627,7 +647,7 @@ function loadSavedFrameSettings() {
     }
 
     if (settingsLoaded) {
-      delete Ext.reloadedFrameSettings[url];
+      delete Ext.reloadedFrameSettings[framePathSpec];
     }
   }
 }
@@ -1844,8 +1864,8 @@ function handlePageUnload() {
 
   for (const key of Object.keys(Ext.frames)) {
     const frame = Ext.frames[key];
-    const frameUrl = frame.frameUrl;
-    settings[frameUrl] = frame.settings;
+    const framePathSpec = frame.framePathSpec;
+    settings[framePathSpec] = frame.settings;
   }
 
   Ext.port.postMessage({

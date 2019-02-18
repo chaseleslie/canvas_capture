@@ -134,28 +134,34 @@ function handleWindowMessage(evt) {
     return;
   }
 
+  const frames = Array.from(document.querySelectorAll("iframe"));
+  let frame = null;
+
+  for (let k = 0, n = frames.length; k < n; k += 1) {
+    const fr = frames[k];
+
+    if (fr.contentWindow === evt.source) {
+      frame = fr;
+    }
+  }
+
+  if (!frame) {
+    return;
+  }
+
   if (msg.command === MessageCommands.HIGHLIGHT) {
     const rect = msg.rect;
-    const frames = Array.from(document.querySelectorAll("iframe"));
-    let frameRect = null;
-
-    for (let k = 0, n = frames.length; k < n; k += 1) {
-      const frame = frames[k];
-
-      if (frame.contentWindow === evt.source) {
-        frameRect = frame.getBoundingClientRect();
-      }
-    }
-
-    if (!frameRect) {
-      return;
-    }
+    const frameRect = frame.getBoundingClientRect();
 
     rect.left += frameRect.left;
     rect.top += frameRect.top;
     rect.right = rect.left + rect.width;
     rect.bottom = rect.top + rect.height;
 
+    window.parent.postMessage(msg, "*");
+  } else if (msg.command === MessageCommands.IDENTIFY) {
+    const pathSpec = Utils.pathSpecFromElement(frame);
+    msg.pathSpec = `${pathSpec}:${msg.pathSpec}`;
     window.parent.postMessage(msg, "*");
   }
 }
@@ -298,6 +304,17 @@ function handleMessageRegister(msg) {
   if (frames.length) {
     handleAddedIframes(frames);
   }
+
+  window.parent.postMessage({
+    "command":          MessageCommands.IDENTIFY,
+    "tabKey":           Ext.tabKey,
+    "tabId":            Ext.tabId,
+    "frameId":          Ext.frameId,
+    "frameUUID":        FRAME_UUID,
+    "frameUrl":         window.location.href.split("#")[0],
+    "targetFrameUUID":  TOP_FRAME_UUID,
+    "pathSpec":         ""
+  }, "*");
 }
 
 function observeBodyMutations(mutations) {
