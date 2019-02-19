@@ -70,6 +70,7 @@ const LIST_CANVASES_CANVAS_HEIGHT_CLASS = "list_canvases_canvas_height";
 const LIST_CANVASES_CAPTURE_DELAY_CLASS = "list_canvases_capture_delay";
 const LIST_CANVASES_CAPTURE_FPS_CLASS = "list_canvases_capture_fps";
 const LIST_CANVASES_CAPTURE_BPS_CLASS = "list_canvases_capture_bps";
+const LIST_CANVASES_CAPTURE_RELOAD_CLASS = "list_canvases_capture_reload";
 const CANVAS_CAPTURE_LINK_CONTAINER_CLASS = "canvas_capture_link_container";
 const CANVAS_CAPTURE_SELECTED_CLASS = "canvas_capture_selected";
 const CANVAS_CAPTURE_INACTIVE_CLASS = "canvas_capture_inactive";
@@ -92,7 +93,8 @@ const SAVE_SETTINGS_MAP = Object.freeze({
   [LIST_CANVASES_CAPTURE_FPS_CLASS]:    "fps",
   [LIST_CANVASES_CAPTURE_BPS_CLASS]:    "bps",
   [LIST_CANVASES_CAPTURE_DELAY_CLASS]:  "delay",
-  [LIST_CANVASES_CAPTURE_TIMER_CLASS]:  "timer"
+  [LIST_CANVASES_CAPTURE_TIMER_CLASS]:  "timer",
+  [LIST_CANVASES_CAPTURE_RELOAD_CLASS]: "reload"
 });
 
 const Ext = Object.seal({
@@ -484,28 +486,47 @@ function handleMessageUpdateCanvases(msg) {
     if (canvasIsLocal) {
       canvasIndex = Ext.active.delay.options.canvasIndex;
     } else if (frameUUID === Ext.active.delay.options.frameUUID) {
+      let wasLocal = false;
       canvasIndex = parseInt(msg.delayCanvasIndex, 10);
-      if (canvasIndex >= 0) {
+
+      if (canvasIndex < 0) {
+        /* Race condition when DELAY is sent to frame but frame sends
+           UPDATE_CANVASES before it receives DELAY */
+        canvasIndex = Ext.active.delay.options.canvasIndex;
+        wasLocal = true;
+      }
+
+      if (!wasLocal && canvasIndex >= 0) {
         Ext.active.delay.options.canvasIndex = canvasIndex;
-      } else {
+      } else if (canvasIndex < 0) {
         handleCancelDelay();
       }
     } else {
       canvasIndex = Ext.active.delay.options.canvasIndex;
       canvasFrameUUID = Ext.active.delay.options.frameUUID;
     }
+  } else if (Ext.active.index >= 0) {
+    /* Race condition when CAPTURE_START sent to frame but frame sends
+       UPDATE_CANVASES before replying to CAPTURE_START */
+       const row = Ext.listCanvases.querySelector(
+         `.${LIST_CANVASES_ROW_CLASS}.${CANVAS_CAPTURE_SELECTED_CLASS}`
+       );
+       canvasIndex = parseInt(row.dataset.canvasIndex, 10);
+       canvasFrameUUID = row.dataset.frameUUID;
   }
 
   updateCanvases();
 
-  if (Ext.active.capturing || Ext.active.delay.timerId >= 0) {
+  if (Ext.active.capturing || Ext.active.delay.timerId >= 0 || Ext.active.index >= 0) {
     const canvasIsLocal =
       (Ext.active.capturing)
       ? (Ext.active.frameUUID === TOP_FRAME_UUID)
-      : Ext.active.delay.options.canvasIsLocal;
+      : Ext.active.delay.options && Ext.active.delay.options.canvasIsLocal;
 
     if (!canvasIsLocal) {
-      const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+      const rows = Array.from(
+        Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+      );
       const frameRows = rows.filter((el) => el.dataset.frameUUID === canvasFrameUUID);
       const row = frameRows[canvasIndex];
       for (let k = 0, n = rows.length; k < n; k += 1) {
@@ -669,6 +690,17 @@ function loadSavedSettingsToRow(row, settings) {
           input.value = value;
         } else if (input.type.toUpperCase() === "CHECKBOX") {
           input.checked = value;
+
+          if (value && key === LIST_CANVASES_CAPTURE_RELOAD_CLASS) {
+
+            setTimeout(function() {
+              const button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
+
+              if (button) {
+                button.click();
+              }
+            }, 1);
+          }
         }
       }
     }
@@ -1025,6 +1057,24 @@ function handleInputBlur() {
   saveCanvasSettings();
 }
 
+function handleInputChange(e) {
+  const checkbox = e.target;
+
+  if (checkbox.checked) {
+    const inputs = Array.from(
+      Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_CAPTURE_RELOAD_CLASS} input`)
+    );
+
+    for (let k = 0, n = inputs.length; k < n; k += 1) {
+      const input = inputs[k];
+
+      if (input !== checkbox) {
+        input.checked = false;
+      }
+    }
+  }
+}
+
 function handleCaptureClose(evt) {
   if (evt) {
     evt.preventDefault();
@@ -1192,6 +1242,8 @@ function updateCanvases() {
     delayInput.value = DEFAULT_DELAY;
     delayInput.addEventListener("focus", handleInputFocus, false);
     delayInput.addEventListener("blur", handleInputBlur, false);
+    const reloadInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_RELOAD_CLASS} input`);
+    reloadInput.addEventListener("change", handleInputChange, false);
 
     const button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
     button.dataset.index = k;
@@ -1610,21 +1662,27 @@ function preStartCapture(button) {
     bps,
     rowIndex
   });
-  delayOverlay.classList.remove(HIDDEN_CLASS);
-  Ext.active.delay.delaySecs = delaySecs;
-  Ext.active.delay.timerId = setTimeout(handleDelayEnd, delayMsecs);
-  Ext.active.delay.updateTimerId = setInterval(handleDelayUpdate, delayUpdateMSecs);
-  Ext.active.delay.startTS = Date.now();
-  if (!canvasIsLocal) {
-    Ext.port.postMessage({
-      "command": MessageCommands.DELAY,
-      "tabId": Ext.tabId,
-      "frameId": Ext.frameId,
-      "frameUUID": TOP_FRAME_UUID,
-      "targetFrameUUID": frameUUID,
-      "canvasIndex": canvasIndex,
-      "delayed": true
-    });
+
+  if (delaySecs) {
+    delayOverlay.classList.remove(HIDDEN_CLASS);
+    Ext.active.delay.delaySecs = delaySecs;
+    Ext.active.delay.timerId = setTimeout(handleDelayEnd, delayMsecs);
+    Ext.active.delay.updateTimerId = setInterval(handleDelayUpdate, delayUpdateMSecs);
+    Ext.active.delay.startTS = Date.now();
+
+    if (!canvasIsLocal) {
+      Ext.port.postMessage({
+        "command": MessageCommands.DELAY,
+        "tabId": Ext.tabId,
+        "frameId": Ext.frameId,
+        "frameUUID": TOP_FRAME_UUID,
+        "targetFrameUUID": frameUUID,
+        "canvasIndex": canvasIndex,
+        "delayed": true
+      });
+    }
+  } else {
+    handleDelayEnd();
   }
 }
 
@@ -1648,15 +1706,18 @@ function handleDelayEnd() {
       Ext.active.clear();
     }
   } else {
-    Ext.port.postMessage({
-      "command": MessageCommands.DELAY,
-      "tabId": Ext.tabId,
-      "frameId": Ext.frameId,
-      "frameUUID": TOP_FRAME_UUID,
-      "targetFrameUUID": frameUUID,
-      "canvasIndex": canvasIndex,
-      "delayed": false
-    });
+    if (Ext.active.delay.delaySecs) {
+      Ext.port.postMessage({
+        "command": MessageCommands.DELAY,
+        "tabId": Ext.tabId,
+        "frameId": Ext.frameId,
+        "frameUUID": TOP_FRAME_UUID,
+        "targetFrameUUID": frameUUID,
+        "canvasIndex": canvasIndex,
+        "delayed": false
+      });
+    }
+
     Ext.port.postMessage({
       "command": MessageCommands.CAPTURE_START,
       "tabId": Ext.tabId,

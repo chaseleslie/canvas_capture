@@ -56,7 +56,7 @@
 .list_canvases_row_heading {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
   z-index: 100;
   background-color: #372850;
   font-weight: 600;
@@ -66,7 +66,7 @@
 .list_canvases_row {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
   height: 1.75em;
 }
 
