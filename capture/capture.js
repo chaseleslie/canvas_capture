@@ -486,11 +486,19 @@ function handleMessageUpdateCanvases(msg) {
     if (canvasIsLocal) {
       canvasIndex = Ext.active.delay.options.canvasIndex;
     } else if (frameUUID === Ext.active.delay.options.frameUUID) {
+      let wasLocal = false;
       canvasIndex = parseInt(msg.delayCanvasIndex, 10);
 
-      if (canvasIndex >= 0) {
+      if (canvasIndex < 0) {
+        /* Race condition when DELAY is sent to frame but frame sends
+           UPDATE_CANVASES before it receives DELAY */
+        canvasIndex = Ext.active.delay.options.canvasIndex;
+        wasLocal = true;
+      }
+
+      if (!wasLocal && canvasIndex >= 0) {
         Ext.active.delay.options.canvasIndex = canvasIndex;
-      } else {
+      } else if (canvasIndex < 0) {
         handleCancelDelay();
       }
     } else {
