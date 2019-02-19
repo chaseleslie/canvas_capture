@@ -497,18 +497,28 @@ function handleMessageUpdateCanvases(msg) {
       canvasIndex = Ext.active.delay.options.canvasIndex;
       canvasFrameUUID = Ext.active.delay.options.frameUUID;
     }
+  } else if (Ext.active.index >= 0) {
+    /* Race condition when CAPTURE_START sent to frame but frame sends
+       UPDATE_CANVASES before replying to CAPTURE_START */
+       const row = Ext.listCanvases.querySelector(
+         `.${LIST_CANVASES_ROW_CLASS}.${CANVAS_CAPTURE_SELECTED_CLASS}`
+       );
+       canvasIndex = parseInt(row.dataset.canvasIndex, 10);
+       canvasFrameUUID = row.dataset.frameUUID;
   }
 
   updateCanvases();
 
-  if (Ext.active.capturing || Ext.active.delay.timerId >= 0) {
+  if (Ext.active.capturing || Ext.active.delay.timerId >= 0 || Ext.active.index >= 0) {
     const canvasIsLocal =
       (Ext.active.capturing)
       ? (Ext.active.frameUUID === TOP_FRAME_UUID)
-      : Ext.active.delay.options.canvasIsLocal;
+      : Ext.active.delay.options && Ext.active.delay.options.canvasIsLocal;
 
     if (!canvasIsLocal) {
-      const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+      const rows = Array.from(
+        Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+      );
       const frameRows = rows.filter((el) => el.dataset.frameUUID === canvasFrameUUID);
       const row = frameRows[canvasIndex];
       for (let k = 0, n = rows.length; k < n; k += 1) {
@@ -1644,21 +1654,27 @@ function preStartCapture(button) {
     bps,
     rowIndex
   });
-  delayOverlay.classList.remove(HIDDEN_CLASS);
-  Ext.active.delay.delaySecs = delaySecs;
-  Ext.active.delay.timerId = setTimeout(handleDelayEnd, delayMsecs);
-  Ext.active.delay.updateTimerId = setInterval(handleDelayUpdate, delayUpdateMSecs);
-  Ext.active.delay.startTS = Date.now();
-  if (!canvasIsLocal) {
-    Ext.port.postMessage({
-      "command": MessageCommands.DELAY,
-      "tabId": Ext.tabId,
-      "frameId": Ext.frameId,
-      "frameUUID": TOP_FRAME_UUID,
-      "targetFrameUUID": frameUUID,
-      "canvasIndex": canvasIndex,
-      "delayed": true
-    });
+
+  if (delaySecs) {
+    delayOverlay.classList.remove(HIDDEN_CLASS);
+    Ext.active.delay.delaySecs = delaySecs;
+    Ext.active.delay.timerId = setTimeout(handleDelayEnd, delayMsecs);
+    Ext.active.delay.updateTimerId = setInterval(handleDelayUpdate, delayUpdateMSecs);
+    Ext.active.delay.startTS = Date.now();
+
+    if (!canvasIsLocal) {
+      Ext.port.postMessage({
+        "command": MessageCommands.DELAY,
+        "tabId": Ext.tabId,
+        "frameId": Ext.frameId,
+        "frameUUID": TOP_FRAME_UUID,
+        "targetFrameUUID": frameUUID,
+        "canvasIndex": canvasIndex,
+        "delayed": true
+      });
+    }
+  } else {
+    handleDelayEnd();
   }
 }
 
@@ -1682,15 +1698,18 @@ function handleDelayEnd() {
       Ext.active.clear();
     }
   } else {
-    Ext.port.postMessage({
-      "command": MessageCommands.DELAY,
-      "tabId": Ext.tabId,
-      "frameId": Ext.frameId,
-      "frameUUID": TOP_FRAME_UUID,
-      "targetFrameUUID": frameUUID,
-      "canvasIndex": canvasIndex,
-      "delayed": false
-    });
+    if (Ext.active.delay.delaySecs) {
+      Ext.port.postMessage({
+        "command": MessageCommands.DELAY,
+        "tabId": Ext.tabId,
+        "frameId": Ext.frameId,
+        "frameUUID": TOP_FRAME_UUID,
+        "targetFrameUUID": frameUUID,
+        "canvasIndex": canvasIndex,
+        "delayed": false
+      });
+    }
+
     Ext.port.postMessage({
       "command": MessageCommands.CAPTURE_START,
       "tabId": Ext.tabId,
