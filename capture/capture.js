@@ -70,6 +70,7 @@ const LIST_CANVASES_CANVAS_HEIGHT_CLASS = "list_canvases_canvas_height";
 const LIST_CANVASES_CAPTURE_DELAY_CLASS = "list_canvases_capture_delay";
 const LIST_CANVASES_CAPTURE_FPS_CLASS = "list_canvases_capture_fps";
 const LIST_CANVASES_CAPTURE_BPS_CLASS = "list_canvases_capture_bps";
+const LIST_CANVASES_CAPTURE_RELOAD_CLASS = "list_canvases_capture_reload";
 const CANVAS_CAPTURE_LINK_CONTAINER_CLASS = "canvas_capture_link_container";
 const CANVAS_CAPTURE_SELECTED_CLASS = "canvas_capture_selected";
 const CANVAS_CAPTURE_INACTIVE_CLASS = "canvas_capture_inactive";
@@ -92,7 +93,8 @@ const SAVE_SETTINGS_MAP = Object.freeze({
   [LIST_CANVASES_CAPTURE_FPS_CLASS]:    "fps",
   [LIST_CANVASES_CAPTURE_BPS_CLASS]:    "bps",
   [LIST_CANVASES_CAPTURE_DELAY_CLASS]:  "delay",
-  [LIST_CANVASES_CAPTURE_TIMER_CLASS]:  "timer"
+  [LIST_CANVASES_CAPTURE_TIMER_CLASS]:  "timer",
+  [LIST_CANVASES_CAPTURE_RELOAD_CLASS]: "reload"
 });
 
 const Ext = Object.seal({
@@ -485,6 +487,7 @@ function handleMessageUpdateCanvases(msg) {
       canvasIndex = Ext.active.delay.options.canvasIndex;
     } else if (frameUUID === Ext.active.delay.options.frameUUID) {
       canvasIndex = parseInt(msg.delayCanvasIndex, 10);
+
       if (canvasIndex >= 0) {
         Ext.active.delay.options.canvasIndex = canvasIndex;
       } else {
@@ -669,6 +672,17 @@ function loadSavedSettingsToRow(row, settings) {
           input.value = value;
         } else if (input.type.toUpperCase() === "CHECKBOX") {
           input.checked = value;
+
+          if (value && key === LIST_CANVASES_CAPTURE_RELOAD_CLASS) {
+
+            setTimeout(function() {
+              const button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
+
+              if (button) {
+                button.click();
+              }
+            }, 1);
+          }
         }
       }
     }
@@ -1025,6 +1039,24 @@ function handleInputBlur() {
   saveCanvasSettings();
 }
 
+function handleInputChange(e) {
+  const checkbox = e.target;
+
+  if (checkbox.checked) {
+    const inputs = Array.from(
+      Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_CAPTURE_RELOAD_CLASS} input`)
+    );
+
+    for (let k = 0, n = inputs.length; k < n; k += 1) {
+      const input = inputs[k];
+
+      if (input !== checkbox) {
+        input.checked = false;
+      }
+    }
+  }
+}
+
 function handleCaptureClose(evt) {
   if (evt) {
     evt.preventDefault();
@@ -1192,6 +1224,8 @@ function updateCanvases() {
     delayInput.value = DEFAULT_DELAY;
     delayInput.addEventListener("focus", handleInputFocus, false);
     delayInput.addEventListener("blur", handleInputBlur, false);
+    const reloadInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_RELOAD_CLASS} input`);
+    reloadInput.addEventListener("change", handleInputChange, false);
 
     const button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
     button.dataset.index = k;
