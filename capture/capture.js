@@ -1924,8 +1924,14 @@ function handleViewCapturesOpen() {
   const viewCapturesRowContainer = document.getElementById(VIEW_CAPTURES_ROW_CONTAINER_ID);
 
   viewCapturesContainer.classList.remove(HIDDEN_CLASS);
-  viewCapturesContainer.style.left = "25%";
-  viewCapturesContainer.style.top = "25%";
+
+  setTimeout(function() {
+    const rect = viewCapturesContainer.getBoundingClientRect();
+    const left = Math.round((0.5 * window.innerWidth) - (0.5 * rect.width));
+    const top = Math.round((0.5 * window.innerHeight) - (0.5 * rect.height));
+    viewCapturesContainer.style.left = `${left}px`;
+    viewCapturesContainer.style.top = `${top}px`;
+  }, 0);
 
   const oldRows = Array.from(viewCapturesRowContainer.querySelectorAll(`.${CAPTURE_DL_ROW_CLASS}`));
   oldRows.forEach((el) => el.remove());
