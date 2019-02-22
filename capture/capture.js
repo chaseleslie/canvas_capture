@@ -1827,9 +1827,14 @@ function clearCapturing(success) {
   if (success) {
     const wrapper = document.getElementById(WRAPPER_ID);
     const dlButtonContainer = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_CONTAINER_ID}`);
+    const viewCapturesContainer = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
 
     dlButtonContainer.addEventListener("animationend", clearCaptureCompleteAnimation, false);
     dlButtonContainer.classList.add(CAPTURE_COMPLETE_CLASS);
+
+    if (!viewCapturesContainer.classList.contains(HIDDEN_CLASS)) {
+      handleViewCapturesOpen();
+    }
   }
 }
 
