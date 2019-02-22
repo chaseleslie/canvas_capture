@@ -404,6 +404,10 @@
   background-color: #20202E;
 }
 
+.capture_dl_download_link {
+  color: #8A8;
+}
+
 .span_all {
   grid-column: 1 / -1;
 }
