@@ -93,6 +93,7 @@ const CAPTURE_DL_SIZE_CLASS = "capture_dl_size";
 const CAPTURE_DL_DURATION_CLASS = "capture_dl_duration";
 const CAPTURE_DL_REMOVE_BUTTON_CLASS = "capture_dl_remove_button";
 const CAPTURE_DL_DOWNLOAD_LINK_CLASS = "capture_dl_download_link";
+const CAPTURE_COMPLETE_CLASS = "capture_complete";
 
 const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributes": true,
@@ -320,16 +321,16 @@ function handleMessageCaptureStart(msg) {
 }
 
 function handleMessageCaptureStop(msg) {
-  clearCapturing();
-  clearActiveRows();
-  Ext.active.clear();
-
   if (msg.success) {
     const capture = msg.capture;
     Ext.captures.push(capture);
   } else {
     // error
   }
+
+  clearCapturing(msg.success);
+  clearActiveRows();
+  Ext.active.clear();
 }
 
 function handleMessageDisconnect(msg) {
@@ -1817,12 +1818,25 @@ function setCapturing() {
   maximize.classList.add(CAPTURING_MINIMIZED_CLASS);
 }
 
-function clearCapturing() {
+function clearCapturing(success) {
   const maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
 
   clearActiveRows();
-
   maximize.classList.remove(CAPTURING_MINIMIZED_CLASS);
+
+  if (success) {
+    const wrapper = document.getElementById(WRAPPER_ID);
+    const dlButtonContainer = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_CONTAINER_ID}`);
+
+    dlButtonContainer.addEventListener("animationend", clearCaptureCompleteAnimation, false);
+    dlButtonContainer.classList.add(CAPTURE_COMPLETE_CLASS);
+  }
+}
+
+function clearCaptureCompleteAnimation(e) {
+  const el = e.target;
+  el.classList.remove(CAPTURE_COMPLETE_CLASS);
+  el.removeEventListener("animationend", clearCaptureCompleteAnimation, false);
 }
 
 function preStopCapture(evt) {
@@ -1874,20 +1888,22 @@ function createVideoURL(blob) {
 
 function stopCapture() {
   var blob = null;
-
-  clearCapturing();
-  clearActiveRows();
+  var success = false;
 
   if (Ext.active.capturing && !Ext.active.error && Ext.active.stopped) {
     if (Ext.chunks.length) {
       blob = new Blob(Ext.chunks, {"type": Ext.chunks[0].type});
     }
     createVideoURL(blob);
+    success = true;
   } else if (Ext.active.error || !Ext.active.stopped) {
     showNotification("An error occured while recording.");
   } else {
     showNotification("Canvas was removed while it was being recorded.");
   }
+
+  clearCapturing(success);
+  clearActiveRows();
 
   Ext.mediaRecorder = null;
   Ext.chunks = null;

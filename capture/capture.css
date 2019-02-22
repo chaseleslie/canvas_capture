@@ -448,3 +448,13 @@
 .capturing_minimized {
   animation: cc_minim_active 2s linear infinite;
 }
+
+@keyframes cc_pulse {
+  50% {
+    background-color: #559;
+  }
+}
+
+.capture_complete {
+  animation: cc_pulse 2s linear 0s 3;
+}
