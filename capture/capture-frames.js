@@ -107,11 +107,11 @@ const Ext = Object.seal({
     Ext.downloadLinks = [];
   },
   "disable": function() {
+    this.freeCaptures();
+
     for (const key of Object.keys(this)) {
       this[key] = null;
     }
-
-    this.freeCaptures();
   }
 });
 
