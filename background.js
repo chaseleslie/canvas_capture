@@ -126,12 +126,9 @@ async function connected(port) {
   });
 
   if (frameUUID === TOP_FRAME_UUID) {
-    const settings = await getSettings();
-
     port.postMessage({
       "command": MessageCommands.DISPLAY,
-      "tabId": tabId,
-      "defaultSettings": settings
+      "tabId": tabId
     });
 
     const actTab = activeTabs[tabId];
@@ -141,6 +138,13 @@ async function connected(port) {
     delete actTab.settingsTimeout;
     delete actTab.settingsOrphaned;
   }
+
+  const settings = await getSettings();
+  port.postMessage({
+    "command":          MessageCommands.UPDATE_SETTINGS,
+    "tabId":            tabId,
+    "defaultSettings":  settings
+  });
 }
 
 function onBrowserAction(tab) {
@@ -347,7 +351,8 @@ function onMessage(msg) {
     case MessageCommands.CAPTURE_STOP:
     case MessageCommands.DELAY:
     case MessageCommands.DOWNLOAD:
-    case MessageCommands.HIGHLIGHT: {
+    case MessageCommands.HIGHLIGHT:
+    case MessageCommands.REMOVE_CAPTURE: {
       const tabId = msg.tabId;
       const frames = activeTabs[tabId].frames;
       const targetFrameUUID = msg.targetFrameUUID;
@@ -493,19 +498,21 @@ function updateSettings(msg) {
   }, SETTINGS_RELOAD_TIMEOUT);
 }
 
-/* Send updated settings to top frames */
+/* Send updated settings to all frames in all tabs */
 async function sendUpdatedSettings() {
   const settings = await getSettings();
 
   for (const tabId of Object.keys(activeTabs)) {
     const tab = activeTabs[tabId];
-    const topFrame = tab.frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
-    const port = topFrame.port;
 
-    port.postMessage({
-      "command":          MessageCommands.UPDATE_SETTINGS,
-      "tabId":            tabId,
-      "defaultSettings":  settings
-    });
+    for (let k = 0, n = tab.frames.length; k < n; k += 1) {
+      const frame = tab.frames[k];
+      const port = frame.port;
+      port.postMessage({
+        "command":          MessageCommands.UPDATE_SETTINGS,
+        "tabId":            tabId,
+        "defaultSettings":  settings
+      });
+    }
   }
 }

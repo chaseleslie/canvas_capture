@@ -83,29 +83,33 @@ const Ext = Object.seal({
   "chunks": null,
   "frames": {[FRAME_UUID]: {"frameUUID": FRAME_UUID, "canvases": []}},
   "numBytesRecorded": 0,
-  "objectURLs": [],
+  "captures": [],
   "downloadLinks": [],
   "settings": {
     "maxVideoSize": Utils.DEFAULT_MAX_VIDEO_SIZE
   },
   "bodyMutObs": new MutationObserver(observeBodyMutations),
   "canvasMutObs": new MutationObserver(observeCanvasMutations),
-  "freeObjectURLs": function() {
-    for (let k = 0; k < this.objectURLs.length; k += 1) {
-      window.URL.revokeObjectURL(this.objectURLs[k]);
+  "freeCaptures": function() {
+    for (let k = 0; k < this.captures.length; k += 1) {
+      const capture = this.captures[k];
+      window.URL.revokeObjectURL(capture.url);
     }
 
     for (let k = 0, n = this.downloadLinks.length; k < n; k += 1) {
       const link = this.downloadLinks[k];
-      link.parentElement.removeChild(link);
+      link.remove(link);
       this.downloadLinks[k] = null;
     }
+
     Ext.downloadLinks = [];
   },
   "disable": function() {
     for (const key of Object.keys(this)) {
       this[key] = null;
     }
+
+    this.freeCaptures();
   }
 });
 
@@ -183,10 +187,14 @@ function onMessage(msg) {
     handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
     handleMessageRegister(msg);
+  } else if (msg.command === MessageCommands.REMOVE_CAPTURE) {
+    handleMessageRemoveCapture(msg);
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     const canvases = Array.from(document.body.querySelectorAll("canvas"));
     Ext.frames[FRAME_UUID].canvases = canvases;
     updateCanvases(canvases);
+  } else if (msg.command === MessageCommands.UPDATE_SETTINGS) {
+    handleMessageUpdateSettings(msg);
   }
 }
 
@@ -247,7 +255,6 @@ function handleMessageDisplay(msg) {
   const canvases = Array.from(document.body.querySelectorAll("canvas"));
 
   canvases.forEach((canvas) => Ext.canvasMutObs.observe(canvas, CANVAS_OBSERVER_OPS));
-  Ext.settings.maxVideoSize = msg.defaultSettings.maxVideoSize;
   Ext.tabId = msg.tabId;
   Ext.frames[FRAME_UUID].canvases = canvases;
   updateCanvases(canvases);
@@ -255,9 +262,9 @@ function handleMessageDisplay(msg) {
 
 function handleMessageDownload(msg) {
   const link = document.createElement("a");
+  link.href = msg.url;
   link.textContent = "download";
-  link.href = Ext.objectURLs[msg.canvasIndex];
-  link.download = `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`;
+  link.download = msg.name;
   link.style.maxWidth = "0px";
   link.style.maxHeight = "0px";
   link.style.display = "block";
@@ -315,6 +322,29 @@ function handleMessageRegister(msg) {
     "targetFrameUUID":  TOP_FRAME_UUID,
     "pathSpec":         ""
   }, "*");
+}
+
+function handleMessageRemoveCapture(msg) {
+  const url = msg.url;
+
+  for (let k = 0, n = Ext.captures.length; k < n; k += 1) {
+    const capture = Ext.captures[k];
+
+    if (capture.url === url) {
+      window.URL.revokeObjectURL(url);
+      Ext.captures.splice(k, 1);
+      break;
+    }
+  }
+}
+
+function handleMessageUpdateSettings(msg) {
+  const settings = msg.defaultSettings;
+  for (const key of Object.keys(Ext.settings)) {
+    if (key in settings) {
+      Ext.settings[key] = settings[key];
+    }
+  }
 }
 
 function observeBodyMutations(mutations) {
@@ -542,11 +572,31 @@ function preStopCapture(evt) {
 function stopCapture() {
   var blob = null;
   var videoURL = "";
+  var size = 0;
+  var capture = {
+    "url":        "",
+    "startTS":    Ext.active.startTS,
+    "endTS":      Ext.active.startTS,
+    "size":       0,
+    "prettySize": "",
+    "name":       "",
+    "frameUUID":  FRAME_UUID
+  };
 
   if (Ext.chunks.length) {
     blob = new Blob(Ext.chunks, {"type": Ext.chunks[0].type});
     videoURL = window.URL.createObjectURL(blob);
-    Ext.objectURLs[Ext.active.index] = videoURL;
+    size = blob ? blob.size : 0;
+    capture = {
+      "url":        videoURL,
+      "startTS":    Ext.active.startTS,
+      "endTS":      Date.now(),
+      "size":       size,
+      "prettySize": Utils.prettyFileSize(size),
+      "name":       `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`,
+      "frameUUID":  FRAME_UUID
+    };
+    Ext.captures.push(capture);
   }
   var success = !Ext.active.error;
 
@@ -566,10 +616,8 @@ function stopCapture() {
     "frameUUID": FRAME_UUID,
     "targetFrameUUID": TOP_FRAME_UUID,
     "canvasIndex": Ext.active.index,
-    "videoURL": videoURL,
     "success": success,
-    "size": blob ? blob.size : 0,
-    "startTS": Ext.active.startTS
+    "capture": capture
   });
 
   Ext.active.clear();

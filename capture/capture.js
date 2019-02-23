@@ -37,6 +37,7 @@ const MSEC_PER_SEC = 1000;
 const CSS_FILE_PATH = "/capture/capture.css";
 const HTML_FILE_PATH = "/capture/capture.html";
 const HTML_ROW_FILE_PATH = "/capture/capture-row.html";
+const HTML_DL_ROW_FILE_PATH = "/capture/download-row.html";
 const ICON_ADD_PATH = "/capture/img/icon_add_32.svg";
 const ICON_TIMER_PATH = "/capture/img/icon_timer_32.svg";
 
@@ -58,6 +59,11 @@ const DELAY_OVERLAY_ID = "capture_delay_overlay";
 const DELAY_OVERLAY_TIME_ID = "capture_delay_overlay_time";
 const DELAY_OVERLAY_SKIP_ID = "capture_delay_overlay_skip";
 const DELAY_OVERLAY_CANCEL_ID = "capture_delay_overlay_cancel";
+const LIST_CANVASES_DL_BUTTON_CONTAINER_ID = "list_canvases_dl_button_container";
+const LIST_CANVASES_DL_BUTTON_ID = "list_canvases_dl_button";
+const VIEW_CAPTURES_CLOSE_ID = "view_captures_close";
+const VIEW_CAPTURES_CONTAINER_ID = "view_captures_container";
+const VIEW_CAPTURES_ROW_CONTAINER_ID = "view_captures_row_container";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
@@ -71,7 +77,6 @@ const LIST_CANVASES_CAPTURE_DELAY_CLASS = "list_canvases_capture_delay";
 const LIST_CANVASES_CAPTURE_FPS_CLASS = "list_canvases_capture_fps";
 const LIST_CANVASES_CAPTURE_BPS_CLASS = "list_canvases_capture_bps";
 const LIST_CANVASES_CAPTURE_RELOAD_CLASS = "list_canvases_capture_reload";
-const CANVAS_CAPTURE_LINK_CONTAINER_CLASS = "canvas_capture_link_container";
 const CANVAS_CAPTURE_SELECTED_CLASS = "canvas_capture_selected";
 const CANVAS_CAPTURE_INACTIVE_CLASS = "canvas_capture_inactive";
 const TIMER_MODIFYING_CLASS = "timer_modifying";
@@ -82,6 +87,13 @@ const HIGHLIGHTER_UNAVAILABLE_CLASS = "highlighter_unavailable";
 const HIGHLIGHTER_HORIZONTAL_CLASS = "highlighter_horizontal";
 const HIGHLIGHTER_VERTICAL_CLASS = "highlighter_vertical";
 const HIGHLIGHTER_OVERLAY_CLASS = "highlighter_overlay";
+const CAPTURE_DL_ROW_CLASS = "view_captures_row";
+const CAPTURE_DL_DATE_CLASS = "capture_dl_date";
+const CAPTURE_DL_SIZE_CLASS = "capture_dl_size";
+const CAPTURE_DL_DURATION_CLASS = "capture_dl_duration";
+const CAPTURE_DL_REMOVE_BUTTON_CLASS = "capture_dl_remove_button";
+const CAPTURE_DL_DOWNLOAD_LINK_CLASS = "capture_dl_download_link";
+const CAPTURE_COMPLETE_CLASS = "capture_complete";
 
 const CANVAS_OBSERVER_OPS = Object.freeze({
   "attributes": true,
@@ -103,6 +115,7 @@ const Ext = Object.seal({
   "tabKey": null,
   "port": null,
   "rowTemplate": null,
+  "dlRowTemplate": null,
   "settings": Object.seal({
     [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
     [Utils.FPS_KEY]:            Utils.DEFAULT_FPS,
@@ -166,7 +179,7 @@ const Ext = Object.seal({
   }),
   "listCanvases": null,
   "chunks": null,
-  "objectURLs": [],
+  "captures": [],
   "frames": {
     [TOP_FRAME_UUID]: {
       "frameUUID": TOP_FRAME_UUID,
@@ -190,13 +203,14 @@ const Ext = Object.seal({
     "overlay":  null
   }),
   "highlighterCurrent": null,
-  "freeObjectURLs": function() {
-    for (let k = 0; k < this.objectURLs.length; k += 1) {
-      window.URL.revokeObjectURL(this.objectURLs[k]);
+  "freeCaptures": function() {
+    for (let k = 0; k < this.captures.length; k += 1) {
+      const capture = this.captures[k];
+      window.URL.revokeObjectURL(capture.url);
     }
   },
   "disable": function() {
-    this.freeObjectURLs();
+    this.freeCaptures();
     for (const key of Object.keys(this)) {
       this[key] = null;
     }
@@ -295,6 +309,7 @@ function onMessage(msg) {
 }
 
 function handleMessageCaptureStart(msg) {
+
   if (msg.success) {
     Ext.active.capturing = true;
     Ext.active.startTS = msg.startTS;
@@ -306,42 +321,16 @@ function handleMessageCaptureStart(msg) {
 }
 
 function handleMessageCaptureStop(msg) {
-  const linkCol = Ext.listCanvases.querySelectorAll(
-    `.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`
-  )[Ext.active.index];
-
-  clearCapturing();
-  clearActiveRows();
-  Ext.active.clear();
-
   if (msg.success) {
-    const link = document.createElement("a");
-    link.textContent = "Download";
-    link.href = msg.videoURL;
-    link.title = Utils.prettyFileSize(msg.size);
-
-    if (msg.size) {
-      link.addEventListener("click", function(evt) {
-        Ext.port.postMessage({
-          "command": MessageCommands.DOWNLOAD,
-          "tabId": Ext.tabId,
-          "frameId": Ext.frameId,
-          "frameUUID": TOP_FRAME_UUID,
-          "targetFrameUUID": msg.frameUUID,
-          "canvasIndex": msg.canvasIndex
-        });
-        evt.preventDefault();
-      }, false);
-    } else {
-      link.addEventListener("click", function(evt) {
-        evt.preventDefault();
-      });
-    }
-
-    linkCol.appendChild(link);
+    const capture = msg.capture;
+    Ext.captures.push(capture);
   } else {
     // error
   }
+
+  clearCapturing(msg.success);
+  clearActiveRows();
+  Ext.active.clear();
 }
 
 function handleMessageDisconnect(msg) {
@@ -935,16 +924,11 @@ function handleDisable(notify) {
   Ext.disable();
 }
 
-function handleDisplay(msg) {
-  for (const key of Object.keys(msg.defaultSettings)) {
-    if (key in Ext.settings) {
-      Ext.settings[key] = msg.defaultSettings[key];
-    }
-  }
-
+function handleDisplay() {
   const cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
   const htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
   const htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
+  const htmlDlRowUrl = browser.runtime.getURL(HTML_DL_ROW_FILE_PATH);
 
   fetch(htmlRowUrl).then(function(response) {
     if (response.ok) {
@@ -957,6 +941,19 @@ function handleDisplay(msg) {
     Ext.rowTemplate = document.createElement("template");
     Ext.rowTemplate.innerHTML = text;
     Ext.rowTemplate = Ext.rowTemplate.content.firstElementChild;
+
+    return fetch(htmlDlRowUrl);
+  }).then(function (response) {
+    if (response.ok) {
+      return response.text();
+    }
+    throw new Error(
+      `Received ${response.status} ${response.statusText} fetching ${response.url}`
+    );
+  }).then(function (text) {
+    const template = document.createElement("template");
+    template.innerHTML = text;
+    Ext.dlRowTemplate = template.content.firstElementChild;
 
     return fetch(cssUrl);
   }).then(function(response) {
@@ -1150,6 +1147,11 @@ function setupDisplay(html) {
   delaySkip.addEventListener("click", handleDelayEnd, false);
   delayCancel.addEventListener("click", handleCancelDelay, false);
 
+  const viewCapturesOpen = document.getElementById(LIST_CANVASES_DL_BUTTON_ID);
+  viewCapturesOpen.addEventListener("click", handleViewCapturesOpen, false);
+  const viewCapturesClose = document.getElementById(VIEW_CAPTURES_CLOSE_ID);
+  viewCapturesClose.addEventListener("click", handleViewCapturesClose, false);
+
   positionWrapper();
   setupWrapperEvents();
 
@@ -1160,10 +1162,7 @@ function setupDisplay(html) {
     "tabId": Ext.tabId,
     "frameId": Ext.frameId,
     "frameUUID": TOP_FRAME_UUID,
-    "targetFrameUUID": ALL_FRAMES_UUID,
-    "defaultSettings": {
-      "maxVideoSize": Ext.settings.maxVideoSize
-    }
+    "targetFrameUUID": ALL_FRAMES_UUID
   });
 
   updateCanvases();
@@ -1599,9 +1598,13 @@ function clearActiveRows() {
     );
     setRowEventListeners(row);
     row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`).textContent = "Capture";
-    row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`)
-      .classList.remove(CAPTURING_CLASS);
   }
+
+  const wrapper = document.getElementById(WRAPPER_ID);
+  const dlButtonContainer = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_CONTAINER_ID}`);
+  const dlButton = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_ID}`);
+  dlButtonContainer.classList.remove(CAPTURING_CLASS);
+  dlButton.classList.remove(HIDDEN_CLASS);
 
   for (let k = 0, n = inputs.length; k < n; k += 1) {
     const input = inputs[k];
@@ -1622,8 +1625,6 @@ function preStartCapture(button) {
   const canvases = Ext.frames[Ext.active.frameUUID].canvases;
   const canvasIndex = parseInt(button.dataset.canvasIndex, 10);
   const canvas = canvasIsLocal ? canvases[index] : canvases[canvasIndex];
-  const linkCol = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
-  linkCol.textContent = "";
 
   if (canvasIsLocal && !canCaptureStream(canvas)) {
     return;
@@ -1797,22 +1798,41 @@ function handleCaptureStart() {
 }
 
 function setCapturing() {
+  const wrapper = document.getElementById(WRAPPER_ID);
   const maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
-  const index = Ext.active.index;
-  const linkCol = Ext.listCanvases.querySelectorAll(
-    `.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`
-  )[index];
+  const dlButtonContainer = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_CONTAINER_ID}`);
+  const dlButton = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_ID}`);
 
-  linkCol.classList.add(CAPTURING_CLASS);
+  dlButtonContainer.classList.add(CAPTURING_CLASS);
+  dlButton.classList.add(HIDDEN_CLASS);
+
   maximize.classList.add(CAPTURING_MINIMIZED_CLASS);
 }
 
-function clearCapturing() {
+function clearCapturing(success) {
   const maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
 
   clearActiveRows();
-
   maximize.classList.remove(CAPTURING_MINIMIZED_CLASS);
+
+  if (success) {
+    const wrapper = document.getElementById(WRAPPER_ID);
+    const dlButtonContainer = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_CONTAINER_ID}`);
+    const viewCapturesContainer = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
+
+    dlButtonContainer.addEventListener("animationend", clearCaptureCompleteAnimation, false);
+    dlButtonContainer.classList.add(CAPTURE_COMPLETE_CLASS);
+
+    if (!viewCapturesContainer.classList.contains(HIDDEN_CLASS)) {
+      handleViewCapturesOpen();
+    }
+  }
+}
+
+function clearCaptureCompleteAnimation(e) {
+  const el = e.target;
+  el.classList.remove(CAPTURE_COMPLETE_CLASS);
+  el.removeEventListener("animationend", clearCaptureCompleteAnimation, false);
 }
 
 function preStopCapture(evt) {
@@ -1844,45 +1864,42 @@ function preStopCapture(evt) {
 }
 
 function createVideoURL(blob) {
-  const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
-  const row = rows[Ext.active.index];
-  const col = row.querySelector(`.${CANVAS_CAPTURE_LINK_CONTAINER_CLASS}`);
-  const link = document.createElement("a");
   const size = blob ? blob.size : 0;
   var videoURL = "";
 
   if (blob) {
     videoURL = window.URL.createObjectURL(blob);
-  } else {
-    link.addEventListener("click", function(evt) {
-      evt.preventDefault();
-    });
   }
 
-  link.textContent = "Download";
-  link.download = `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`;
-  link.href = videoURL;
-  link.title = Utils.prettyFileSize(size);
-  col.appendChild(link);
-  Ext.objectURLs.push(videoURL);
+  Ext.captures.push({
+    "url":        videoURL,
+    "startTS":    Ext.active.startTS,
+    "endTS":      Date.now(),
+    "size":       size,
+    "prettySize": Utils.prettyFileSize(size),
+    "name":       `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`,
+    "frameUUID":  TOP_FRAME_UUID
+  });
 }
 
 function stopCapture() {
   var blob = null;
-
-  clearCapturing();
-  clearActiveRows();
+  var success = false;
 
   if (Ext.active.capturing && !Ext.active.error && Ext.active.stopped) {
     if (Ext.chunks.length) {
       blob = new Blob(Ext.chunks, {"type": Ext.chunks[0].type});
     }
     createVideoURL(blob);
+    success = true;
   } else if (Ext.active.error || !Ext.active.stopped) {
     showNotification("An error occured while recording.");
   } else {
     showNotification("Canvas was removed while it was being recorded.");
   }
+
+  clearCapturing(success);
+  clearActiveRows();
 
   Ext.mediaRecorder = null;
   Ext.chunks = null;
@@ -1912,6 +1929,90 @@ function canCaptureStream(canvas) {
   } catch (e) {
     return false;
   }
+}
+
+function handleViewCapturesOpen() {
+  const viewCapturesContainer = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
+  const viewCapturesRowContainer = document.getElementById(VIEW_CAPTURES_ROW_CONTAINER_ID);
+
+  viewCapturesContainer.classList.remove(HIDDEN_CLASS);
+
+  setTimeout(function() {
+    const rect = viewCapturesContainer.getBoundingClientRect();
+    const left = Math.round((0.5 * window.innerWidth) - (0.5 * rect.width));
+    const top = Math.round((0.5 * window.innerHeight) - (0.5 * rect.height));
+    viewCapturesContainer.style.left = `${left}px`;
+    viewCapturesContainer.style.top = `${top}px`;
+  }, 0);
+
+  const oldRows = Array.from(viewCapturesRowContainer.querySelectorAll(`.${CAPTURE_DL_ROW_CLASS}`));
+  oldRows.forEach((el) => el.remove());
+
+  const docFrag = document.createDocumentFragment();
+
+  for (let k = 0, n = Ext.captures.length; k < n; k += 1) {
+    const capture = Ext.captures[k];
+    const row = Ext.dlRowTemplate.cloneNode(true);
+    const dateSpan = row.querySelector(`.${CAPTURE_DL_DATE_CLASS}`);
+    const sizeSpan = row.querySelector(`.${CAPTURE_DL_SIZE_CLASS}`);
+    const durationSpan = row.querySelector(`.${CAPTURE_DL_DURATION_CLASS}`);
+    const removeButton = row.querySelector(`.${CAPTURE_DL_REMOVE_BUTTON_CLASS}`);
+    const downloadLink = row.querySelector(`.${CAPTURE_DL_DOWNLOAD_LINK_CLASS}`);
+    const date = new Date(capture.startTS);
+    const timeDiff = capture.endTS - capture.startTS;
+    const duration = Utils.secondsToHMS(Math.round(timeDiff / 1000));
+
+    dateSpan.textContent = date.toLocaleString("en-us", {
+      "hour":   "numeric",
+      "minute": "numeric",
+      "hour12": true
+    });
+    dateSpan.title = date.toString();
+    sizeSpan.textContent = capture.prettySize;
+    sizeSpan.title = `${capture.size} B`;
+    durationSpan.textContent = duration;
+    removeButton.addEventListener("click", handleViewCapturesRemove, false);
+    removeButton.dataset.url = capture.url;
+    downloadLink.download = capture.name;
+    downloadLink.href = capture.url;
+    downloadLink.title = capture.prettySize;
+
+    docFrag.append(row);
+  }
+
+  viewCapturesRowContainer.append(docFrag);
+}
+
+function handleViewCapturesRemove(e) {
+  const url = e.target.dataset.url;
+
+  for (let k = 0, n = Ext.captures.length; k < n; k += 1) {
+    const capture = Ext.captures[k];
+
+    if (capture.url === url) {
+      if (capture.frameUUID === TOP_FRAME_UUID) {
+        window.URL.revokeObjectURL(url);
+      } else {
+        Ext.port.postMessage({
+          "command":          MessageCommands.REMOVE_CAPTURE,
+          "tabId":            Ext.tabId,
+          "frameUUID":        TOP_FRAME_UUID,
+          "targetFrameUUID":  capture.frameUUID,
+          "url":              url
+        });
+      }
+
+      Ext.captures.splice(k, 1);
+      break;
+    }
+  }
+
+  handleViewCapturesOpen();
+}
+
+function handleViewCapturesClose() {
+  const viewCapturesContainer = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
+  viewCapturesContainer.classList.add(HIDDEN_CLASS);
 }
 
 function handlePageUnload() {

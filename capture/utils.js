@@ -30,8 +30,9 @@ const MessageCommands = Object.freeze({
   "IFRAME_NAVIGATED": 9,
   "NOTIFY":           10,
   "REGISTER":         11,
-  "UPDATE_CANVASES":  12,
-  "UPDATE_SETTINGS":  13
+  "REMOVE_CAPTURE":   12,
+  "UPDATE_CANVASES":  13,
+  "UPDATE_SETTINGS":  14
 });
 
 const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
@@ -126,6 +127,23 @@ function prettyFileSize(nBytes, useSI) {
   return `${nBytes.toFixed(Boolean(index))} ${units[index]}`;
 }
 
+function HMS(hours, minutes, seconds) {
+  this.hours = hours || 0;
+  this.minutes = minutes || 0;
+  this.seconds = seconds || 0;
+}
+HMS.prototype.toString = function() {
+  const hours = `00${this.hours}`.substr(-2);
+  const minutes = `00${this.minutes}`.substr(-2);
+  const seconds = `00${this.seconds}`.substr(-2);
+
+  if (this.hours) {
+    return `${hours}:${minutes}:${seconds}`;
+  }
+
+  return `${minutes}:${seconds}`;
+};
+
 function hmsToSeconds({hours, minutes, seconds}) {
   return (hours * 3600) + (minutes * 60) + seconds;
 }
@@ -145,7 +163,7 @@ function secondsToHMS(secs) {
     hours += 1;
   }
 
-  return {hours, minutes, seconds};
+  return new HMS(hours, minutes, seconds);
 }
 
 function genUUIDv4() {
