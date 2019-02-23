@@ -66,6 +66,7 @@ function initOptions() {
 function updateMaxVideoSize(e) {
   const input = e.target;
   const size = parseInt(input.value, 10);
+
   if (!isFinite(size) || isNaN(size) || size < 0) {
     return;
   }
@@ -80,6 +81,7 @@ function updateMaxVideoSize(e) {
 function updateFPS(e) {
   const input = e.target;
   const fps = parseInt(input.value, 10);
+
   if (!isFinite(fps) || isNaN(fps) || fps < 1) {
     return;
   }
@@ -94,6 +96,7 @@ function updateFPS(e) {
 function updateBPS(e) {
   const input = e.target;
   const bps = parseInt(input.value, 10);
+
   if (!isFinite(bps) || isNaN(bps) || bps < 1) {
     return;
   }

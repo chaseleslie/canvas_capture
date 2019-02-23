@@ -345,7 +345,9 @@ function handleMessageDisconnect(msg) {
       "targetFrameUUID": TOP_FRAME_UUID,
       "success": false
     });
-    showNotification("Iframe was removed while one of its canvases was being recorded.");
+    showNotification(
+      "Iframe was removed while one of its canvases was being recorded."
+    );
   }
 
   delete Ext.frames[frameUUID];
@@ -506,7 +508,11 @@ function handleMessageUpdateCanvases(msg) {
 
   updateCanvases();
 
-  if (Ext.active.capturing || Ext.active.delay.timerId >= 0 || Ext.active.index >= 0) {
+  const isCapturing = Ext.active.capturing;
+  const haveTimer = Ext.active.delay.timerId >= 0;
+  const haveIndex = Ext.active.index >= 0;
+
+  if (isCapturing || haveTimer || haveIndex) {
     const canvasIsLocal =
       (Ext.active.capturing)
       ? (Ext.active.frameUUID === TOP_FRAME_UUID)
@@ -516,8 +522,9 @@ function handleMessageUpdateCanvases(msg) {
       const rows = Array.from(
         Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
       );
-      const frameRows = rows.filter((el) => el.dataset.frameUUID === canvasFrameUUID);
-      const row = frameRows[canvasIndex];
+      const row = rows.filter(
+        (el) => el.dataset.frameUUID === canvasFrameUUID
+      )[canvasIndex];
       for (let k = 0, n = rows.length; k < n; k += 1) {
         if (row === rows[k]) {
           canvasIndex = k;
@@ -545,8 +552,9 @@ function handleMessageUpdateSettings(msg) {
 
 function saveCanvasSettings() {
   const wrapper = document.getElementById(WRAPPER_ID);
-  const rows = Array.from(wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`))
-    .filter((el) => el.dataset.frameUUID in Ext.frames);
+  const rows = Array.from(
+    wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+  ).filter((el) => el.dataset.frameUUID in Ext.frames);
 
   for (const key of Object.keys(Ext.frames)) {
     delete Ext.frames[key].settings;
@@ -586,7 +594,9 @@ function saveCanvasSettings() {
 
 function loadCanvasSettings() {
   const wrapper = document.getElementById(WRAPPER_ID);
-  const rows = Array.from(wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const rows = Array.from(
+    wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+  );
 
   for (let k = 0, n = rows.length; k < n; k += 1) {
     const row = rows[k];
@@ -620,7 +630,9 @@ function loadCanvasSettings() {
 
 function loadSavedFrameSettings() {
   const wrapper = document.getElementById(WRAPPER_ID);
-  const rows = Array.from(wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const rows = Array.from(
+    wrapper.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+  );
   const reloadedFrameSettingsKeys = Object.keys(Ext.reloadedFrameSettings);
 
   if (!reloadedFrameSettingsKeys.length) {
@@ -633,7 +645,9 @@ function loadSavedFrameSettings() {
       const frame = Ext.frames[frameUUID];
 
       if (frame.framePathSpec === framePathSpec) {
-        const frameSettingsKeys = Object.keys(Ext.reloadedFrameSettings[framePathSpec]);
+        const frameSettingsKeys = Object.keys(
+          Ext.reloadedFrameSettings[framePathSpec]
+        );
 
         if (!frameSettingsKeys.length) {
           settingsLoaded = true;
@@ -683,7 +697,9 @@ function loadSavedSettingsToRow(row, settings) {
           if (value && key === LIST_CANVASES_CAPTURE_RELOAD_CLASS) {
 
             setTimeout(function() {
-              const button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
+              const button = row.querySelector(
+                `.${CANVAS_CAPTURE_TOGGLE_CLASS}`
+              );
 
               if (button) {
                 button.click();
@@ -781,7 +797,9 @@ function observeBodyMutations(mutations) {
     setRowActive(canvasIndex);
     Ext.active.index = canvasIndex;
   } else if (Ext.active.capturing && !canvasIsLocal) {
-    const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+    const rows = Array.from(
+      Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+    );
 
     for (let k = 0, n = rows.length; k < n; k += 1) {
       const ro = rows[k];
@@ -807,7 +825,9 @@ function observeBodyMutations(mutations) {
     setRowActive(canvasIndex);
     Ext.active.index = canvasIndex;
   } else if (Ext.active.delay.timerId >= 0 && !canvasIsLocal) {
-    const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+    const rows = Array.from(
+      Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+    );
     const frameUUID = Ext.active.delay.options.frameUUID;
 
     for (let k = 0, n = rows.length; k < n; k += 1) {
@@ -828,7 +848,9 @@ function observeBodyMutations(mutations) {
 
 function observeCanvasMutations(mutations) {
   const canvases = Array.from(document.body.querySelectorAll("canvas"));
-  const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const rows = Array.from(
+    Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+  );
   mutations = mutations.filter((el) => el.type === "attributes");
 
   for (let k = 0, n = mutations.length; k < n; k += 1) {
@@ -839,8 +861,12 @@ function observeCanvasMutations(mutations) {
     if (canvasIndex >= 0) {
       const row = rows[canvasIndex];
       const colId = row.querySelector(`.${LIST_CANVASES_CANVAS_ID_CLASS}`);
-      const colWidth = row.querySelector(`.${LIST_CANVASES_CANVAS_WIDTH_CLASS}`);
-      const colHeight = row.querySelector(`.${LIST_CANVASES_CANVAS_HEIGHT_CLASS}`);
+      const colWidth = row.querySelector(
+        `.${LIST_CANVASES_CANVAS_WIDTH_CLASS}`
+      );
+      const colHeight = row.querySelector(
+        `.${LIST_CANVASES_CANVAS_HEIGHT_CLASS}`
+      );
       colId.textContent = canvas.id;
       colWidth.textContent = canvas.width;
       colHeight.textContent = canvas.height;
@@ -905,7 +931,9 @@ function handleDisable(notify) {
   }
 
   if (Ext.mediaRecorder) {
-    Ext.mediaRecorder.removeEventListener("dataavailable", onDataAvailable, false);
+    Ext.mediaRecorder.removeEventListener(
+      "dataavailable", onDataAvailable, false
+    );
     Ext.mediaRecorder.removeEventListener("stop", stopCapture, false);
     Ext.mediaRecorder.removeEventListener("error", preStopCapture, false);
 
@@ -934,9 +962,8 @@ function handleDisplay() {
     if (response.ok) {
       return response.text();
     }
-    throw new Error(
-      `Received ${response.status} ${response.statusText} fetching ${response.url}`
-    );
+
+    throw new Error(`Received ${response.status} fetching ${response.url}`);
   }).then(function(text) {
     Ext.rowTemplate = document.createElement("template");
     Ext.rowTemplate.innerHTML = text;
@@ -947,9 +974,8 @@ function handleDisplay() {
     if (response.ok) {
       return response.text();
     }
-    throw new Error(
-      `Received ${response.status} ${response.statusText} fetching ${response.url}`
-    );
+
+    throw new Error(`Received ${response.status} fetching ${response.url}`);
   }).then(function (text) {
     const template = document.createElement("template");
     template.innerHTML = text;
@@ -960,9 +986,8 @@ function handleDisplay() {
     if (response.ok) {
       return response.text();
     }
-    throw new Error(
-      `Received ${response.status} ${response.statusText} fetching ${response.url}`
-    );
+
+    throw new Error(`Received ${response.status} fetching ${response.url}`);
   }).then(function(text) {
     const css = document.createElement("style");
     css.type = "text/css";
@@ -975,9 +1000,8 @@ function handleDisplay() {
     if (response.ok) {
       return response.text();
     }
-    throw new Error(
-      `Received ${response.status} ${response.statusText} fetching ${response.url}`
-    );
+
+    throw new Error(`Received ${response.status} fetching ${response.url}`);
   }).then(function(text) {
     setupDisplay(text);
   }).catch(function() {
@@ -1058,9 +1082,8 @@ function handleInputChange(e) {
   const checkbox = e.target;
 
   if (checkbox.checked) {
-    const inputs = Array.from(
-      Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_CAPTURE_RELOAD_CLASS} input`)
-    );
+    const selector = `.${LIST_CANVASES_CAPTURE_RELOAD_CLASS} input`;
+    const inputs = Array.from(Ext.listCanvases.querySelectorAll(selector));
 
     for (let k = 0, n = inputs.length; k < n; k += 1) {
       const input = inputs[k];
@@ -1203,7 +1226,9 @@ function getAllCanvases() {
 
 function updateCanvases() {
   const docFrag = document.createDocumentFragment();
-  const oldRows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const oldRows = Array.from(
+    Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+  );
   const canvases = getAllCanvases();
   const addTimerImgUrl = browser.runtime.getURL(ICON_ADD_PATH);
 
@@ -1225,23 +1250,33 @@ function updateCanvases() {
     canvasId.textContent = canvas.id;
     const dimens = row.querySelector(`.${LIST_CANVASES_CANVAS_DIMENS_CLASS}`);
     dimens.textContent = `${canvas.width}x${canvas.height}`;
-    const addTimerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`);
+    const addTimerImg = row.querySelector(
+      `.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`
+    );
     addTimerImg.src = addTimerImgUrl;
     addTimerImg.dataset.hasTimer = false;
     addTimerImg.dataset.timerSeconds = 0;
-    const fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
+    const fpsInput = row.querySelector(
+      `.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`
+    );
     fpsInput.value = Ext.settings.fps;
     fpsInput.addEventListener("focus", handleInputFocus, false);
     fpsInput.addEventListener("blur", handleInputBlur, false);
-    const bpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`);
+    const bpsInput = row.querySelector(
+      `.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`
+    );
     bpsInput.value = Ext.settings.bps;
     bpsInput.addEventListener("focus", handleInputFocus, false);
     bpsInput.addEventListener("blur", handleInputBlur, false);
-    const delayInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_DELAY_CLASS} input`);
+    const delayInput = row.querySelector(
+      `.${LIST_CANVASES_CAPTURE_DELAY_CLASS} input`
+    );
     delayInput.value = DEFAULT_DELAY;
     delayInput.addEventListener("focus", handleInputFocus, false);
     delayInput.addEventListener("blur", handleInputBlur, false);
-    const reloadInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_RELOAD_CLASS} input`);
+    const reloadInput = row.querySelector(
+      `.${LIST_CANVASES_CAPTURE_RELOAD_CLASS} input`
+    );
     reloadInput.addEventListener("change", handleInputChange, false);
 
     const button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
@@ -1269,7 +1304,15 @@ function updateCanvases() {
 
 function setRowEventListeners(
   ro,
-  {row = true, img = true, button = true} = {"row": true, "img": true, "button": true}
+  {
+    row = true,
+    img = true,
+    button = true
+  } = {
+    "row": true,
+    "img": true,
+    "button": true
+  }
 ) {
   if (img) {
     ro.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`)
@@ -1289,7 +1332,15 @@ function setRowEventListeners(
 
 function clearRowEventListeners(
   ro,
-  {row = true, img = true, button = true} = {"row": true, "img": true, "button": true}
+  {
+    row = true,
+    img = true,
+    button = true
+  } = {
+    "row": true,
+    "img": true,
+    "button": true
+  }
 ) {
   if (img) {
     ro.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`)
@@ -1308,22 +1359,28 @@ function clearRowEventListeners(
 }
 
 function positionRowTimerModify() {
+  const trunc = Math.trunc;
   const wrapper = document.getElementById(WRAPPER_ID);
   const img = wrapper.querySelector(`.${TIMER_MODIFYING_CLASS}`);
 
   if (img) {
     const container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
     const containerRect = container.getBoundingClientRect();
+    const width = containerRect.width;
     const imgRect = img.getBoundingClientRect();
-    container.style.left = `${imgRect.left + (0.5 * imgRect.width) - Math.trunc(0.5 * containerRect.width)}px`;
-    container.style.top = `${imgRect.top - containerRect.height - 20}px`;
+    const left = imgRect.left + (0.5 * imgRect.width) - trunc(0.5 * width);
+    const top = imgRect.top - containerRect.height - 20;
+    container.style.left = `${left}px`;
+    container.style.top = `${top}px`;
   }
 }
 
 function handleRowTimerModify(evt) {
   const container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
   const img = evt.target;
-  const rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const rows = Array.from(
+    document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+  );
   const hasTimer = JSON.parse(img.dataset.hasTimer || false);
   const hoursInput = document.getElementById(MODIFY_TIMER_HOURS_ID);
   const minutesInput = document.getElementById(MODIFY_TIMER_MINUTES_ID);
@@ -1368,8 +1425,14 @@ function handleRowTimerModifyClose(img) {
   const addImgUrl = browser.runtime.getURL(ICON_ADD_PATH);
   const timerImgUrl = browser.runtime.getURL(ICON_TIMER_PATH);
   const container = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
-  const hasTimer = img && ("hasTimer" in img.dataset) && JSON.parse(img.dataset.hasTimer);
-  const rows = Array.from(document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const hasTimer = (
+    img &&
+    ("hasTimer" in img.dataset) &&
+    JSON.parse(img.dataset.hasTimer)
+  );
+  const rows = Array.from(
+    document.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+  );
 
   if (img) {
     if (hasTimer) {
@@ -1449,7 +1512,9 @@ function setUpdateTimer() {
   const updateTimerMS = 75;
   const timer = document.getElementById(TIMER_SLICE_CONTAINER_ID);
   const clipPath = document.getElementById(TIMER_SLICE_CLIP_PATH_ID);
-  Ext.active.timer.updateTimerId = setInterval(updateTimerDisplay, updateTimerMS);
+  Ext.active.timer.updateTimerId = setInterval(
+    updateTimerDisplay, updateTimerMS
+  );
   timer.classList.remove(HIDDEN_CLASS);
   positionUpdateTimer();
   clipPath.setAttribute("d", "M0,0 L100,0 L100,100 L0,100 Z");
@@ -1478,7 +1543,9 @@ function updateTimerDisplay() {
   const y2 = cy - rd;
   const x1 = (rd * Math.cos(theta)) + cx;
   const y1 = (-rd * Math.sin(theta)) + cy;
-  const path = `M${cx},${cy} L${x1},${y1} A${rd},${rd} 0 ${sweep} 0 ${x2},${y2} Z`;
+  const path = (
+    `M${cx},${cy} L${x1},${y1} A${rd},${rd} 0 ${sweep} 0 ${x2},${y2} Z`
+  );
   clipPath.setAttribute("d", path);
 }
 
@@ -1553,7 +1620,9 @@ function onToggleCapture(evt) {
 }
 
 function setRowActive(index) {
-  const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const rows = Array.from(
+    Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+  );
   const inputs = Array.from(Ext.listCanvases.querySelectorAll("input"));
   var linkRow = null;
 
@@ -1587,7 +1656,9 @@ function setRowActive(index) {
 }
 
 function clearActiveRows() {
-  const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const rows = Array.from(
+    Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+  );
   const inputs = Array.from(Ext.listCanvases.querySelectorAll("input"));
 
   for (let k = 0; k < rows.length; k += 1) {
@@ -1597,11 +1668,14 @@ function clearActiveRows() {
       CANVAS_CAPTURE_SELECTED_CLASS
     );
     setRowEventListeners(row);
-    row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`).textContent = "Capture";
+    const button = row.querySelector(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`);
+    button.textContent = "Capture";
   }
 
   const wrapper = document.getElementById(WRAPPER_ID);
-  const dlButtonContainer = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_CONTAINER_ID}`);
+  const dlButtonContainer = wrapper.querySelector(
+    `#${LIST_CANVASES_DL_BUTTON_CONTAINER_ID}`
+  );
   const dlButton = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_ID}`);
   dlButtonContainer.classList.remove(CAPTURING_CLASS);
   dlButton.classList.remove(HIDDEN_CLASS);
@@ -1613,13 +1687,17 @@ function clearActiveRows() {
 }
 
 function preStartCapture(button) {
-  const rows = Array.from(Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`));
+  const rows = Array.from(
+    Ext.listCanvases.querySelectorAll(`.${LIST_CANVASES_ROW_CLASS}`)
+  );
   const canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
   const index = parseInt(button.dataset.index, 10);
   Ext.active.index = index;
   Ext.active.frameUUID = button.dataset.frameUUID;
   const row = rows[index];
-  const timerImg = row.querySelector(`.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`);
+  const timerImg = row.querySelector(
+    `.${LIST_CANVASES_CAPTURE_TIMER_IMG_CLASS}`
+  );
   const hasTimer = JSON.parse(timerImg.dataset.hasTimer || false);
   const timerSeconds = parseInt(timerImg.dataset.timerSeconds, 10) || 0;
   const canvases = Ext.frames[Ext.active.frameUUID].canvases;
@@ -1634,24 +1712,32 @@ function preStartCapture(button) {
   Ext.active.canvas = canvas;
   Ext.active.timer.secs = timerSeconds;
 
-  const fpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`);
+  const fpsInput = row.querySelector(
+    `.${LIST_CANVASES_CAPTURE_FPS_CLASS} input`
+  );
   const fpsVal = parseFloat(fpsInput.value);
   const fps = (isFinite(fpsVal) && !isNaN(fpsVal) && fpsVal >= 0) ? fpsVal : 0;
-  const bpsInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`);
+  const bpsInput = row.querySelector(
+    `.${LIST_CANVASES_CAPTURE_BPS_CLASS} input`
+  );
   const bpsVal = parseFloat(bpsInput.value);
-  const bps = (isFinite(bpsVal) && !isNaN(bpsVal) && bpsVal > 0) ? bpsVal : Ext.settings.bps;
+  const bps =
+    (isFinite(bpsVal) && !isNaN(bpsVal) && bpsVal > 0)
+    ? bpsVal
+    : Ext.settings.bps;
 
   const delayOverlay = document.getElementById(DELAY_OVERLAY_ID);
-  const delayInput = row.querySelector(`.${LIST_CANVASES_CAPTURE_DELAY_CLASS} input`);
+  const delayInput = row.querySelector(
+    `.${LIST_CANVASES_CAPTURE_DELAY_CLASS} input`
+  );
   const delaySecs = parseInt(delayInput.value, 10) || 0;
   const delayMsecs =
     (isFinite(delaySecs) && !isNaN(delaySecs) && delaySecs > 0)
-    ? delaySecs * 1000
+    ? delaySecs * MSEC_PER_SEC
     : 0;
 
   const frameUUID = button.dataset.frameUUID;
   const rowIndex = index;
-  const delayUpdateMSecs = 150;
   Ext.active.delay.options = Object.seal({
     canvas,
     canvasIsLocal,
@@ -1665,10 +1751,13 @@ function preStartCapture(button) {
   });
 
   if (delaySecs) {
+    const delayUpdateMSecs = 150;
     delayOverlay.classList.remove(HIDDEN_CLASS);
     Ext.active.delay.delaySecs = delaySecs;
     Ext.active.delay.timerId = setTimeout(handleDelayEnd, delayMsecs);
-    Ext.active.delay.updateTimerId = setInterval(handleDelayUpdate, delayUpdateMSecs);
+    Ext.active.delay.updateTimerId = setInterval(
+      handleDelayUpdate, delayUpdateMSecs
+    );
     Ext.active.delay.startTS = Date.now();
 
     if (!canvasIsLocal) {
@@ -1741,7 +1830,7 @@ function handleDelayUpdate() {
   const delayTime = document.getElementById(DELAY_OVERLAY_TIME_ID);
   const startTS = Ext.active.delay.startTS;
   const delaySecs = Ext.active.delay.delaySecs;
-  const timeDiff = delaySecs - (((Date.now() - startTS)) / 1000);
+  const timeDiff = delaySecs - (((Date.now() - startTS)) / MSEC_PER_SEC);
   delayTime.textContent = Math.round(timeDiff);
 }
 
@@ -1790,7 +1879,9 @@ function handleCaptureStart() {
   Ext.active.startTS = Date.now();
 
   if (timerSeconds) {
-    Ext.active.timer.timerId = setTimeout(preStopCapture, timerSeconds * MSEC_PER_SEC);
+    Ext.active.timer.timerId = setTimeout(
+      preStopCapture, timerSeconds * MSEC_PER_SEC
+    );
     setUpdateTimer();
   }
 
@@ -1800,7 +1891,9 @@ function handleCaptureStart() {
 function setCapturing() {
   const wrapper = document.getElementById(WRAPPER_ID);
   const maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
-  const dlButtonContainer = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_CONTAINER_ID}`);
+  const dlButtonContainer = wrapper.querySelector(
+    `#${LIST_CANVASES_DL_BUTTON_CONTAINER_ID}`
+  );
   const dlButton = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_ID}`);
 
   dlButtonContainer.classList.add(CAPTURING_CLASS);
@@ -1817,10 +1910,16 @@ function clearCapturing(success) {
 
   if (success) {
     const wrapper = document.getElementById(WRAPPER_ID);
-    const dlButtonContainer = wrapper.querySelector(`#${LIST_CANVASES_DL_BUTTON_CONTAINER_ID}`);
-    const viewCapturesContainer = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
+    const dlButtonContainer = wrapper.querySelector(
+      `#${LIST_CANVASES_DL_BUTTON_CONTAINER_ID}`
+    );
+    const viewCapturesContainer = document.getElementById(
+      VIEW_CAPTURES_CONTAINER_ID
+    );
 
-    dlButtonContainer.addEventListener("animationend", clearCaptureCompleteAnimation, false);
+    dlButtonContainer.addEventListener(
+      "animationend", clearCaptureCompleteAnimation, false
+    );
     dlButtonContainer.classList.add(CAPTURE_COMPLETE_CLASS);
 
     if (!viewCapturesContainer.classList.contains(HIDDEN_CLASS)) {
@@ -1836,7 +1935,9 @@ function clearCaptureCompleteAnimation(e) {
 }
 
 function preStopCapture(evt) {
-  const buttons = Array.from(Ext.listCanvases.querySelectorAll(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`));
+  const buttons = Array.from(
+    Ext.listCanvases.querySelectorAll(`.${CANVAS_CAPTURE_TOGGLE_CLASS}`)
+  );
   const button = buttons[Ext.active.index];
   const canvasIsLocal = JSON.parse(button.dataset.canvasIsLocal);
 
@@ -1871,13 +1972,14 @@ function createVideoURL(blob) {
     videoURL = window.URL.createObjectURL(blob);
   }
 
+  const ts = Math.trunc(Date.now() / MSEC_PER_SEC);
   Ext.captures.push({
     "url":        videoURL,
     "startTS":    Ext.active.startTS,
     "endTS":      Date.now(),
     "size":       size,
     "prettySize": Utils.prettyFileSize(size),
-    "name":       `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`,
+    "name":       `capture-${ts}.${DEFAULT_MIME_TYPE}`,
     "frameUUID":  TOP_FRAME_UUID
   });
 }
@@ -1932,8 +2034,12 @@ function canCaptureStream(canvas) {
 }
 
 function handleViewCapturesOpen() {
-  const viewCapturesContainer = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
-  const viewCapturesRowContainer = document.getElementById(VIEW_CAPTURES_ROW_CONTAINER_ID);
+  const viewCapturesContainer = document.getElementById(
+    VIEW_CAPTURES_CONTAINER_ID
+  );
+  const viewCapturesRowContainer = document.getElementById(
+    VIEW_CAPTURES_ROW_CONTAINER_ID
+  );
 
   viewCapturesContainer.classList.remove(HIDDEN_CLASS);
 
@@ -1945,7 +2051,9 @@ function handleViewCapturesOpen() {
     viewCapturesContainer.style.top = `${top}px`;
   }, 0);
 
-  const oldRows = Array.from(viewCapturesRowContainer.querySelectorAll(`.${CAPTURE_DL_ROW_CLASS}`));
+  const oldRows = Array.from(
+    viewCapturesRowContainer.querySelectorAll(`.${CAPTURE_DL_ROW_CLASS}`)
+  );
   oldRows.forEach((el) => el.remove());
 
   const docFrag = document.createDocumentFragment();
@@ -1960,7 +2068,7 @@ function handleViewCapturesOpen() {
     const downloadLink = row.querySelector(`.${CAPTURE_DL_DOWNLOAD_LINK_CLASS}`);
     const date = new Date(capture.startTS);
     const timeDiff = capture.endTS - capture.startTS;
-    const duration = Utils.secondsToHMS(Math.round(timeDiff / 1000));
+    const duration = Utils.secondsToHMS(Math.round(timeDiff / MSEC_PER_SEC));
 
     dateSpan.textContent = date.toLocaleString("en-us", {
       "hour":   "numeric",
@@ -2011,7 +2119,9 @@ function handleViewCapturesRemove(e) {
 }
 
 function handleViewCapturesClose() {
-  const viewCapturesContainer = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
+  const viewCapturesContainer = document.getElementById(
+    VIEW_CAPTURES_CONTAINER_ID
+  );
   viewCapturesContainer.classList.add(HIDDEN_CLASS);
 }
 

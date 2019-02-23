@@ -25,12 +25,14 @@ const TOP_FRAME_UUID = Utils.TOP_FRAME_UUID;
 
 const MessageCommands = Utils.MessageCommands;
 
+const MSEC_PER_SEC = 1000;
+
 const MIME_TYPE_MAP = Object.freeze({
   "mp4":  "video/mp4",
   "webm": "video/webm"
 });
 const DEFAULT_MIME_TYPE = "webm";
-const CAPTURE_INTERVAL_MS = 1000;
+const CAPTURE_INTERVAL_MS = MSEC_PER_SEC;
 
 const CANVAS_ACTIVE_CAPTURING_CLASS = "canvas_active_capturing";
 const CANVAS_ACTIVE_DELAYED_CLASS = "canvas_active_delayed";
@@ -125,8 +127,8 @@ function handleWindowLoad() {
   window.addEventListener("message", handleWindowMessage, true);
 
   Ext.bodyMutObs.observe(document.body, {
-    "childList": true,
-    "subtree": true
+    "childList":  true,
+    "subtree":    true
   });
 }
 
@@ -202,13 +204,13 @@ function handleMessageCaptureStart(msg) {
   const ret = preStartCapture(msg);
   if (!ret) {
     Ext.port.postMessage({
-      "command": MessageCommands.CAPTURE_START,
-      "tabId": Ext.tabId,
-      "frameId": Ext.frameId,
-      "frameUUID": FRAME_UUID,
-      "targetFrameUUID": TOP_FRAME_UUID,
-      "success": ret,
-      "startTS": Ext.active.startTS
+      "command":          MessageCommands.CAPTURE_START,
+      "tabId":            Ext.tabId,
+      "frameId":          Ext.frameId,
+      "frameUUID":        FRAME_UUID,
+      "targetFrameUUID":  TOP_FRAME_UUID,
+      "success":          ret,
+      "startTS":          Ext.active.startTS
     });
   }
 }
@@ -231,7 +233,9 @@ function handleMessageDelay(msg) {
 
 function handleMessageDisable() {
   if (Ext.mediaRecorder) {
-    Ext.mediaRecorder.removeEventListener("dataavailable", onDataAvailable, false);
+    Ext.mediaRecorder.removeEventListener(
+      "dataavailable", onDataAvailable, false
+    );
     Ext.mediaRecorder.removeEventListener("stop", stopCapture, false);
     Ext.mediaRecorder.removeEventListener("error", preStopCapture, false);
 
@@ -254,7 +258,9 @@ function handleMessageDisable() {
 function handleMessageDisplay(msg) {
   const canvases = Array.from(document.body.querySelectorAll("canvas"));
 
-  canvases.forEach((canvas) => Ext.canvasMutObs.observe(canvas, CANVAS_OBSERVER_OPS));
+  canvases.forEach(
+    (canvas) => Ext.canvasMutObs.observe(canvas, CANVAS_OBSERVER_OPS)
+  );
   Ext.tabId = msg.tabId;
   Ext.frames[FRAME_UUID].canvases = canvases;
   updateCanvases(canvases);
@@ -281,21 +287,21 @@ function handleMessageHighlight(msg) {
   const rect = canvas.getBoundingClientRect();
 
   window.parent.postMessage({
-    "command": MessageCommands.HIGHLIGHT,
-    "tabKey": Ext.tabKey,
-    "tabId": Ext.tabId,
-    "frameId": Ext.frameId,
-    "frameUUID": FRAME_UUID,
-    "targetFrameUUID": TOP_FRAME_UUID,
+    "command":          MessageCommands.HIGHLIGHT,
+    "tabKey":           Ext.tabKey,
+    "tabId":            Ext.tabId,
+    "frameId":          Ext.frameId,
+    "frameUUID":        FRAME_UUID,
+    "targetFrameUUID":  TOP_FRAME_UUID,
+    "canCapture":       canCaptureStream(canvas),
     "rect": {
-      "left": rect.left,
-      "top": rect.top,
-      "right": rect.right,
+      "left":   rect.left,
+      "top":    rect.top,
+      "right":  rect.right,
       "bottom": rect.bottom,
-      "width": rect.width,
+      "width":  rect.width,
       "height": rect.height
-    },
-    "canCapture": canCaptureStream(canvas)
+    }
   }, "*");
 }
 
@@ -461,25 +467,27 @@ function handleIframeLoaded(e) {
 function updateCanvases(canvases) {
   const canvasData = canvases.map(function(el) {
     return {
-      "id": el.id,
-      "width": el.width,
-      "height": el.height,
+      "id":       el.id,
+      "width":    el.width,
+      "height":   el.height,
       "pathSpec": Utils.pathSpecFromElement(el)
     };
   });
 
-  canvases.forEach((canvas) => Ext.canvasMutObs.observe(canvas, CANVAS_OBSERVER_OPS));
+  canvases.forEach(
+    (canvas) => Ext.canvasMutObs.observe(canvas, CANVAS_OBSERVER_OPS)
+  );
 
   Ext.port.postMessage({
-    "command": MessageCommands.UPDATE_CANVASES,
-    "tabId": Ext.tabId,
-    "frameId": Ext.frameId,
-    "frameUUID": FRAME_UUID,
-    "targetFrameUUID": TOP_FRAME_UUID,
-    "frameUrl": window.location.href.split("#")[0],
-    "canvases": canvasData,
-    "activeCanvasIndex": Ext.active.index,
-    "delayCanvasIndex": Ext.active.delayCanvasIndex
+    "command":            MessageCommands.UPDATE_CANVASES,
+    "tabId":              Ext.tabId,
+    "frameId":            Ext.frameId,
+    "frameUUID":          FRAME_UUID,
+    "targetFrameUUID":    TOP_FRAME_UUID,
+    "frameUrl":           window.location.href.split("#")[0],
+    "canvases":           canvasData,
+    "activeCanvasIndex":  Ext.active.index,
+    "delayCanvasIndex":   Ext.active.delayCanvasIndex
   });
 }
 
@@ -539,20 +547,20 @@ function handleCaptureStart() {
     const timerSeconds = Ext.active.timer.secs;
     Ext.active.timer.timerId = setTimeout(function() {
       preStopCapture();
-    }, timerSeconds * 1000);
+    }, timerSeconds * MSEC_PER_SEC);
   }
 
   Ext.active.canvas.classList.add(CANVAS_ACTIVE_CAPTURING_CLASS);
   Ext.active.capturing = true;
   Ext.active.startTS = Date.now();
   Ext.port.postMessage({
-    "command": MessageCommands.CAPTURE_START,
-    "tabId": Ext.tabId,
-    "frameId": Ext.frameId,
-    "frameUUID": FRAME_UUID,
-    "targetFrameUUID": TOP_FRAME_UUID,
-    "success": true,
-    "startTS": Ext.active.startTS
+    "command":          MessageCommands.CAPTURE_START,
+    "tabId":            Ext.tabId,
+    "frameId":          Ext.frameId,
+    "frameUUID":        FRAME_UUID,
+    "targetFrameUUID":  TOP_FRAME_UUID,
+    "success":          true,
+    "startTS":          Ext.active.startTS
   });
 }
 
@@ -587,13 +595,14 @@ function stopCapture() {
     blob = new Blob(Ext.chunks, {"type": Ext.chunks[0].type});
     videoURL = window.URL.createObjectURL(blob);
     size = blob ? blob.size : 0;
+    const ts = Math.trunc(Date.now() / MSEC_PER_SEC);
     capture = {
       "url":        videoURL,
       "startTS":    Ext.active.startTS,
       "endTS":      Date.now(),
       "size":       size,
       "prettySize": Utils.prettyFileSize(size),
-      "name":       `capture-${Math.trunc(Date.now() / 1000)}.${DEFAULT_MIME_TYPE}`,
+      "name":       `capture-${ts}.${DEFAULT_MIME_TYPE}`,
       "frameUUID":  FRAME_UUID
     };
     Ext.captures.push(capture);
@@ -610,14 +619,14 @@ function stopCapture() {
   }
 
   Ext.port.postMessage({
-    "command": MessageCommands.CAPTURE_STOP,
-    "tabId": Ext.tabId,
-    "frameId": Ext.frameId,
-    "frameUUID": FRAME_UUID,
-    "targetFrameUUID": TOP_FRAME_UUID,
-    "canvasIndex": Ext.active.index,
-    "success": success,
-    "capture": capture
+    "command":          MessageCommands.CAPTURE_STOP,
+    "tabId":            Ext.tabId,
+    "frameId":          Ext.frameId,
+    "frameUUID":        FRAME_UUID,
+    "targetFrameUUID":  TOP_FRAME_UUID,
+    "canvasIndex":      Ext.active.index,
+    "success":          success,
+    "capture":          capture
   });
 
   Ext.active.clear();
@@ -651,9 +660,9 @@ function canCaptureStream(canvas) {
 
 function showNotification(notification) {
   Ext.port.postMessage({
-    "command": MessageCommands.NOTIFY,
-    "tabId": Ext.tabId,
-    "frameUUID": FRAME_UUID,
+    "command":      MessageCommands.NOTIFY,
+    "tabId":        Ext.tabId,
+    "frameUUID":    FRAME_UUID,
     "notification": notification
   });
 }
