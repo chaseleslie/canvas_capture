@@ -244,7 +244,6 @@ function handleMessageDisable() {
     }
   }
 
-  Ext.freeObjectURLs();
   Ext.active.clear();
   Ext.bodyMutObs.disconnect();
   Ext.canvasMutObs.disconnect();
