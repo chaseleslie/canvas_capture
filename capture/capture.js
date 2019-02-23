@@ -211,6 +211,7 @@ const Ext = Object.seal({
   },
   "disable": function() {
     this.freeCaptures();
+
     for (const key of Object.keys(this)) {
       this[key] = null;
     }
@@ -908,26 +909,31 @@ function handleDisable(notify) {
 
   const wrapper = document.getElementById(WRAPPER_ID);
   if (wrapper) {
-    wrapper.parentElement.removeChild(wrapper);
+    wrapper.remove();
   }
 
   const modifyTimer = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
   if (modifyTimer) {
-    modifyTimer.parentElement.removeChild(modifyTimer);
+    modifyTimer.remove();
   }
 
   const maximize = document.getElementById(CAPTURE_MAXIMIZE_ID);
   if (maximize) {
-    maximize.parentElement.removeChild(maximize);
+    maximize.remove();
   }
 
   const style = document.getElementById(CSS_STYLE_ID);
   if (style) {
-    style.parentElement.removeChild(style);
+    style.remove();
+  }
+
+  const viewCaptures = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
+  if (viewCaptures) {
+    viewCaptures.remove();
   }
 
   for (const key of Object.keys(Ext.highlighter)) {
-    Ext.highlighter[key].parentElement.removeChild(Ext.highlighter[key]);
+    Ext.highlighter[key].remove();
   }
 
   if (Ext.mediaRecorder) {
