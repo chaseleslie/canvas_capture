@@ -137,6 +137,10 @@ async function connected(port) {
     delete actTab.settingsReloaded;
     delete actTab.settingsTimeout;
     delete actTab.settingsOrphaned;
+
+    browser.browserAction.setIcon(
+      {"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}
+    );
   }
 
   const settings = await getSettings();
@@ -173,6 +177,9 @@ function onEnableTab(tab) {
       "file":     CAPTURE_JS_PATH,
       "frameId":  0
     });
+  }).catch(function() {
+    delete activeTabs[tabId];
+    onTabNotify({"notification": "Failed to initialize extension."});
   });
 
   if (!browser.webNavigation.onCompleted.hasListener(onNavigationCompleted)) {
@@ -194,10 +201,6 @@ function onEnableTab(tab) {
       "tabKey": Utils.genUUIDv4()
     };
   }
-
-  browser.browserAction.setIcon(
-    {"path": ICON_ACTIVE_PATH_MAP, "tabId": tabId}
-  );
 }
 
 function onTabRemoved(tabId) {
@@ -214,6 +217,7 @@ function onTabRemoved(tabId) {
 function onDisableTab(tabId) {
   const frames = activeTabs[tabId].frames;
   const topFrame = frames.find((el) => el.frameUUID === TOP_FRAME_UUID);
+
   frames.forEach(function(el) {
     if (el.frameUUID !== TOP_FRAME_UUID) {
       el.port.postMessage({
@@ -412,6 +416,7 @@ function onMessage(msg) {
 
 function onTabNotify(msg) {
   const notifyId = msg.notification;
+
   if (!notifyId) {
     return;
   }
@@ -425,10 +430,12 @@ function onTabNotify(msg) {
 
   for (let k = 0, n = notifications.length; k < n; k += 1) {
     const notify = notifications[k];
+
     if (notify.message === notifyOpts.message) {
       return;
     }
   }
+
   notifications.push(notifyOpts);
 
   browser.notifications.create(notifyId, notifyOpts);
@@ -436,6 +443,7 @@ function onTabNotify(msg) {
     browser.notifications.clear(notifyId);
     for (let k = 0, n = notifications.length; k < n; k += 1) {
       const notify = notifications[k];
+
       if (notify.message === notifyOpts.message) {
         notifications.splice(k, 1);
       }
