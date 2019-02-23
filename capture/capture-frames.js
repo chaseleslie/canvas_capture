@@ -193,6 +193,8 @@ function onMessage(msg) {
     const canvases = Array.from(document.body.querySelectorAll("canvas"));
     Ext.frames[FRAME_UUID].canvases = canvases;
     updateCanvases(canvases);
+  } else if (msg.command === MessageCommands.UPDATE_SETTINGS) {
+    handleMessageUpdateSettings(msg);
   }
 }
 
@@ -253,7 +255,6 @@ function handleMessageDisplay(msg) {
   const canvases = Array.from(document.body.querySelectorAll("canvas"));
 
   canvases.forEach((canvas) => Ext.canvasMutObs.observe(canvas, CANVAS_OBSERVER_OPS));
-  Ext.settings.maxVideoSize = msg.defaultSettings.maxVideoSize;
   Ext.tabId = msg.tabId;
   Ext.frames[FRAME_UUID].canvases = canvases;
   updateCanvases(canvases);
@@ -333,6 +334,15 @@ function handleMessageRemoveCapture(msg) {
       window.URL.revokeObjectURL(url);
       Ext.captures.splice(k, 1);
       break;
+    }
+  }
+}
+
+function handleMessageUpdateSettings(msg) {
+  const settings = msg.defaultSettings;
+  for (const key of Object.keys(Ext.settings)) {
+    if (key in settings) {
+      Ext.settings[key] = settings[key];
     }
   }
 }

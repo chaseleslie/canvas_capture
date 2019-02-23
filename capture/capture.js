@@ -924,13 +924,7 @@ function handleDisable(notify) {
   Ext.disable();
 }
 
-function handleDisplay(msg) {
-  for (const key of Object.keys(msg.defaultSettings)) {
-    if (key in Ext.settings) {
-      Ext.settings[key] = msg.defaultSettings[key];
-    }
-  }
-
+function handleDisplay() {
   const cssUrl = browser.runtime.getURL(CSS_FILE_PATH);
   const htmlUrl = browser.runtime.getURL(HTML_FILE_PATH);
   const htmlRowUrl = browser.runtime.getURL(HTML_ROW_FILE_PATH);
@@ -1168,10 +1162,7 @@ function setupDisplay(html) {
     "tabId": Ext.tabId,
     "frameId": Ext.frameId,
     "frameUUID": TOP_FRAME_UUID,
-    "targetFrameUUID": ALL_FRAMES_UUID,
-    "defaultSettings": {
-      "maxVideoSize": Ext.settings.maxVideoSize
-    }
+    "targetFrameUUID": ALL_FRAMES_UUID
   });
 
   updateCanvases();
