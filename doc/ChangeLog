@@ -1,0 +1,18 @@
+Release 1.2.0
+  New
+    > Added option for extension to reopen on page refresh
+    > Settings are reloaded across page refresh
+    > Canvases can now be captured when page is loaded
+    > Improved canvas highlighting when selecting canvas
+    > Canvases in nested iframes now highlight correctly
+
+Release 1.1.1
+  New
+    > Capture video from canvases in nested iframes
+    > Set delay before starting capture
+    > Set timeout to stop capturing after certain duration
+    > Highlight canvases in page to easily identify them
+    > Minimize the display to see more of the captured page
+
+Release 1.0.1
+  Initial Release
