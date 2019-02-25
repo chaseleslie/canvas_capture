@@ -1880,16 +1880,8 @@ function startCapture(canvas, fps, bps) {
 }
 
 function handleCaptureStart() {
-  const timerSeconds = Ext.active.timer.secs;
   Ext.active.capturing = true;
   Ext.active.startTS = Date.now();
-
-  if (timerSeconds) {
-    Ext.active.timer.timerId = setTimeout(
-      preStopCapture, timerSeconds * MSEC_PER_SEC
-    );
-    setUpdateTimer();
-  }
 
   setCapturing();
 }
@@ -1906,6 +1898,15 @@ function setCapturing() {
   dlButton.classList.add(HIDDEN_CLASS);
 
   maximize.classList.add(CAPTURING_MINIMIZED_CLASS);
+
+  const timerSeconds = Ext.active.timer.secs;
+
+  if (timerSeconds) {
+    Ext.active.timer.timerId = setTimeout(
+      preStopCapture, timerSeconds * MSEC_PER_SEC
+    );
+    setUpdateTimer();
+  }
 }
 
 function clearCapturing(success) {
