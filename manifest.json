@@ -2,7 +2,7 @@
 
   "manifest_version": 2,
   "name": "Canvas Capture",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Capture video from canvas elements",
   "author": "Chase",
   "icons": {
@@ -25,6 +25,7 @@
   "background": {
     "scripts": [
       "lib/webextension-polyfill/browser-polyfill.min.js",
+      "capture/utils.js",
       "background.js"
     ]
   },

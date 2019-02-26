@@ -45,14 +45,19 @@ the message is intended for.
 The following `command`s are used (see `MessageCommands` enum in source files):
 - [CAPTURE_START](#capture_start)
 - [CAPTURE_STOP](#capture_stop)
+- [DELAY](#delay)
 - [DISABLE](#disable)
 - [DISCONNECT](#disconnect)
 - [DISPLAY](#display)
 - [DOWNLOAD](#download)
 - [HIGHLIGHT](#highlight)
+- [IDENTIFY](#identify)
+- [IFRAME_NAVIGATED](#iframe_navigated)
 - [NOTIFY](#notify)
 - [REGISTER](#register)
+- [REMOVE_CAPTURE](#remove_capture)
 - [UPDATE_CANVASES](#update_canvases)
+- [UPDATE_SETTINGS](#update_settings)
 
 #### CAPTURE_START <a name="capture_start"></a>
 
@@ -70,6 +75,13 @@ a message with this command will be sent to the child frame to direct it to
 stop the recording. In the event that a timer expired or an error occurred
 while recording, an actively recording child frame can also send a message with
 this command to signal that recording has stopped.
+
+#### DELAY <a name="delay"></a>
+
+This command is sent from the top frame to a child frame to inform the child
+that a delayed capture is going to take place on a given canvas. The child
+frame marks the canvas so that if DOM changes during delay period the canvas
+can be identified.
 
 #### DISABLE <a name="disable"></a>
 
@@ -107,7 +119,25 @@ command instructs the child frame to prompt the user to download the file.
 This command is sent from the top frame to child frames to request
 information about a canvas that needs to be highlighted. The child frame
 responds with the position of the canvas in the frame so it can be
-highlighted.
+highlighted. The child frame sends the message to its parent frame using
+the `Window.postMessage` API. Each frame adds the offset of the `iframe`
+element it received the message from so that highlighting works correctly
+in nested frames.
+
+#### IDENTIFY <a name="identify"></a>
+
+This command is sent from child frames upward to the top frame to identify the
+canvases in each frame. To handle nested frames, a child frame receiving this
+message from nested frames forwards the message up to its parent frame while
+appending the pathspec of the frame it received the message from. This message
+is sent using the `Window.postMessage` API in order to match up DOM frames with
+`frameUUID`s.
+
+#### IFRAME_NAVIGATED <a name="iframe_navigated"></a>
+
+This command is sent from frames to the background script when a frame detects
+that one of its nested frames has navigated. The background script can then
+inject scripts into the navigated frame.
 
 #### NOTIFY <a name="notify"></a>
 
@@ -119,6 +149,11 @@ This command is sent from any frame to the background script to use the
 This command is sent from the background script to any frame to inform the
 frame of its `frameID` and to request its `frameUUID`.
 
+#### REMOVE_CAPTURE <a name="remove_capture"></a>
+
+This command is sent from the top frame to a child frame when one of the
+captured videos (blobs) should be deleted.
+
 #### UPDATE_CANVASES <a name="update_canvases"></a>
 
 This command is sent between the top frame and child frames. The top frame
@@ -126,14 +161,28 @@ sends this command when it requires a fresh list of what canvases are available
 for recording. Child frames also send this command when a canvas in their
 environment is modified (added, removed or changed).
 
+#### UPDATE_SETTINGS <a name="update_settings"></a>
+
+This command is sent between the top frame and the background script. When a
+setting in the top frame is changed, it notifies the background script so that
+the updated setting is saved to storage. When changes are made to the settings
+on the options page, the background page will be prompted to send this
+command to all top frames to notify them of the updated settings.
+
 
 ## Window Messaging <a name="window_msg"></a>
 
-In order to match up a frame with a DOM `iframe` element, the top frame uses
-the native messaging between windows available for web scripts. This involves
-the top frame sending a message with a command of `identify` to all of its
-child `iframe` elements windows, and the child frames sending their `frameUUID`
-in response. The top frame also includes a randomly generated key with the
-message that the child frame must respond with, so the top frame can match
-the `iframe` element to its `frameUUID`. This key also helps filter out
-messages sent from web scripts that are not intended for the extension.
+Wherever possible, messaging between frames is achieved through passing
+messages back and forth through the background script. This prevents web
+scripts from intercepting extension messages.
+
+In order to be able to calculate the correct offsets and positioning of
+the highlighting UI overlays, the top frame needs to be able to match its
+in-memory knowledge of what frames are present in the tab (by `frameUUID`)
+with the position of the actual `iframe` elements. To allow for this,
+the commands `HIGHLIGHT` and `IDENTIFY` are sent through the native
+`Window.postMessage` API.
+
+This also allows building a multi-document pathspec to match up frames
+across page refresh where the frames have identical DOM positions but
+different URIs.

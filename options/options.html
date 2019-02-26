@@ -5,6 +5,7 @@
     <title>Canvas Capture Options</title>
     <link type="text/css" rel="stylesheet" href="/options/options.css">
     <script type="text/javascript" src="/lib/webextension-polyfill/browser-polyfill.min.js" defer></script>
+    <script type="text/javascript" src="/capture/utils.js" defer></script>
     <script type="text/javascript" src="/options/options.js" defer></script>
   </head>
   <body>
@@ -12,6 +13,18 @@
       <div class="option_row">
         <label for="option_max_video_size">Maximum Video Size (in bytes): </label>
         <input type="text" id="option_max_video_size" value="">
+      </div>
+      <div class="option_row">
+        <label for="option_fps">Default Frames Per Second (FPS): </label>
+        <input type="text" id="option_fps" value="">
+      </div>
+      <div class="option_row">
+        <label for="option_bps">Default Bits Per Second (BPS): </label>
+        <input type="text" id="option_bps" value="">
+      </div>
+      <div class="option_row">
+        <label for="option_bps">Automatically restart extension on page refresh: </label>
+        <input type="checkbox" id="option_auto_open" checked>
       </div>
     </div>
   </body>

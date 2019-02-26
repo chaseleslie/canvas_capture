@@ -1,4 +1,4 @@
-/* Copyright (C) 2016-2017 Chase
+/* Copyright (C) 2016-2017, 2019 Chase Leslie
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -42,6 +42,27 @@
   line-height: 1.1875em;
   background-color: #2C3044;
   cursor: default;
+}
+
+#list_canvases_download {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+#list_canvases_dl_button_container {
+  flex-grow: 1;
+}
+
+.list_canvases_download_heading {
+  background-color: #372850;
+  font-weight: 600;
+  cursor: default;
+}
+
+#list_canvases_container {
+  display: grid;
+  grid-template-columns: 8fr 1fr;
 }
 
 #list_canvases {
@@ -113,7 +134,7 @@
   border-color: #66D;
 }
 
-#capture_close {
+.capture_close {
   position: absolute;
   top: 0px;
   right: 5px;
@@ -121,17 +142,17 @@
   height: 1.75em;
 }
 
-#capture_close circle, #capture_close line {
+.capture_close circle, .capture_close line {
   stroke: #D8D8FF;
   stroke-width: 10;
   fill-opacity: 0;
 }
 
-#capture_close:hover circle, #capture_close:hover line {
+.capture_close:hover circle, .capture_close:hover line {
   stroke: #B8B8FF;
 }
 
-#capture_close:active circle, #capture_close:active line {
+.capture_close:active circle, .capture_close:active line {
   stroke: #9898FF;
 }
 
@@ -253,6 +274,13 @@
   background-color: #A24;
 }
 
+.highlighter_overlay {
+  position: absolute;
+  background-color: #AAE;
+  opacity: 0.8;
+  z-index: 20000;
+}
+
 #modify_timer_container {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -331,6 +359,55 @@
   margin: 0px 5px;
 }
 
+#view_captures_container {
+  position: fixed;
+  padding: 10px;
+  border-radius: 10px;
+  border: 10px solid #7878FF;
+  z-index: 60000;
+  background-color: #282837;
+}
+
+#view_captures_container, #view_captures_container span {
+  text-align: center;
+  font-family: sans-serif;
+  font-size: 16px;
+  color: #D8D8FF;
+}
+
+#view_captures_container .view_captures_heading {
+  font-size: 1.25em;
+  font-weight: 700;
+  background-color: #372850;
+}
+
+#view_captures_row_heading {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+  font-weight: 600;
+  cursor: default;
+}
+
+#view_captures_row_container {
+
+}
+
+.view_captures_row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+}
+
+.view_captures_row:nth-child(odd) {
+  background-color: #282837;
+}
+.view_captures_row:nth-child(even) {
+  background-color: #20202E;
+}
+
+.capture_dl_download_link {
+  color: #8A8;
+}
+
 .span_all {
   grid-column: 1 / -1;
 }
@@ -338,6 +415,7 @@
 .list_canvases_capture_timer_img {
   height: 1.5em;
   width: 1.5em;
+  cursor: pointer;
 }
 
 .list_canvases_capture_timer_img:active {
@@ -373,4 +451,14 @@
 
 .capturing_minimized {
   animation: cc_minim_active 2s linear infinite;
+}
+
+@keyframes cc_pulse {
+  50% {
+    background-color: #559;
+  }
+}
+
+.capture_complete {
+  animation: cc_pulse 2s linear 0s 3;
 }
