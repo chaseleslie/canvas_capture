@@ -73,9 +73,8 @@ function updateMaxVideoSize(e) {
 
   const obj = Object.create(null);
   obj[MAX_VIDEO_SIZE_KEY] = size;
-  browser.storage.local.set(obj);
-
-  updateBackgroundPage();
+  browser.storage.local.set(obj)
+  .then(updateBackgroundPage);
 }
 
 function updateFPS(e) {
@@ -88,9 +87,8 @@ function updateFPS(e) {
 
   const obj = Object.create(null);
   obj[FPS_KEY] = fps;
-  browser.storage.local.set(obj);
-
-  updateBackgroundPage();
+  browser.storage.local.set(obj)
+  .then(updateBackgroundPage);
 }
 
 function updateBPS(e) {
@@ -103,9 +101,8 @@ function updateBPS(e) {
 
   const obj = Object.create(null);
   obj[BPS_KEY] = bps;
-  browser.storage.local.set(obj);
-
-  updateBackgroundPage();
+  browser.storage.local.set(obj)
+  .then(updateBackgroundPage);
 }
 
 function updateAutoOpen(e) {
@@ -114,9 +111,8 @@ function updateAutoOpen(e) {
 
   const obj = Object.create(null);
   obj[AUTO_OPEN_KEY] = checked;
-  browser.storage.local.set(obj);
-
-  updateBackgroundPage();
+  browser.storage.local.set(obj)
+  .then(updateBackgroundPage);
 }
 
 function updateBackgroundPage() {
