@@ -22,6 +22,12 @@
 const APP_NAME = browser.runtime.getManifest().name;
 
 const activeTabs = Object.create(null);
+const globalSettings = Object.create(null);
+
+(async function() {
+  const settings = await getSettings();
+  Object.assign(globalSettings, settings);
+}());
 
 const ICON_PATH_MAP = Object.freeze({
   "16":   "/img/icon_16.svg",
@@ -83,8 +89,9 @@ function onNavigationCompleted(details) {
   const haveTab = tabId in activeTabs;
   const haveValidUrl = details.url.indexOf("http") === 0;
   const haveSettings = haveTab && Boolean(activeTabs[tabId].settingsOrphaned);
+  const haveAutoOpen = haveSettings && globalSettings[Utils.AUTO_OPEN_KEY];
 
-  if (isTopFrame && haveTab && haveValidUrl && haveSettings) {
+  if (isTopFrame && haveTab && haveValidUrl && haveSettings && haveAutoOpen) {
     onEnableTab({"id": tabId});
   }
 }
@@ -482,7 +489,9 @@ async function getSettings() {
 
     return browser.storage.local.get(Utils.AUTO_OPEN_KEY);
   }).then(function(setting) {
-    autoOpen = setting[Utils.AUTO_OPEN_KEY] || Utils.DEFAULT_AUTO_OPEN;
+    autoOpen = (Utils.AUTO_OPEN_KEY in setting)
+      ? setting[Utils.AUTO_OPEN_KEY]
+      : Utils.DEFAULT_AUTO_OPEN;
   });
 
   return {
@@ -511,6 +520,7 @@ function updateSettings(msg) {
 /* Send updated settings to all frames in all tabs */
 async function sendUpdatedSettings() {
   const settings = await getSettings();
+  Object.assign(globalSettings, settings);
 
   for (const tabId of Object.keys(activeTabs)) {
     const tab = activeTabs[tabId];
