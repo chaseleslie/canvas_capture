@@ -15,6 +15,8 @@
 
 /* exported Utils */
 
+(function() {
+
 const Utils = (function() {
 
 const MessageCommands = Object.freeze({
@@ -29,10 +31,11 @@ const MessageCommands = Object.freeze({
   "IDENTIFY":         8,
   "IFRAME_NAVIGATED": 9,
   "NOTIFY":           10,
-  "REGISTER":         11,
-  "REMOVE_CAPTURE":   12,
-  "UPDATE_CANVASES":  13,
-  "UPDATE_SETTINGS":  14
+  "READY":            11,
+  "REGISTER":         12,
+  "REMOVE_CAPTURE":   13,
+  "UPDATE_CANVASES":  14,
+  "UPDATE_SETTINGS":  15
 });
 
 const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
@@ -183,7 +186,7 @@ function makeDelay(delay) {
   });
 }
 
-return {
+return Object.freeze(Object.assign(Object.create(null), {
   "MessageCommands": MessageCommands,
   "DEFAULT_MAX_VIDEO_SIZE": DEFAULT_MAX_VIDEO_SIZE,
   "MAX_VIDEO_SIZE_KEY": MAX_VIDEO_SIZE_KEY,
@@ -203,6 +206,13 @@ return {
   "secondsToHMS": secondsToHMS,
   "genUUIDv4": genUUIDv4,
   "makeDelay": makeDelay
-};
+}));
+
+}());
+
+Object.defineProperty(self, "Utils", {
+  "enumerable": true,
+  "value":      Utils
+});
 
 }());
