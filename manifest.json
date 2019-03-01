@@ -42,7 +42,12 @@
   "web_accessible_resources": [
     "/capture/*.html",
     "/capture/*.css",
-    "/capture/img/*"
+    "/capture/img/*",
+    "/lib/webextension-polyfill/browser-polyfill.min.js",
+    "/capture/utils.js",
+    "/wasm/worker.js",
+    "/wasm/build/webm_muxer.js",
+    "/wasm/build/webm_muxer.wasm"
   ]
 
 }
