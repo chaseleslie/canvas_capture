@@ -2012,8 +2012,9 @@ function createVideoURL(blob) {
     "frameUUID":  TOP_FRAME_UUID
   });
 
-  handleSpawnWorker();
+  handleSpawnMuxer();
   Ext.muxer.queue.push(videoURL);
+  handleMuxerQueue();
 }
 
 function stopCapture() {
@@ -2157,7 +2158,7 @@ function handleViewCapturesClose() {
   viewCapturesContainer.classList.add(HIDDEN_CLASS);
 }
 
-function handleSpawnWorker() {
+function handleSpawnMuxer() {
   /* Unfortunately chromium doesn't allow loading workers from extension
      scripts. For now, spawn worker from objectURL and import scripts into
      worker by fetching source and using Function() ctor hack.
@@ -2180,7 +2181,7 @@ function handleSpawnWorker() {
     throw Error(`Error fetching '${response.url}': ${response.status}`);
   }).then(function(blob) {
     muxer.worker = new Worker(window.URL.createObjectURL(blob));
-    muxer.worker.addEventListener("message", handleWorkerMessage, false);
+    muxer.worker.addEventListener("message", handleMuxerMessage, false);
 
     return fetch(browser.runtime.getURL(WASM_BINARY_PATH));
   }).then(function(response) {
@@ -2219,26 +2220,26 @@ function handleSpawnWorker() {
   });
 }
 
-function handleWorkerMessage(e) {
+function handleMuxerMessage(e) {
   const msg = e.data;
 
   if (msg.command === MessageCommands.REGISTER) {
     Ext.muxer.initialized = true;
 
-    handleWorkerQueue();
+    handleMuxerQueue();
   } else if (msg.command === MessageCommands.REMUX) {
     if (msg.success) {
-      handleWorkerRemuxSuccess(msg);
+      handleMuxerRemuxSuccess(msg);
     } else {
-      handleWorkerRemuxError(msg);
+      handleMuxerRemuxError(msg);
     }
 
     Ext.muxer.clear();
-    handleWorkerQueue();
+    handleMuxerQueue();
   }
 }
 
-function handleWorkerRemux(objectURL) {
+function handleMuxerRemux(objectURL) {
   const muxer = Ext.muxer;
   const caps = Ext.captures;
   const blob = (caps.find((el) => el.url === objectURL) || {"blob": null}).blob;
@@ -2259,7 +2260,7 @@ function handleWorkerRemux(objectURL) {
   reader.readAsArrayBuffer(blob);
 }
 
-function handleWorkerRemuxSuccess(msg) {
+function handleMuxerRemuxSuccess(msg) {
   const blob = new Blob([msg.result], {"type": MIME_TYPE_MAP[DEFAULT_MIME_TYPE]});
   const url = window.URL.createObjectURL(blob);
 
@@ -2277,19 +2278,19 @@ function handleWorkerRemuxSuccess(msg) {
   }
 }
 
-function handleWorkerRemuxError() {
+function handleMuxerRemuxError() {
   Ext.muxer.clear();
 }
 
-function handleWorkerQueue() {
+function handleMuxerQueue() {
   const muxer = Ext.muxer;
 
-  if (muxer.muxing || !muxer.queue.length) {
+  if (muxer.muxing || !muxer.queue.length || !muxer.initialized) {
     return;
   }
 
   const objectURL = muxer.queue.splice(0, 1)[0];
-  handleWorkerRemux(objectURL);
+  handleMuxerRemux(objectURL);
 }
 
 function handlePageUnload() {
