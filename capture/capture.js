@@ -134,6 +134,7 @@ const Ext = Object.seal({
     "initialized":  false,
     "objectURL":    null,
     "muxing":       false,
+    "queue":       [],
     "clear": function() {
       this.objectURL = null;
       this.muxing = false;
@@ -2012,7 +2013,7 @@ function createVideoURL(blob) {
   });
 
   handleSpawnWorker();
-  Ext.muxer.objectURL = videoURL;
+  Ext.muxer.queue.push(videoURL);
 }
 
 function stopCapture() {
@@ -2163,57 +2164,59 @@ function handleSpawnWorker() {
      See https://crbug.com/357664 */
   const muxer = Ext.muxer;
 
-  if (!muxer.worker) {
-    let wasmBinary = null;
-    let utilsSrc = null;
-
-    fetch(browser.runtime.getURL(WORKER_PATH))
-    .then(function(response) {
-      if (response.ok) {
-        return response.blob();
-      }
-
-      throw Error(`Error fetching '${response.url}': ${response.status}`);
-    }).then(function(blob) {
-      muxer.worker = new Worker(window.URL.createObjectURL(blob));
-      muxer.worker.addEventListener("message", handleWorkerMessage, false);
-
-      return fetch(browser.runtime.getURL(WASM_BINARY_PATH));
-    }).then(function(response) {
-      if (response.ok) {
-        return response.arrayBuffer();
-      }
-
-      throw Error(`Error fetching '${response.url}': ${response.status}`);
-    }).then(function(buffer) {
-      wasmBinary = buffer;
-      return fetch(browser.runtime.getURL(UTILS_JS_PATH));
-    }).then(function(response) {
-      if (response.ok) {
-        return response.text();
-      }
-
-      throw Error(`Error fetching '${response.url}': ${response.status}`);
-    }).then(function(text) {
-      utilsSrc = text;
-      return fetch(browser.runtime.getURL(WASM_PATH));
-    }).then(function(response) {
-      if (response.ok) {
-        return response.text();
-      }
-
-      throw Error(`Error fetching '${response.url}': ${response.status}`);
-    }).then(function(text) {
-      muxer.worker.postMessage({
-        "command":    "register",
-        "wasmBinary": wasmBinary,
-        "utilsSrc":   utilsSrc,
-        "wasmSrc":    text
-      }, [wasmBinary]);
-    }).catch(function() {
-      Ext.muxer.clear();
-    });
+  if (muxer.worker) {
+    return;
   }
+
+  let wasmBinary = null;
+  let utilsSrc = null;
+
+  fetch(browser.runtime.getURL(WORKER_PATH))
+  .then(function(response) {
+    if (response.ok) {
+      return response.blob();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(blob) {
+    muxer.worker = new Worker(window.URL.createObjectURL(blob));
+    muxer.worker.addEventListener("message", handleWorkerMessage, false);
+
+    return fetch(browser.runtime.getURL(WASM_BINARY_PATH));
+  }).then(function(response) {
+    if (response.ok) {
+      return response.arrayBuffer();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(buffer) {
+    wasmBinary = buffer;
+    return fetch(browser.runtime.getURL(UTILS_JS_PATH));
+  }).then(function(response) {
+    if (response.ok) {
+      return response.text();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(text) {
+    utilsSrc = text;
+    return fetch(browser.runtime.getURL(WASM_PATH));
+  }).then(function(response) {
+    if (response.ok) {
+      return response.text();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(text) {
+    muxer.worker.postMessage({
+      "command":    "register",
+      "wasmBinary": wasmBinary,
+      "utilsSrc":   utilsSrc,
+      "wasmSrc":    text
+    }, [wasmBinary]);
+  }).catch(function() {
+    Ext.muxer.clear();
+  });
 }
 
 function handleWorkerMessage(e) {
@@ -2222,9 +2225,7 @@ function handleWorkerMessage(e) {
   if (msg.command === MessageCommands.REGISTER) {
     Ext.muxer.initialized = true;
 
-    if (Ext.muxer.objectURL) {
-      handleWorkerRemux(Ext.muxer.objectURL);
-    }
+    handleWorkerQueue();
   } else if (msg.command === MessageCommands.REMUX) {
     if (msg.success) {
       handleWorkerRemuxSuccess(msg);
@@ -2233,6 +2234,7 @@ function handleWorkerMessage(e) {
     }
 
     Ext.muxer.clear();
+    handleWorkerQueue();
   }
 }
 
@@ -2249,6 +2251,7 @@ function handleWorkerRemux(objectURL) {
       "command":        MessageCommands.REMUX,
       "srcArrayBuffer": buffer
     }, [buffer]);
+    muxer.muxing = true;
   }, false);
   reader.addEventListener("error", function() {
     muxer.clear();
@@ -2276,6 +2279,17 @@ function handleWorkerRemuxSuccess(msg) {
 
 function handleWorkerRemuxError() {
   Ext.muxer.clear();
+}
+
+function handleWorkerQueue() {
+  const muxer = Ext.muxer;
+
+  if (muxer.muxing || !muxer.queue.length) {
+    return;
+  }
+
+  const objectURL = muxer.queue.splice(0, 1)[0];
+  handleWorkerRemux(objectURL);
 }
 
 function handlePageUnload() {
