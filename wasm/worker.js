@@ -37,7 +37,14 @@ const muxer = Object.seal({
     this.dstArrayBuffer = null;
     this.dstArray = null;
     this.dstPos = null;
-  }
+  },
+  "pReaderReadCB":      null,
+  "pReaderLengthCB":    null,
+  "pWriterWriteCB":     null,
+  "pWriterWriteNoopCB": null,
+  "pWriterSeekCB":      null,
+  "pWriterSeekNoopCB":  null,
+  "pWriterPositionCB":  null
 });
 
 self.addEventListener("message", handleMessage, false);
@@ -68,6 +75,41 @@ function handleMessageRegister(msg) {
   };
   Module.wasmBinary = msg.wasmBinary;
   new Function(`var Module = self.Module; ${msg.wasmSrc}`)();
+
+  Object.defineProperty(
+    muxer,
+    "pReaderReadCB",
+    {"value": Module.addFunction(readerReadCB)}
+  );
+  Object.defineProperty(
+    muxer,
+    "pReaderLengthCB",
+    {"value": Module.addFunction(readerLengthCB)}
+  );
+  Object.defineProperty(
+    muxer,
+    "pWriterWriteCB",
+    {"value": Module.addFunction(writerWriteCB)}
+  );
+  Object.defineProperty(
+    muxer, "pWriterWriteNoopCB",
+    {"value": Module.addFunction(writerWriteNoopCB)}
+  );
+  Object.defineProperty(
+    muxer,
+    "pWriterSeekCB",
+    {"value": Module.addFunction(writerSeekCB)}
+  );
+  Object.defineProperty(
+    muxer,
+    "pWriterSeekNoopCB",
+    {"value": Module.addFunction(writerSeekNoopCB)}
+  );
+  Object.defineProperty(
+    muxer,
+    "pWriterPositionCB",
+    {"value": Module.addFunction(writerPositionCB)}
+  );
 }
 
 function handleMessageRemux(msg) {
@@ -76,13 +118,13 @@ function handleMessageRemux(msg) {
   muxer.srcArrayBuffer = srcBuffer;
   muxer.srcArray = new Uint8Array(muxer.srcArrayBuffer);
 
-  const pReaderReadCB = Module.addFunction(readerReadCB);
-  const pReaderLengthCB = Module.addFunction(readerLengthCB);
-  const pWriterWriteCB = Module.addFunction(writerWriteCB);
-  const pWriterWriteNoopCB = Module.addFunction(writerWriteNoopCB);
-  const pWriterSeekCB = Module.addFunction(writerSeekCB);
-  const pWriterSeekNoopCB = Module.addFunction(writerSeekNoopCB);
-  const pWriterPositionCB = Module.addFunction(writerPositionCB);
+  const pReaderReadCB = muxer.pReaderReadCB;
+  const pReaderLengthCB = muxer.pReaderLengthCB;
+  const pWriterWriteCB = muxer.pWriterWriteCB;
+  const pWriterWriteNoopCB = muxer.pWriterWriteNoopCB;
+  const pWriterSeekCB = muxer.pWriterSeekCB;
+  const pWriterSeekNoopCB = muxer.pWriterSeekNoopCB;
+  const pWriterPositionCB = muxer.pWriterPositionCB;
 
   let ret = Module.ccall(
     "webm_muxer",
