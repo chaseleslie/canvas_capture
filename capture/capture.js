@@ -2276,6 +2276,12 @@ function handleMuxerRemuxSuccess(msg) {
       break;
     }
   }
+
+  const viewCapCont = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
+
+  if (!viewCapCont.classList.contains(HIDDEN_CLASS)) {
+    handleViewCapturesOpen();
+  }
 }
 
 function handleMuxerRemuxError() {
