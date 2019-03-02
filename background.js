@@ -364,7 +364,8 @@ function onMessage(msg) {
     case MessageCommands.DELAY:
     case MessageCommands.DOWNLOAD:
     case MessageCommands.HIGHLIGHT:
-    case MessageCommands.REMOVE_CAPTURE: {
+    case MessageCommands.REMOVE_CAPTURE:
+    case MessageCommands.REMUX: {
       const tabId = msg.tabId;
       const frames = activeTabs[tabId].frames;
       const targetFrameUUID = msg.targetFrameUUID;
