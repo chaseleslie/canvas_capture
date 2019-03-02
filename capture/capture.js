@@ -323,6 +323,8 @@ function onMessage(msg) {
     handleMessageIframeAdded(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
     handleMessageRegister(msg);
+  } else if (msg.command === MessageCommands.REMUX) {
+    handleMessageRemux(msg);
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     handleMessageUpdateCanvases(msg);
   } else if (msg.command === MessageCommands.UPDATE_SETTINGS) {
@@ -451,6 +453,26 @@ function handleMessageRegister(msg) {
   const frames = Array.from(document.querySelectorAll("iframe"));
   if (frames.length) {
     handleAddedIframes(frames);
+  }
+}
+
+function handleMessageRemux(msg) {
+  const cap = msg.capture;
+
+  for (let k = 0, n = Ext.captures.length; k < n; k += 1) {
+    const capture = Ext.captures[k];
+
+    if (cap.oldUrl === capture.url) {
+      capture.url = cap.url;
+      capture.size = cap.size;
+      capture.prettySize = cap.prettySize;
+    }
+  }
+
+  const viewCapCont = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
+
+  if (!viewCapCont.classList.contains(HIDDEN_CLASS)) {
+    handleViewCapturesOpen();
   }
 }
 
