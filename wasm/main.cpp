@@ -6,6 +6,8 @@
 #include <mkvmuxer/mkvwriter.h>
 #include <common/hdr_util.h>
 
+#include <ctime>
+#include <cstdint>
 #include <iostream>
 #include <memory>
 
@@ -15,7 +17,14 @@ extern "C" {
 
 const char* const WRITING_APP = "Canvas Capture";
 
-int webm_muxer(ReadCB readCB, LengthCB lengthCB, WriteCB writeCB, SeekCB seekCB, PositionCB posCB) {
+int webm_muxer(
+    ReadCB readCB,
+    LengthCB lengthCB,
+    WriteCB writeCB,
+    SeekCB seekCB,
+    PositionCB posCB,
+    uint64_t ts
+  ) {
   Reader reader(readCB, lengthCB);
   Writer writer(writeCB, seekCB, posCB);
 
@@ -75,6 +84,23 @@ int webm_muxer(ReadCB readCB, LengthCB lengthCB, WriteCB writeCB, SeekCB seekCB,
         );
       }
     }
+  }
+
+  {
+      const size_t buffLen = 16;
+      char buff[buffLen];
+      time_t now = static_cast<time_t>(ts);
+      struct tm* nowTm = localtime(&now);
+      size_t ret = strftime(buff, buffLen, "%Y-%m-%d", nowTm);
+      if (ret) {
+          mkvmuxer::Tag* muxerTag = muxerSegment.AddTag();
+          if (muxerTag) {
+              muxerTag->add_simple_tag(
+                "DATE_RECORDED",
+                buff
+              );
+          }
+      }
   }
 
   const mkvparser::Tracks* const parserTracks = parserSegment->GetTracks();

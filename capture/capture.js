@@ -2264,7 +2264,13 @@ function handleMuxerMessage(e) {
 function handleMuxerRemux(objectURL) {
   const muxer = Ext.muxer;
   const caps = Ext.captures;
-  const blob = (caps.find((el) => el.url === objectURL) || {"blob": null}).blob;
+  const capture = caps.find((el) => el.url === objectURL);
+  const blob = (capture) ? capture.blob : null;
+
+  if (!blob) {
+    setTimeout(handleMuxerQueue, 0);
+    return;
+  }
 
   muxer.objectURL = objectURL;
   const reader = new FileReader();
@@ -2272,7 +2278,8 @@ function handleMuxerRemux(objectURL) {
     const buffer = reader.result;
     muxer.worker.postMessage({
       "command":        MessageCommands.REMUX,
-      "srcArrayBuffer": buffer
+      "srcArrayBuffer": buffer,
+      "ts":             capture.startTS
     }, [buffer]);
     muxer.muxing = true;
   }, false);

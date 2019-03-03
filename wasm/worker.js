@@ -113,6 +113,7 @@ function handleMessageRegister(msg) {
 }
 
 function handleMessageRemux(msg) {
+  const ts = Math.trunc((msg.ts || Date.now()) / 1000);
   const srcBuffer = msg.srcArrayBuffer;
   muxer.muxing = true;
   muxer.srcArrayBuffer = srcBuffer;
@@ -129,8 +130,16 @@ function handleMessageRemux(msg) {
   let ret = Module.ccall(
     "webm_muxer",
     "number",
-    ["number", "number", "number", "number", "number"],
-    [pReaderReadCB, pReaderLengthCB, pWriterWriteNoopCB, pWriterSeekNoopCB, pWriterPositionCB]
+    [
+      "number", "number",
+      "number", "number", "number",
+      "number"
+    ],
+    [
+      pReaderReadCB, pReaderLengthCB,
+      pWriterWriteNoopCB, pWriterSeekNoopCB, pWriterPositionCB,
+      ts
+    ]
   );
 
   if (ret) {
@@ -151,8 +160,16 @@ function handleMessageRemux(msg) {
   ret = Module.ccall(
     "webm_muxer",
     "number",
-    ["number", "number", "number", "number", "number"],
-    [pReaderReadCB, pReaderLengthCB, pWriterWriteCB, pWriterSeekCB, pWriterPositionCB]
+    [
+      "number", "number",
+      "number", "number", "number",
+      "number"
+    ],
+    [
+      pReaderReadCB, pReaderLengthCB,
+      pWriterWriteCB, pWriterSeekCB, pWriterPositionCB,
+      ts
+    ]
   );
 
   if (ret) {
