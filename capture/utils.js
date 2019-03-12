@@ -55,14 +55,27 @@ const BG_FRAME_UUID = "background";
 const ALL_FRAMES_UUID = "*";
 
 function pathSpecFromElement(element) {
+  if (!(element instanceof HTMLElement)) {
+    throw Error("argument passed not an element");
+  }
+
   const pathComponents = [];
   var ptr = element;
-  var path = "";
+
+  if (!ptr.parentElement) {
+    if (ptr.nodeName.toUpperCase() === "HTML") {
+      return `/${ptr.nodeName}[0]`;
+    }
+
+    throw Error("element not attached to DOM");
+  }
 
   do {
-    const tag = ptr.nodeName;
+    const tag = ptr.nodeName.toUpperCase();
     var tagIndex = -1;
-    const siblings = Array.from(ptr.parentElement.children).filter((el) => el.nodeName === tag);
+    const siblings = Array.from(ptr.parentElement.children).filter(
+      (el) => el.nodeName.toUpperCase() === tag
+    );
 
     for (let k = 0, n = siblings.length; k < n; k += 1) {
       const el = siblings[k];
@@ -79,7 +92,9 @@ function pathSpecFromElement(element) {
     pathComponents.push(`${tag}[${tagIndex}]`);
   } while ((ptr = ptr.parentElement) && ptr !== document.documentElement);
 
+  let path = "";
   pathComponents.reverse();
+
   for (let k = 0, n = pathComponents.length; k < n; k += 1) {
     path += `/${pathComponents[k]}`;
   }
@@ -88,27 +103,41 @@ function pathSpecFromElement(element) {
 }
 
 function elementFromPathSpec(path) {
+  if (typeof path !== "string" || !(path instanceof String)) {
+    throw Error("supplied argument path is not a string");
+  }
+
   const regex = /([a-zA-Z]+(?:-[a-zA-Z]+)*)\[([0-9]|[1-9][0-9]+)\]/;
   const paths = path.split("/").filter((el) => el);
   var ptr = document.documentElement;
   const components = paths.map(function(el) {
     const match = regex.exec(el);
+
     if (!match || match.length < 3) {
       throw Error(`invalid pathspec component '${el}'`);
     }
+
     return {
-      "el": match[1],
-      "index": match[2]
+      "el":     match[1],
+      "index":  match[2]
     };
   });
+
+  if (!components.length) {
+    return null;
+  }
 
   for (let k = 0, n = components.length; k < n; k += 1) {
     const tag = components[k].el.toUpperCase();
     const index = parseInt(components[k].index, 10);
-    const children = Array.from(ptr.children).filter((el) => el.nodeName.toUpperCase() === tag);
+    const children = Array.from(ptr.children).filter(
+      (el) => el.nodeName.toUpperCase() === tag
+    );
+
     if (index >= children.length) {
       return null;
     }
+
     ptr = children[index];
   }
 
@@ -187,25 +216,25 @@ function makeDelay(delay) {
 }
 
 return Object.freeze(Object.assign(Object.create(null), {
-  "MessageCommands": MessageCommands,
+  "MessageCommands":        MessageCommands,
   "DEFAULT_MAX_VIDEO_SIZE": DEFAULT_MAX_VIDEO_SIZE,
-  "MAX_VIDEO_SIZE_KEY": MAX_VIDEO_SIZE_KEY,
-  "FPS_KEY": FPS_KEY,
-  "DEFAULT_FPS": DEFAULT_FPS,
-  "BPS_KEY": BPS_KEY,
-  "DEFAULT_BPS": DEFAULT_BPS,
-  "AUTO_OPEN_KEY": AUTO_OPEN_KEY,
-  "DEFAULT_AUTO_OPEN": DEFAULT_AUTO_OPEN,
-  "TOP_FRAME_UUID": TOP_FRAME_UUID,
-  "BG_FRAME_UUID": BG_FRAME_UUID,
-  "ALL_FRAMES_UUID": ALL_FRAMES_UUID,
-  "pathSpecFromElement": pathSpecFromElement,
-  "elementFromPathSpec": elementFromPathSpec,
-  "prettyFileSize": prettyFileSize,
-  "hmsToSeconds": hmsToSeconds,
-  "secondsToHMS": secondsToHMS,
-  "genUUIDv4": genUUIDv4,
-  "makeDelay": makeDelay
+  "MAX_VIDEO_SIZE_KEY":     MAX_VIDEO_SIZE_KEY,
+  "FPS_KEY":                FPS_KEY,
+  "DEFAULT_FPS":            DEFAULT_FPS,
+  "BPS_KEY":                BPS_KEY,
+  "DEFAULT_BPS":            DEFAULT_BPS,
+  "AUTO_OPEN_KEY":          AUTO_OPEN_KEY,
+  "DEFAULT_AUTO_OPEN":      DEFAULT_AUTO_OPEN,
+  "TOP_FRAME_UUID":         TOP_FRAME_UUID,
+  "BG_FRAME_UUID":          BG_FRAME_UUID,
+  "ALL_FRAMES_UUID":        ALL_FRAMES_UUID,
+  "pathSpecFromElement":    pathSpecFromElement,
+  "elementFromPathSpec":    elementFromPathSpec,
+  "prettyFileSize":         prettyFileSize,
+  "hmsToSeconds":           hmsToSeconds,
+  "secondsToHMS":           secondsToHMS,
+  "genUUIDv4":              genUUIDv4,
+  "makeDelay":              makeDelay
 }));
 
 }());
