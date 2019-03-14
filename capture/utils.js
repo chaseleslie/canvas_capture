@@ -56,7 +56,7 @@ const ALL_FRAMES_UUID = "*";
 
 function pathSpecFromElement(element) {
   if (!(element instanceof HTMLElement)) {
-    throw Error("argument passed not an element");
+    throw new TypeError("argument passed not an element");
   }
 
   const pathComponents = [];
@@ -104,7 +104,7 @@ function pathSpecFromElement(element) {
 
 function elementFromPathSpec(path) {
   if (typeof path !== "string" || !(path instanceof String)) {
-    throw Error("supplied argument path is not a string");
+    throw new TypeError("supplied argument path is not a string");
   }
 
   const regex = /([a-zA-Z]+(?:-[a-zA-Z]+)*)\[([0-9]|[1-9][0-9]+)\]/;
