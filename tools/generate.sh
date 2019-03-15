@@ -15,10 +15,9 @@ do
   printf "%s\n" "Generating $platform"
 
   printf "  > %s\n" "Creating $PLATFORM_DEV"
-  if [ ! -d "$PLATFORM_DEV" ]; then
+  if [ -d "$PLATFORM_DEV" ]; then
+    rm -r "$PLATFORM_DEV"
     mkdir -p "$PLATFORM_DEV"
-  else
-    printf "    >> %s\n" "already exists"
   fi
 
   printf "  > %s\n" "Copying files"
