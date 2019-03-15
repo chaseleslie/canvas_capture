@@ -1,3 +1,7 @@
+Release 1.2.1
+  Fixes
+    > Downloading captures from canvases in iframes
+
 Release 1.2.0
   New
     > Added option for extension to reopen on page refresh
