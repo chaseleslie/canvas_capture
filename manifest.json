@@ -42,7 +42,11 @@
   "web_accessible_resources": [
     "/capture/*.html",
     "/capture/*.css",
-    "/capture/img/*"
+    "/capture/img/*",
+    "/capture/utils.js",
+    "/wasm/worker.js",
+    "/wasm/build/webm_muxer.js",
+    "/wasm/build/webm_muxer.wasm"
   ]
 
 }

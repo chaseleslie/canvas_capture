@@ -4,9 +4,18 @@
 #
 # Create dev versions of extension with browser-specific hooks.
 
-SRC_FILES="background.js capture img lib LICENSE options README.md"
+SRC_FILES="background.js capture img lib LICENSE options README.md wasm/worker.js wasm/build/webm_muxer.js wasm/build/webm_muxer.wasm"
 PLATFORM_DIR="$PWD/platform/"
 PLATFORMS_PATH="$PWD/platform/platforms.txt"
+
+printf "%s\n" "Building wasm"
+pushd "$PWD/wasm" &> /dev/null
+if ! make 1> /dev/null; then
+  printf "  > %s\n" "Building failed. Aborting"
+  exit 1
+fi
+popd &> /dev/null
+printf "\n"
 
 while read platform
 do
