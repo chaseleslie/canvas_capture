@@ -2092,6 +2092,20 @@ function handleViewCapturesOpen() {
     downloadLink.href = capture.url;
     downloadLink.title = capture.prettySize;
 
+    if (capture.frameUUID !== TOP_FRAME_UUID) {
+      downloadLink.addEventListener("click", function(e) {
+        Ext.port.postMessage({
+          "command":          MessageCommands.DOWNLOAD,
+          "tabId":            Ext.tabId,
+          "frameUUID":        TOP_FRAME_UUID,
+          "targetFrameUUID":  capture.frameUUID,
+          "url":              capture.url,
+          "name":             capture.name
+        });
+        e.preventDefault();
+      }, false);
+    }
+
     docFrag.append(row);
   }
 
