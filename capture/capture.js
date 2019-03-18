@@ -131,6 +131,9 @@ const Ext = Object.seal({
   "minimized": false,
   "muxer": Object.seal({
     "worker":       null,
+    "workerSrcURL": null,
+    "utilsSrcURL":  null,
+    "wasmSrcURL":   null,
     "initialized":  false,
     "objectURL":    null,
     "muxing":       false,
@@ -140,6 +143,10 @@ const Ext = Object.seal({
       this.muxing = false;
     },
     "disable": function() {
+      window.URL.revokeObjectURL(this.workerSrcURL);
+      window.URL.revokeObjectURL(this.utilsSrcURL);
+      window.URL.revokeObjectURL(this.wasmSrcURL);
+
       for (const key of Object.keys(this)) {
         this[key] = null;
       }
@@ -2196,8 +2203,8 @@ function handleViewCapturesClose() {
 
 function handleSpawnMuxer() {
   /* Unfortunately chromium doesn't allow loading workers from extension
-     scripts. For now, spawn worker from objectURL and import scripts into
-     worker by fetching source and using Function() ctor hack.
+     scripts. For now, spawn worker from objectURL and send objectURLs of
+     scripts to import to worker.
      See https://crbug.com/357664 */
   const muxer = Ext.muxer;
 
@@ -2206,7 +2213,6 @@ function handleSpawnMuxer() {
   }
 
   let wasmBinary = null;
-  let utilsSrc = null;
 
   fetch(browser.runtime.getURL(WORKER_PATH))
   .then(function(response) {
@@ -2216,7 +2222,8 @@ function handleSpawnMuxer() {
 
     throw Error(`Error fetching '${response.url}': ${response.status}`);
   }).then(function(blob) {
-    muxer.worker = new Worker(window.URL.createObjectURL(blob));
+    muxer.workerSrcURL = window.URL.createObjectURL(blob);
+    muxer.worker = new Worker(muxer.workerSrcURL);
     muxer.worker.addEventListener("message", handleMuxerMessage, false);
 
     return fetch(browser.runtime.getURL(WASM_BINARY_PATH));
@@ -2231,25 +2238,26 @@ function handleSpawnMuxer() {
     return fetch(browser.runtime.getURL(UTILS_JS_PATH));
   }).then(function(response) {
     if (response.ok) {
-      return response.text();
+      return response.blob();
     }
 
     throw Error(`Error fetching '${response.url}': ${response.status}`);
-  }).then(function(text) {
-    utilsSrc = text;
+  }).then(function(blob) {
+    muxer.utilsSrcURL = window.URL.createObjectURL(blob);
     return fetch(browser.runtime.getURL(WASM_PATH));
   }).then(function(response) {
     if (response.ok) {
-      return response.text();
+      return response.blob();
     }
 
     throw Error(`Error fetching '${response.url}': ${response.status}`);
-  }).then(function(text) {
+  }).then(function(blob) {
+    muxer.wasmSrcURL = window.URL.createObjectURL(blob);
     muxer.worker.postMessage({
       "command":    "register",
       "wasmBinary": wasmBinary,
-      "utilsSrc":   utilsSrc,
-      "wasmSrc":    text
+      "utilsSrc":   muxer.utilsSrcURL,
+      "wasmSrc":    muxer.wasmSrcURL
     }, [wasmBinary]);
   }).catch(function() {
     Ext.muxer.clear();

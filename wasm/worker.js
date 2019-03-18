@@ -62,11 +62,10 @@ function handleMessage(e) {
 }
 
 function handleMessageRegister(msg) {
-  /* Use ugly hack Function() ctor until chromium allows accessing extension
-     files from within workers */
-  new Function(msg.utilsSrc)();
+  self.importScripts(msg.utilsSrc);
   Object.assign(MessageCommands, Utils.MessageCommands);
   Object.freeze(MessageCommands);
+
   Module.onRuntimeInitialized = function() {
     self.postMessage({
       "command": MessageCommands.REGISTER
@@ -74,7 +73,7 @@ function handleMessageRegister(msg) {
     muxer.initialized = true;
   };
   Module.wasmBinary = msg.wasmBinary;
-  new Function(`var Module = self.Module; ${msg.wasmSrc}`)();
+  self.importScripts(msg.wasmSrc);
 
   Object.defineProperty(
     muxer,
