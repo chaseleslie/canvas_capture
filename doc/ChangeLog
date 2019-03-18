@@ -1,3 +1,10 @@
+Release 1.3.0
+  New
+    > Captured videos are now remuxed using libwebm in WASM
+    > Captured videos have a cues segment at the start of the file
+    > Captured videos show duration and timestamps in common video players
+    > Captured videos are seekable when played
+
 Release 1.2.1
   Fixes
     > Downloading captures from canvases in iframes

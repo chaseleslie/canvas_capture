@@ -56,6 +56,7 @@ The following `command`s are used (see `MessageCommands` enum in source files):
 - [NOTIFY](#notify)
 - [REGISTER](#register)
 - [REMOVE_CAPTURE](#remove_capture)
+- [REMUX](#remux)
 - [UPDATE_CANVASES](#update_canvases)
 - [UPDATE_SETTINGS](#update_settings)
 
@@ -153,6 +154,13 @@ frame of its `frameID` and to request its `frameUUID`.
 
 This command is sent from the top frame to a child frame when one of the
 captured videos (blobs) should be deleted.
+
+#### REMUX <a name="remux"></a>
+
+This command is sent from the a frame to the muxer worker script when a video
+should be remuxed. The worker script then replies with this command and the
+status of the remuxing. This command is also sent from a child frame when
+it has finished remuxing a video to notify the top frame.
 
 #### UPDATE_CANVASES <a name="update_canvases"></a>
 
