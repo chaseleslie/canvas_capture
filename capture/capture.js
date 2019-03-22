@@ -1207,11 +1207,15 @@ function setupDisplay(html) {
   const captureMinimize = document.getElementById(CAPTURE_MINIMIZE_ID);
   captureMinimize.addEventListener("click", minimizeCapture, false);
 
+  const modifyTimerContainer = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
   const modifyTimerSet = document.getElementById(MODIFY_TIMER_SET_ID);
   const modifyTimerClear = document.getElementById(MODIFY_TIMER_CLEAR_ID);
   const modifyTimerHours = document.getElementById(MODIFY_TIMER_HOURS_ID);
   const modifyTimerMinutes = document.getElementById(MODIFY_TIMER_MINUTES_ID);
   const modifyTimerSeconds = document.getElementById(MODIFY_TIMER_SECONDS_ID);
+  modifyTimerContainer.addEventListener("click", function(evt) {
+    evt.stopPropagation();
+  }, false);
   modifyTimerSet.addEventListener("click", handleRowSetTimer, false);
   modifyTimerClear.addEventListener("click", handleRowClearTimer, false);
   modifyTimerHours.addEventListener("focus", handleInputFocus, false);
@@ -1226,9 +1230,13 @@ function setupDisplay(html) {
   delaySkip.addEventListener("click", handleDelayEnd, false);
   delayCancel.addEventListener("click", handleCancelDelay, false);
 
+  const viewCapturesContainer = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
   const viewCapturesOpen = document.getElementById(LIST_CANVASES_DL_BUTTON_ID);
-  viewCapturesOpen.addEventListener("click", handleViewCapturesOpen, false);
   const viewCapturesClose = document.getElementById(VIEW_CAPTURES_CLOSE_ID);
+  viewCapturesContainer.addEventListener("click", function(evt) {
+    evt.stopPropagation();
+  }, false);
+  viewCapturesOpen.addEventListener("click", handleViewCapturesOpen, false);
   viewCapturesClose.addEventListener("click", handleViewCapturesClose, false);
 
   positionWrapper();
