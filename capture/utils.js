@@ -50,6 +50,9 @@ const DEFAULT_BPS = 2500000;
 const AUTO_OPEN_KEY = "autoOpen";
 const DEFAULT_AUTO_OPEN = true;
 
+const REMUX_KEY = "remux";
+const DEFAULT_REMUX = true;
+
 const TOP_FRAME_UUID = "top";
 const BG_FRAME_UUID = "background";
 const ALL_FRAMES_UUID = "*";
@@ -225,6 +228,8 @@ return Object.freeze(Object.assign(Object.create(null), {
   "DEFAULT_BPS":            DEFAULT_BPS,
   "AUTO_OPEN_KEY":          AUTO_OPEN_KEY,
   "DEFAULT_AUTO_OPEN":      DEFAULT_AUTO_OPEN,
+  "REMUX_KEY":              REMUX_KEY,
+  "DEFAULT_REMUX":          DEFAULT_REMUX,
   "TOP_FRAME_UUID":         TOP_FRAME_UUID,
   "BG_FRAME_UUID":          BG_FRAME_UUID,
   "ALL_FRAMES_UUID":        ALL_FRAMES_UUID,

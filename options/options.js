@@ -30,6 +30,9 @@ const OPTION_BPS_ID = "option_bps";
 const AUTO_OPEN_KEY = Utils.AUTO_OPEN_KEY;
 const OPTION_AUTO_OPEN_ID = "option_auto_open";
 
+const REMUX_KEY = Utils.REMUX_KEY;
+const OPTION_REMUX_ID = "option_remux";
+
 window.addEventListener("load", initOptions, false);
 
 function initOptions() {
@@ -41,6 +44,8 @@ function initOptions() {
   inputBPS.addEventListener("blur", updateBPS, false);
   const inputAutoOpen = document.getElementById(OPTION_AUTO_OPEN_ID);
   inputAutoOpen.addEventListener("change", updateAutoOpen, false);
+  const inputRemux = document.getElementById(OPTION_REMUX_ID);
+  inputRemux.addEventListener("change", updateRemux, false);
 
   browser.storage.local.get(MAX_VIDEO_SIZE_KEY)
   .then(function(setting) {
@@ -111,6 +116,16 @@ function updateAutoOpen(e) {
 
   const obj = Object.create(null);
   obj[AUTO_OPEN_KEY] = checked;
+  browser.storage.local.set(obj)
+  .then(updateBackgroundPage);
+}
+
+function updateRemux(e) {
+  const input = e.target;
+  const checked = input.checked;
+
+  const obj = Object.create(null);
+  obj[REMUX_KEY] = checked;
   browser.storage.local.set(obj)
   .then(updateBackgroundPage);
 }

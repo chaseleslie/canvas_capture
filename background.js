@@ -475,6 +475,7 @@ async function getSettings() {
   let fps = Utils.DEFAULT_FPS;
   let bps = Utils.DEFAULT_BPS;
   let autoOpen = Utils.DEFAULT_AUTO_OPEN;
+  let remux = Utils.DEFAULT_REMUX;
 
   await browser.storage.local.get(Utils.MAX_VIDEO_SIZE_KEY)
   .then(function(setting) {
@@ -493,13 +494,22 @@ async function getSettings() {
     autoOpen = (Utils.AUTO_OPEN_KEY in setting)
       ? setting[Utils.AUTO_OPEN_KEY]
       : Utils.DEFAULT_AUTO_OPEN;
+
+    return browser.storage.local.get(Utils.REMUX_KEY);
+  }).then(function(setting) {
+    remux = (Utils.REMUX_KEY in setting)
+      ? setting[Utils.REMUX_KEY]
+      : Utils.DEFAULT_REMUX;
+  }).catch(function() {
+    /* Use defaults */
   });
 
   return {
     [Utils.MAX_VIDEO_SIZE_KEY]: maxVideoSize,
     [Utils.FPS_KEY]:            fps,
     [Utils.BPS_KEY]:            bps,
-    [Utils.AUTO_OPEN_KEY]:      autoOpen
+    [Utils.AUTO_OPEN_KEY]:      autoOpen,
+    [Utils.REMUX_KEY]:          remux
   };
 }
 

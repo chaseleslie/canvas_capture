@@ -115,9 +115,13 @@ const Ext = Object.seal({
   "numBytesRecorded": 0,
   "captures": [],
   "downloadLinks": [],
-  "settings": {
-    "maxVideoSize": Utils.DEFAULT_MAX_VIDEO_SIZE
-  },
+  "settings": Object.seal({
+    [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
+    [Utils.FPS_KEY]:            Utils.DEFAULT_FPS,
+    [Utils.BPS_KEY]:            Utils.DEFAULT_BPS,
+    [Utils.AUTO_OPEN_KEY]:      Utils.DEFAULT_AUTO_OPEN,
+    [Utils.REMUX_KEY]:          Utils.DEFAULT_REMUX
+  }),
   "bodyMutObs": new MutationObserver(observeBodyMutations),
   "canvasMutObs": new MutationObserver(observeCanvasMutations),
   "freeCaptures": function() {
@@ -648,9 +652,11 @@ function stopCapture() {
     };
     Ext.captures.push(capture);
 
-    handleSpawnMuxer();
-    Ext.muxer.queue.push(videoURL);
-    handleMuxerQueue();
+    if (Ext.settings[Utils.REMUX_KEY]) {
+      handleSpawnMuxer();
+      Ext.muxer.queue.push(videoURL);
+      handleMuxerQueue();
+    }
   }
   var success = !Ext.active.error;
 
