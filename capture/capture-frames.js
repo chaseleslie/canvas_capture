@@ -114,7 +114,6 @@ const Ext = Object.seal({
   "frames": {[FRAME_UUID]: {"frameUUID": FRAME_UUID, "canvases": []}},
   "numBytesRecorded": 0,
   "captures": [],
-  "downloadLinks": [],
   "settings": Object.seal({
     [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
     [Utils.FPS_KEY]:            Utils.DEFAULT_FPS,
@@ -129,14 +128,6 @@ const Ext = Object.seal({
       const capture = this.captures[k];
       window.URL.revokeObjectURL(capture.url);
     }
-
-    for (let k = 0, n = this.downloadLinks.length; k < n; k += 1) {
-      const link = this.downloadLinks[k];
-      link.remove(link);
-      this.downloadLinks[k] = null;
-    }
-
-    Ext.downloadLinks = [];
   },
   "disable": function() {
     this.freeCaptures();
@@ -218,8 +209,6 @@ function onMessage(msg) {
     handleMessageDisable();
   } else if (msg.command === MessageCommands.DISPLAY) {
     handleMessageDisplay(msg);
-  } else if (msg.command === MessageCommands.DOWNLOAD) {
-    handleMessageDownload(msg);
   } else if (msg.command === MessageCommands.HIGHLIGHT) {
     handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
@@ -298,31 +287,6 @@ function handleMessageDisplay(msg) {
   Ext.tabId = msg.tabId;
   Ext.frames[FRAME_UUID].canvases = canvases;
   updateCanvases(canvases);
-}
-
-function handleMessageDownload(msg) {
-  let url = msg.url;
-  const link = document.createElement("a");
-
-  for (let k = 0, n = Ext.captures.length; k < n; k += 1) {
-    const capture = Ext.captures[k];
-
-    if (capture.oldUrl === url) {
-      url = capture.url;
-    }
-  }
-
-  link.href = url;
-  link.textContent = "download";
-  link.download = msg.name;
-  link.style.maxWidth = "0px";
-  link.style.maxHeight = "0px";
-  link.style.display = "block";
-  link.style.visibility = "hidden";
-  link.style.position = "absolute";
-  Ext.downloadLinks.push(link);
-  document.body.appendChild(link);
-  link.click();
 }
 
 function handleMessageHighlight(msg) {

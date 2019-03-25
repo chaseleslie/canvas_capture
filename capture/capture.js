@@ -358,7 +358,17 @@ function handleMessageCaptureStop(msg) {
     Ext.captures.push(capture);
 
     if (!msg.remuxing) {
-      if (!(capture.blob instanceof Blob)) {
+      if (capture.blob instanceof Blob) {
+        Ext.port.postMessage({
+          "command":          MessageCommands.REMOVE_CAPTURE,
+          "tabId":            Ext.tabId,
+          "frameUUID":        TOP_FRAME_UUID,
+          "targetFrameUUID":  capture.frameUUID,
+          "url":              capture.url
+        });
+        capture.url = window.URL.createObjectURL(capture.blob);
+        capture.frameUUID = TOP_FRAME_UUID;
+      } else {
         /* This condition is met in chromium where remuxing is disabled and
            the blob doesn't get transferred through the messaging API. Bring
            the blob to top frame (for previewing, etc) by downloading it
@@ -507,7 +517,18 @@ function handleMessageRemux(msg) {
       capture.size = cap.size;
       capture.prettySize = cap.prettySize;
 
-      if (!(capture.blob instanceof Blob)) {
+      if (capture.blob instanceof Blob) {
+        Ext.port.postMessage({
+          "command":          MessageCommands.REMOVE_CAPTURE,
+          "tabId":            Ext.tabId,
+          "frameUUID":        TOP_FRAME_UUID,
+          "targetFrameUUID":  capture.frameUUID,
+          "url":              capture.url
+        });
+        capture.blob = cap.blob;
+        capture.url = window.URL.createObjectURL(capture.blob);
+        capture.frameUUID = TOP_FRAME_UUID;
+      } else {
         /* This condition is met in chromium where the blob doesn't get
            transferred through the messaging API. Bring the blob to top frame
            (for previewing, etc) by downloading it and message frame to
