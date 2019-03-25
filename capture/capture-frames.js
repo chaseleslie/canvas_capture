@@ -140,6 +140,7 @@ const Ext = Object.seal({
   },
   "disable": function() {
     this.freeCaptures();
+    this.muxer.disable();
 
     for (const key of Object.keys(this)) {
       this[key] = null;
@@ -157,6 +158,8 @@ function handleWindowLoad() {
   Ext.port = browser.runtime.connect({"name": FRAME_UUID});
   Ext.port.onMessage.addListener(onMessage);
   window.addEventListener("message", handleWindowMessage, true);
+
+  window.addEventListener("beforeunload", handlePageUnload, false);
 
   Ext.bodyMutObs.observe(document.body, {
     "childList":  true,
@@ -633,6 +636,7 @@ function stopCapture() {
     "name":       "",
     "frameUUID":  FRAME_UUID
   };
+  var remuxing = false;
 
   if (Ext.chunks.length) {
     blob = new Blob(Ext.chunks, {"type": Ext.chunks[0].type});
@@ -653,12 +657,14 @@ function stopCapture() {
     Ext.captures.push(capture);
 
     if (Ext.settings[Utils.REMUX_KEY]) {
+      remuxing = true;
       handleSpawnMuxer();
       Ext.muxer.queue.push(videoURL);
       handleMuxerQueue();
     }
   }
-  var success = !Ext.active.error;
+
+  let success = !Ext.active.error;
 
   if (Ext.active.canvasRemoved) {
     showNotification("Canvas was removed while it was being recorded.");
@@ -677,7 +683,8 @@ function stopCapture() {
     "targetFrameUUID":  TOP_FRAME_UUID,
     "canvasIndex":      Ext.active.index,
     "success":          success,
-    "capture":          capture
+    "capture":          capture,
+    "remuxing":         remuxing
   });
 
   Ext.active.clear();
@@ -867,6 +874,10 @@ function showNotification(notification) {
     "frameUUID":    FRAME_UUID,
     "notification": notification
   });
+}
+
+function handlePageUnload() {
+  Ext.disable();
 }
 
 }());
