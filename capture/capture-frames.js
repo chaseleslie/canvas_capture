@@ -114,7 +114,6 @@ const Ext = Object.seal({
   "frames": {[FRAME_UUID]: {"frameUUID": FRAME_UUID, "canvases": []}},
   "numBytesRecorded": 0,
   "captures": [],
-  "downloadLinks": [],
   "settings": Object.seal({
     [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
     [Utils.FPS_KEY]:            Utils.DEFAULT_FPS,
@@ -129,17 +128,10 @@ const Ext = Object.seal({
       const capture = this.captures[k];
       window.URL.revokeObjectURL(capture.url);
     }
-
-    for (let k = 0, n = this.downloadLinks.length; k < n; k += 1) {
-      const link = this.downloadLinks[k];
-      link.remove(link);
-      this.downloadLinks[k] = null;
-    }
-
-    Ext.downloadLinks = [];
   },
   "disable": function() {
     this.freeCaptures();
+    this.muxer.disable();
 
     for (const key of Object.keys(this)) {
       this[key] = null;
@@ -157,6 +149,8 @@ function handleWindowLoad() {
   Ext.port = browser.runtime.connect({"name": FRAME_UUID});
   Ext.port.onMessage.addListener(onMessage);
   window.addEventListener("message", handleWindowMessage, true);
+
+  window.addEventListener("beforeunload", handlePageUnload, false);
 
   Ext.bodyMutObs.observe(document.body, {
     "childList":  true,
@@ -215,8 +209,6 @@ function onMessage(msg) {
     handleMessageDisable();
   } else if (msg.command === MessageCommands.DISPLAY) {
     handleMessageDisplay(msg);
-  } else if (msg.command === MessageCommands.DOWNLOAD) {
-    handleMessageDownload(msg);
   } else if (msg.command === MessageCommands.HIGHLIGHT) {
     handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
@@ -295,31 +287,6 @@ function handleMessageDisplay(msg) {
   Ext.tabId = msg.tabId;
   Ext.frames[FRAME_UUID].canvases = canvases;
   updateCanvases(canvases);
-}
-
-function handleMessageDownload(msg) {
-  let url = msg.url;
-  const link = document.createElement("a");
-
-  for (let k = 0, n = Ext.captures.length; k < n; k += 1) {
-    const capture = Ext.captures[k];
-
-    if (capture.oldUrl === url) {
-      url = capture.url;
-    }
-  }
-
-  link.href = url;
-  link.textContent = "download";
-  link.download = msg.name;
-  link.style.maxWidth = "0px";
-  link.style.maxHeight = "0px";
-  link.style.display = "block";
-  link.style.visibility = "hidden";
-  link.style.position = "absolute";
-  Ext.downloadLinks.push(link);
-  document.body.appendChild(link);
-  link.click();
 }
 
 function handleMessageHighlight(msg) {
@@ -633,6 +600,7 @@ function stopCapture() {
     "name":       "",
     "frameUUID":  FRAME_UUID
   };
+  var remuxing = false;
 
   if (Ext.chunks.length) {
     blob = new Blob(Ext.chunks, {"type": Ext.chunks[0].type});
@@ -653,12 +621,14 @@ function stopCapture() {
     Ext.captures.push(capture);
 
     if (Ext.settings[Utils.REMUX_KEY]) {
+      remuxing = true;
       handleSpawnMuxer();
       Ext.muxer.queue.push(videoURL);
       handleMuxerQueue();
     }
   }
-  var success = !Ext.active.error;
+
+  let success = !Ext.active.error;
 
   if (Ext.active.canvasRemoved) {
     showNotification("Canvas was removed while it was being recorded.");
@@ -677,7 +647,8 @@ function stopCapture() {
     "targetFrameUUID":  TOP_FRAME_UUID,
     "canvasIndex":      Ext.active.index,
     "success":          success,
-    "capture":          capture
+    "capture":          capture,
+    "remuxing":         remuxing
   });
 
   Ext.active.clear();
@@ -867,6 +838,10 @@ function showNotification(notification) {
     "frameUUID":    FRAME_UUID,
     "notification": notification
   });
+}
+
+function handlePageUnload() {
+  Ext.disable();
 }
 
 }());
