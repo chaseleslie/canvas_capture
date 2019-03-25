@@ -66,6 +66,11 @@ function initOptions() {
   .then(function(setting) {
     inputAutoOpen.checked = setting[AUTO_OPEN_KEY];
   });
+
+  browser.storage.local.get(REMUX_KEY)
+  .then(function(setting) {
+    inputRemux.checked = setting[REMUX_KEY];
+  });
 }
 
 function updateMaxVideoSize(e) {
