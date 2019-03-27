@@ -362,7 +362,6 @@ function onMessage(msg) {
     case MessageCommands.CAPTURE_START:
     case MessageCommands.CAPTURE_STOP:
     case MessageCommands.DELAY:
-    case MessageCommands.DOWNLOAD:
     case MessageCommands.HIGHLIGHT:
     case MessageCommands.REMOVE_CAPTURE:
     case MessageCommands.REMUX: {

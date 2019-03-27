@@ -26,16 +26,15 @@ const MessageCommands = Object.freeze({
   "DISABLE":          3,
   "DISCONNECT":       4,
   "DISPLAY":          5,
-  "DOWNLOAD":         6,
-  "HIGHLIGHT":        7,
-  "IDENTIFY":         8,
-  "IFRAME_NAVIGATED": 9,
-  "NOTIFY":           10,
-  "READY":            11,
-  "REGISTER":         12,
-  "REMOVE_CAPTURE":   13,
-  "UPDATE_CANVASES":  14,
-  "UPDATE_SETTINGS":  15
+  "HIGHLIGHT":        6,
+  "IDENTIFY":         7,
+  "IFRAME_NAVIGATED": 8,
+  "NOTIFY":           9,
+  "READY":            10,
+  "REGISTER":         11,
+  "REMOVE_CAPTURE":   12,
+  "UPDATE_CANVASES":  13,
+  "UPDATE_SETTINGS":  14
 });
 
 const DEFAULT_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
