@@ -1179,6 +1179,7 @@ function positionWrapper() {
   if (Ext.displayed) {
     positionUpdateTimer();
     positionRowTimerModify();
+    handleViewCapturesPosition();
   }
 }
 
@@ -2204,7 +2205,6 @@ function handleViewCapturesOpen() {
   );
 
   viewCapturesContainer.classList.remove(HIDDEN_CLASS);
-  setTimeout(handleViewCapturesPosition, 0);
 
   const oldRows = Array.from(
     viewCapturesRowContainer.querySelectorAll(`.${CAPTURE_DL_ROW_CLASS}`)
@@ -2252,8 +2252,13 @@ function handleViewCapturesOpen() {
     }
   }
 
+  Utils.makeDelay(0).then(handleViewCapturesPosition);
+
   if (firstRow) {
-    firstRow.click();
+    Utils.makeDelay(0).then(() => firstRow.click());
+  } else {
+    const video = document.getElementById(PREVIEW_CAPTURES_VIDEO_ID);
+    video.src = "";
   }
 
   viewCapturesRowContainer.append(docFrag);
@@ -2263,6 +2268,11 @@ function handleViewCapturesPosition() {
   const viewCapturesContainer = document.getElementById(
     VIEW_CAPTURES_CONTAINER_ID
   );
+
+  if (viewCapturesContainer.classList.contains(HIDDEN_CLASS)) {
+    return;
+  }
+
   const rect = viewCapturesContainer.getBoundingClientRect();
   const left = Math.round((0.5 * window.innerWidth) - (0.5 * rect.width));
   const top = Math.round((0.5 * window.innerHeight) - (0.5 * rect.height));
