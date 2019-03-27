@@ -2283,11 +2283,11 @@ function handleViewCapturesPosition() {
 function handleViewCapturesRowSelect(e) {
   let row = e.target;
 
-  if (!row.classList.contains(CAPTURE_DL_ROW_CLASS)) {
+  while (row && !row.classList.contains(CAPTURE_DL_ROW_CLASS)) {
     row = row.parentElement;
   }
 
-  if (row.classList.contains(CAPTURE_DL_ROW_SELECTED_CLASS)) {
+  if (!row || row.classList.contains(CAPTURE_DL_ROW_SELECTED_CLASS)) {
     return;
   }
 
