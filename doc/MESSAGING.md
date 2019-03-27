@@ -49,7 +49,6 @@ The following `command`s are used (see `MessageCommands` enum in source files):
 - [DISABLE](#disable)
 - [DISCONNECT](#disconnect)
 - [DISPLAY](#display)
-- [DOWNLOAD](#download)
 - [HIGHLIGHT](#highlight)
 - [IDENTIFY](#identify)
 - [IFRAME_NAVIGATED](#iframe_navigated)
@@ -106,14 +105,6 @@ top frame to the child frames. When the extension is first activated in a tab,
 the top frame is sent this command to build the UI and perform setup. When
 the top frame is ready, it sends this command to the child frames to notify
 them that the top frame is ready to receive UPDATE_CANVASES.
-
-#### DOWNLOAD <a name="download"></a>
-
-This command is sent from the top frame to child frames when the user wants to
-download a recorded video. Instead of passing binary blobs through the
-messaging serialization process between frames, the frame that has the canvas
-that is being recorded keeps the resulting video in its environment. This
-command instructs the child frame to prompt the user to download the file.
 
 #### HIGHLIGHT <a name="highlight"></a>
 
