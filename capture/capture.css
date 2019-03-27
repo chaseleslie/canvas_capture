@@ -408,6 +408,10 @@
   color: #8A8;
 }
 
+.view_captures_row_selected {
+  background-color: #808080 !important;
+}
+
 .span_all {
   grid-column: 1 / -1;
 }
