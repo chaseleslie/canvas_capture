@@ -598,7 +598,8 @@ function stopCapture() {
     "size":       0,
     "prettySize": "",
     "name":       "",
-    "frameUUID":  FRAME_UUID
+    "frameUUID":  FRAME_UUID,
+    "canvas":     null
   };
   var remuxing = false;
 
@@ -616,7 +617,11 @@ function stopCapture() {
       "size":       size,
       "prettySize": Utils.prettyFileSize(size),
       "name":       `capture-${ts}.${DEFAULT_MIME_TYPE}`,
-      "frameUUID":  FRAME_UUID
+      "frameUUID":  FRAME_UUID,
+      "canvas":     {
+        "width": Ext.active.canvas.width,
+        "height": Ext.active.canvas.height
+      }
     };
     Ext.captures.push(capture);
 

@@ -68,6 +68,7 @@ const LIST_CANVASES_DL_BUTTON_ID = "list_canvases_dl_button";
 const VIEW_CAPTURES_CLOSE_ID = "view_captures_close";
 const VIEW_CAPTURES_CONTAINER_ID = "view_captures_container";
 const VIEW_CAPTURES_ROW_CONTAINER_ID = "view_captures_row_container";
+const PREVIEW_CAPTURES_VIDEO_ID = "preview_captures_video";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
@@ -92,6 +93,7 @@ const HIGHLIGHTER_HORIZONTAL_CLASS = "highlighter_horizontal";
 const HIGHLIGHTER_VERTICAL_CLASS = "highlighter_vertical";
 const HIGHLIGHTER_OVERLAY_CLASS = "highlighter_overlay";
 const CAPTURE_DL_ROW_CLASS = "view_captures_row";
+const CAPTURE_DL_ROW_SELECTED_CLASS = "view_captures_row_selected";
 const CAPTURE_DL_DATE_CLASS = "capture_dl_date";
 const CAPTURE_DL_SIZE_CLASS = "capture_dl_size";
 const CAPTURE_DL_DURATION_CLASS = "capture_dl_duration";
@@ -1177,6 +1179,7 @@ function positionWrapper() {
   if (Ext.displayed) {
     positionUpdateTimer();
     positionRowTimerModify();
+    handleViewCapturesPosition();
   }
 }
 
@@ -2130,7 +2133,11 @@ function createVideoURL(blob) {
     "size":       size,
     "prettySize": Utils.prettyFileSize(size),
     "name":       `capture-${ts}.${DEFAULT_MIME_TYPE}`,
-    "frameUUID":  TOP_FRAME_UUID
+    "frameUUID":  TOP_FRAME_UUID,
+    "canvas":     {
+      "width": Ext.active.canvas.width,
+      "height": Ext.active.canvas.height
+    }
   });
 
   if (Ext.settings[Utils.REMUX_KEY]) {
@@ -2199,20 +2206,13 @@ function handleViewCapturesOpen() {
 
   viewCapturesContainer.classList.remove(HIDDEN_CLASS);
 
-  setTimeout(function() {
-    const rect = viewCapturesContainer.getBoundingClientRect();
-    const left = Math.round((0.5 * window.innerWidth) - (0.5 * rect.width));
-    const top = Math.round((0.5 * window.innerHeight) - (0.5 * rect.height));
-    viewCapturesContainer.style.left = `${left}px`;
-    viewCapturesContainer.style.top = `${top}px`;
-  }, 0);
-
   const oldRows = Array.from(
     viewCapturesRowContainer.querySelectorAll(`.${CAPTURE_DL_ROW_CLASS}`)
   );
   oldRows.forEach((el) => el.remove());
 
   const docFrag = document.createDocumentFragment();
+  let firstRow = null;
 
   for (let k = 0, n = Ext.captures.length; k < n; k += 1) {
     const capture = Ext.captures[k];
@@ -2241,24 +2241,90 @@ function handleViewCapturesOpen() {
     downloadLink.href = capture.url;
     downloadLink.title = capture.prettySize;
 
-    if (capture.frameUUID !== TOP_FRAME_UUID) {
-      downloadLink.addEventListener("click", function(e) {
-        Ext.port.postMessage({
-          "command":          MessageCommands.DOWNLOAD,
-          "tabId":            Ext.tabId,
-          "frameUUID":        TOP_FRAME_UUID,
-          "targetFrameUUID":  capture.frameUUID,
-          "url":              capture.url,
-          "name":             capture.name
-        });
-        e.preventDefault();
-      }, false);
-    }
-
+    row.addEventListener("click", handleViewCapturesRowSelect, false);
+    row.dataset.url = capture.url;
+    row.dataset.width = capture.canvas.width;
+    row.dataset.height = capture.canvas.height;
     docFrag.append(row);
+
+    if (!k) {
+      firstRow = row;
+    }
+  }
+
+  Utils.makeDelay(0).then(handleViewCapturesPosition);
+
+  if (firstRow) {
+    Utils.makeDelay(0).then(() => firstRow.click());
+  } else {
+    const video = document.getElementById(PREVIEW_CAPTURES_VIDEO_ID);
+    video.src = "";
   }
 
   viewCapturesRowContainer.append(docFrag);
+}
+
+function handleViewCapturesPosition() {
+  const viewCapturesContainer = document.getElementById(
+    VIEW_CAPTURES_CONTAINER_ID
+  );
+
+  if (viewCapturesContainer.classList.contains(HIDDEN_CLASS)) {
+    return;
+  }
+
+  const rect = viewCapturesContainer.getBoundingClientRect();
+  const left = Math.round((0.5 * window.innerWidth) - (0.5 * rect.width));
+  const top = Math.round((0.5 * window.innerHeight) - (0.5 * rect.height));
+  viewCapturesContainer.style.left = `${left}px`;
+  viewCapturesContainer.style.top = `${top}px`;
+}
+
+function handleViewCapturesRowSelect(e) {
+  let row = e.target;
+
+  if (!row.classList.contains(CAPTURE_DL_ROW_CLASS)) {
+    row = row.parentElement;
+  }
+
+  if (row.classList.contains(CAPTURE_DL_ROW_SELECTED_CLASS)) {
+    return;
+  }
+
+  const viewCapturesRowContainer = document.getElementById(
+    VIEW_CAPTURES_ROW_CONTAINER_ID
+  );
+  const rows = viewCapturesRowContainer.querySelectorAll(
+    `.${CAPTURE_DL_ROW_CLASS}`
+  );
+
+  for (let k = 0, n = rows.length; k < n; k += 1) {
+    const ro = rows[k];
+    ro.classList.remove(CAPTURE_DL_ROW_SELECTED_CLASS);
+  }
+
+  row.classList.add(CAPTURE_DL_ROW_SELECTED_CLASS);
+  const video = document.getElementById(PREVIEW_CAPTURES_VIDEO_ID);
+  const viewCapturesContainer = document.getElementById(
+    VIEW_CAPTURES_CONTAINER_ID
+  );
+  const vidWidth = parseInt(row.dataset.width, 10);
+  const vidHeight = parseInt(row.dataset.height, 10);
+  const aspect = vidWidth / vidHeight;
+  video.style.width = "0px";
+  video.style.height = "0px";
+  Utils.makeDelay(0).then(function() {
+    handleViewCapturesPosition();
+
+    const rect = viewCapturesContainer.getBoundingClientRect();
+    const width = (rect.width - 64) + ((rect.width - 64) % 32);
+    const height = Math.round(width / aspect);
+    video.style.width = `${width}px`;
+    video.style.height = `${height}px`;
+    video.src = row.dataset.url;
+
+    setTimeout(handleViewCapturesPosition, 0);
+  });
 }
 
 function handleViewCapturesRemove(e) {
