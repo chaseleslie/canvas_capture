@@ -19,7 +19,7 @@ EOF
 )
 EXT_VERSION=$(python3 -c "$PY_VERSION_CMD")
 PLATFORMS_PATH="$PWD/platform/platforms.txt"
-SRC_FILES="LICENSE README.md background.js manifest.json capture options lib img wasm/worker.js wasm/build/webm_muxer.js wasm/build/webm_muxer.wasm"
+SRC_FILES="LICENSE README.md background.js manifest.json capture options lib/webextension-polyfill img wasm/worker.js wasm/build/webm_muxer.js wasm/build/webm_muxer.wasm"
 
 while read platform; do
   PLAT_PATH="$PWD/platform/${platform}-dev"
