@@ -5,7 +5,7 @@
 # Create dev versions of extension with browser-specific hooks.
 
 SRC_FILES="background.js capture img lib LICENSE options README.md wasm/worker.js wasm/build/webm_muxer.js wasm/build/webm_muxer.wasm"
-PLATFORM_DIR="$PWD/platform/"
+PLATFORM_DIR="$PWD/platform"
 PLATFORMS_PATH="$PWD/platform/platforms.txt"
 
 printf "%s\n" "Building wasm"
@@ -32,8 +32,16 @@ do
   printf "  > %s\n" "Copying files"
   for file in $SRC_FILES; do
     if [ -d "$PWD/$file" ]; then
+      dname=$(dirname "$PLATFORM_DEV/$file");
+      if [ ! -d "$dname" ]; then
+        mkdir -p "$dname"
+      fi
       rsync -a -u -r "$PWD/$file" "$PLATFORM_DEV/"
     else
+      dname=$(dirname "$PLATFORM_DEV/$file");
+      if [ ! -d "$dname" ]; then
+        mkdir -p "$dname"
+      fi
       rsync -a -u -r "$PWD/$file" "$PLATFORM_DEV/$file"
     fi
   done
