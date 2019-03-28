@@ -2,7 +2,7 @@
 
   "manifest_version": 2,
   "name": "Canvas Capture",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Capture video from canvas elements",
   "author": "Chase",
   "icons": {
@@ -42,7 +42,11 @@
   "web_accessible_resources": [
     "/capture/*.html",
     "/capture/*.css",
-    "/capture/img/*"
+    "/capture/img/*",
+    "/capture/utils.js",
+    "/wasm/worker.js",
+    "/wasm/build/webm_muxer.js",
+    "/wasm/build/webm_muxer.wasm"
   ]
 
 }

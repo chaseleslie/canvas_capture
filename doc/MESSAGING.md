@@ -4,9 +4,8 @@
 
 A brief description of how messaging happens in the extension between the
 content and background scripts. Most messaging occurs using the
-[WebExtension Messaging APIs](#webext_msg). The top frame in an active tab
-also communicates with its direct child frames using the general DOM
-[Window Messaging](#window_msg).
+[WebExtension Messaging APIs](#webext_msg). Frames also communicate with one
+another using the general DOM [Window Messaging](#window_msg) where necessary.
 
 ## Identifying Frames
 
@@ -42,20 +41,20 @@ of the message. The `frameUUID` property-value pair identifies which frame
 the message originates from, while the `targetFrameUUID` identifies where
 the message is intended for.
 
-The following `command`s are used (see `MessageCommands` enum in source files):
+The following `command`s are used (see `MessageCommands` enum in utils.js):
 - [CAPTURE_START](#capture_start)
 - [CAPTURE_STOP](#capture_stop)
 - [DELAY](#delay)
 - [DISABLE](#disable)
 - [DISCONNECT](#disconnect)
 - [DISPLAY](#display)
-- [DOWNLOAD](#download)
 - [HIGHLIGHT](#highlight)
 - [IDENTIFY](#identify)
 - [IFRAME_NAVIGATED](#iframe_navigated)
 - [NOTIFY](#notify)
 - [REGISTER](#register)
 - [REMOVE_CAPTURE](#remove_capture)
+- [REMUX](#remux)
 - [UPDATE_CANVASES](#update_canvases)
 - [UPDATE_SETTINGS](#update_settings)
 
@@ -73,8 +72,13 @@ This command can originate from either the top frame or a child frame. If a
 child frame is actively recording and the recording is stopped through the UI,
 a message with this command will be sent to the child frame to direct it to
 stop the recording. In the event that a timer expired or an error occurred
-while recording, an actively recording child frame can also send a message with
-this command to signal that recording has stopped.
+while recording, an actively recording child frame also sends a message with
+this command to signal that recording has stopped. The child frame sends the
+captured video in the `blob` property of the message object and also through
+the `url` property as an objectURL. If a browser supports sending objects
+through messaging, the video is immediately available for preview or download
+via the top frame. Otherwise, the top frame downloads the video from the
+child frame and then sends the `REMOVE_CAPTURE` command.
 
 #### DELAY <a name="delay"></a>
 
@@ -105,14 +109,6 @@ top frame to the child frames. When the extension is first activated in a tab,
 the top frame is sent this command to build the UI and perform setup. When
 the top frame is ready, it sends this command to the child frames to notify
 them that the top frame is ready to receive UPDATE_CANVASES.
-
-#### DOWNLOAD <a name="download"></a>
-
-This command is sent from the top frame to child frames when the user wants to
-download a recorded video. Instead of passing binary blobs through the
-messaging serialization process between frames, the frame that has the canvas
-that is being recorded keeps the resulting video in its environment. This
-command instructs the child frame to prompt the user to download the file.
 
 #### HIGHLIGHT <a name="highlight"></a>
 
@@ -152,7 +148,20 @@ frame of its `frameID` and to request its `frameUUID`.
 #### REMOVE_CAPTURE <a name="remove_capture"></a>
 
 This command is sent from the top frame to a child frame when one of the
-captured videos (blobs) should be deleted.
+captured videos (blobs) should be deleted. As of version 1.3.0, all the
+captured videos are sent to the top frame to allow previewing the videos.
+After the top frame has access to the blob, it instructs the child frame
+to delete its copy using this command.
+
+#### REMUX <a name="remux"></a>
+
+This command is sent from a frame to the muxer worker script when a video
+should be remuxed. The worker script then replies with this command and the
+status of the remuxing. This command is also sent from a child frame when
+it has finished remuxing a video to notify the top frame. The top frame can
+access the remuxed video by the `blob` property in browsers that support
+passing Blobs through the messaging API, otherwise the video can be downloaded
+from its objectURL in the `url` property of the message object.
 
 #### UPDATE_CANVASES <a name="update_canvases"></a>
 

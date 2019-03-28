@@ -25,6 +25,11 @@ const TOP_FRAME_UUID = Utils.TOP_FRAME_UUID;
 
 const MessageCommands = Utils.MessageCommands;
 
+const WORKER_PATH = "/wasm/worker.js";
+const WASM_PATH = "/wasm/build/webm_muxer.js";
+const WASM_BINARY_PATH = "/wasm/build/webm_muxer.wasm";
+const UTILS_JS_PATH = "/capture/utils.js";
+
 const MSEC_PER_SEC = 1000;
 
 const MIME_TYPE_MAP = Object.freeze({
@@ -48,6 +53,29 @@ const Ext = Object.seal({
   "tabKey": null,
   "port": null,
   "mediaRecorder": null,
+  "muxer": Object.seal({
+    "worker":       null,
+    "workerSrcURL": null,
+    "utilsSrcURL":  null,
+    "wasmSrcURL":   null,
+    "initialized":  false,
+    "objectURL":    null,
+    "muxing":       false,
+    "queue":        [],
+    "clear": function() {
+      this.objectURL = null;
+      this.muxing = false;
+    },
+    "disable": function() {
+      window.URL.revokeObjectURL(this.workerSrcURL);
+      window.URL.revokeObjectURL(this.utilsSrcURL);
+      window.URL.revokeObjectURL(this.wasmSrcURL);
+
+      for (const key of Object.keys(this)) {
+        this[key] = null;
+      }
+    }
+  }),
   "active": Object.seal({
     "capturing": false,
     "index": -1,
@@ -86,10 +114,13 @@ const Ext = Object.seal({
   "frames": {[FRAME_UUID]: {"frameUUID": FRAME_UUID, "canvases": []}},
   "numBytesRecorded": 0,
   "captures": [],
-  "downloadLinks": [],
-  "settings": {
-    "maxVideoSize": Utils.DEFAULT_MAX_VIDEO_SIZE
-  },
+  "settings": Object.seal({
+    [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
+    [Utils.FPS_KEY]:            Utils.DEFAULT_FPS,
+    [Utils.BPS_KEY]:            Utils.DEFAULT_BPS,
+    [Utils.AUTO_OPEN_KEY]:      Utils.DEFAULT_AUTO_OPEN,
+    [Utils.REMUX_KEY]:          Utils.DEFAULT_REMUX
+  }),
   "bodyMutObs": new MutationObserver(observeBodyMutations),
   "canvasMutObs": new MutationObserver(observeCanvasMutations),
   "freeCaptures": function() {
@@ -97,17 +128,10 @@ const Ext = Object.seal({
       const capture = this.captures[k];
       window.URL.revokeObjectURL(capture.url);
     }
-
-    for (let k = 0, n = this.downloadLinks.length; k < n; k += 1) {
-      const link = this.downloadLinks[k];
-      link.remove(link);
-      this.downloadLinks[k] = null;
-    }
-
-    Ext.downloadLinks = [];
   },
   "disable": function() {
     this.freeCaptures();
+    this.muxer.disable();
 
     for (const key of Object.keys(this)) {
       this[key] = null;
@@ -125,6 +149,8 @@ function handleWindowLoad() {
   Ext.port = browser.runtime.connect({"name": FRAME_UUID});
   Ext.port.onMessage.addListener(onMessage);
   window.addEventListener("message", handleWindowMessage, true);
+
+  window.addEventListener("beforeunload", handlePageUnload, false);
 
   Ext.bodyMutObs.observe(document.body, {
     "childList":  true,
@@ -183,8 +209,6 @@ function onMessage(msg) {
     handleMessageDisable();
   } else if (msg.command === MessageCommands.DISPLAY) {
     handleMessageDisplay(msg);
-  } else if (msg.command === MessageCommands.DOWNLOAD) {
-    handleMessageDownload(msg);
   } else if (msg.command === MessageCommands.HIGHLIGHT) {
     handleMessageHighlight(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
@@ -263,21 +287,6 @@ function handleMessageDisplay(msg) {
   Ext.tabId = msg.tabId;
   Ext.frames[FRAME_UUID].canvases = canvases;
   updateCanvases(canvases);
-}
-
-function handleMessageDownload(msg) {
-  const link = document.createElement("a");
-  link.href = msg.url;
-  link.textContent = "download";
-  link.download = msg.name;
-  link.style.maxWidth = "0px";
-  link.style.maxHeight = "0px";
-  link.style.display = "block";
-  link.style.visibility = "hidden";
-  link.style.position = "absolute";
-  Ext.downloadLinks.push(link);
-  document.body.appendChild(link);
-  link.click();
 }
 
 function handleMessageHighlight(msg) {
@@ -582,13 +591,17 @@ function stopCapture() {
   var size = 0;
   var capture = {
     "url":        "",
+    "oldUrl":     "",
+    "blob":       null,
     "startTS":    Ext.active.startTS,
     "endTS":      Ext.active.startTS,
     "size":       0,
     "prettySize": "",
     "name":       "",
-    "frameUUID":  FRAME_UUID
+    "frameUUID":  FRAME_UUID,
+    "canvas":     null
   };
+  var remuxing = false;
 
   if (Ext.chunks.length) {
     blob = new Blob(Ext.chunks, {"type": Ext.chunks[0].type});
@@ -597,16 +610,30 @@ function stopCapture() {
     const ts = Math.trunc(Date.now() / MSEC_PER_SEC);
     capture = {
       "url":        videoURL,
+      "oldUrl":     videoURL,
+      "blob":       blob,
       "startTS":    Ext.active.startTS,
       "endTS":      Date.now(),
       "size":       size,
       "prettySize": Utils.prettyFileSize(size),
       "name":       `capture-${ts}.${DEFAULT_MIME_TYPE}`,
-      "frameUUID":  FRAME_UUID
+      "frameUUID":  FRAME_UUID,
+      "canvas":     {
+        "width": Ext.active.canvas.width,
+        "height": Ext.active.canvas.height
+      }
     };
     Ext.captures.push(capture);
+
+    if (Ext.settings[Utils.REMUX_KEY]) {
+      remuxing = true;
+      handleSpawnMuxer();
+      Ext.muxer.queue.push(videoURL);
+      handleMuxerQueue();
+    }
   }
-  var success = !Ext.active.error;
+
+  let success = !Ext.active.error;
 
   if (Ext.active.canvasRemoved) {
     showNotification("Canvas was removed while it was being recorded.");
@@ -625,7 +652,8 @@ function stopCapture() {
     "targetFrameUUID":  TOP_FRAME_UUID,
     "canvasIndex":      Ext.active.index,
     "success":          success,
-    "capture":          capture
+    "capture":          capture,
+    "remuxing":         remuxing
   });
 
   Ext.active.clear();
@@ -646,6 +674,157 @@ function onDataAvailable(evt) {
   }
 }
 
+function handleSpawnMuxer() {
+  /* Unfortunately chromium doesn't allow loading workers from extension
+     scripts. For now, spawn worker from objectURL and import scripts into
+     worker by fetching source and using Function() ctor hack.
+     See https://crbug.com/357664 */
+  const muxer = Ext.muxer;
+
+  if (muxer.worker) {
+    return;
+  }
+
+  let wasmBinary = null;
+
+  fetch(browser.runtime.getURL(WORKER_PATH))
+  .then(function(response) {
+    if (response.ok) {
+      return response.blob();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(blob) {
+    muxer.workerSrcURL = window.URL.createObjectURL(blob);
+    muxer.worker = new Worker(muxer.workerSrcURL);
+    muxer.worker.addEventListener("message", handleMuxerMessage, false);
+
+    return fetch(browser.runtime.getURL(WASM_BINARY_PATH));
+  }).then(function(response) {
+    if (response.ok) {
+      return response.arrayBuffer();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(buffer) {
+    wasmBinary = buffer;
+    return fetch(browser.runtime.getURL(UTILS_JS_PATH));
+  }).then(function(response) {
+    if (response.ok) {
+      return response.blob();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(blob) {
+    muxer.utilsSrcURL = window.URL.createObjectURL(blob);
+    return fetch(browser.runtime.getURL(WASM_PATH));
+  }).then(function(response) {
+    if (response.ok) {
+      return response.blob();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(blob) {
+    muxer.wasmSrcURL = window.URL.createObjectURL(blob);
+    muxer.worker.postMessage({
+      "command":    "register",
+      "wasmBinary": wasmBinary,
+      "utilsSrc":   muxer.utilsSrcURL,
+      "wasmSrc":    muxer.wasmSrcURL
+    }, [wasmBinary]);
+  }).catch(function() {
+    Ext.muxer.clear();
+  });
+}
+
+function handleMuxerMessage(e) {
+  const msg = e.data;
+
+  if (msg.command === MessageCommands.REGISTER) {
+    Ext.muxer.initialized = true;
+
+    handleMuxerQueue();
+  } else if (msg.command === MessageCommands.REMUX) {
+    if (msg.success) {
+      handleMuxerRemuxSuccess(msg);
+    } else {
+      handleMuxerRemuxError(msg);
+    }
+
+    Ext.muxer.clear();
+    handleMuxerQueue();
+  }
+}
+
+function handleMuxerRemux(objectURL) {
+  const muxer = Ext.muxer;
+  const caps = Ext.captures;
+  const capture = caps.find((el) => el.url === objectURL);
+  const blob = (capture) ? capture.blob : null;
+
+  if (!blob) {
+    setTimeout(handleMuxerQueue, 0);
+    return;
+  }
+
+  muxer.objectURL = objectURL;
+  const reader = new FileReader();
+  reader.addEventListener("loadend", function() {
+    const buffer = reader.result;
+    muxer.worker.postMessage({
+      "command":        MessageCommands.REMUX,
+      "srcArrayBuffer": buffer,
+      "ts":             capture.startTS
+    }, [buffer]);
+    muxer.muxing = true;
+  }, false);
+  reader.addEventListener("error", function() {
+    muxer.clear();
+  }, false);
+  reader.readAsArrayBuffer(blob);
+}
+
+function handleMuxerRemuxSuccess(msg) {
+  const blob = new Blob([msg.result], {"type": MIME_TYPE_MAP[DEFAULT_MIME_TYPE]});
+  const url = window.URL.createObjectURL(blob);
+
+  for (let k = 0, n = Ext.captures.length; k < n; k += 1) {
+    const capture = Ext.captures[k];
+
+    if (capture.url === Ext.muxer.objectURL) {
+      capture.url = url;
+      capture.blob = blob;
+      capture.size = blob.size;
+      capture.prettySize = Utils.prettyFileSize(capture.size);
+      window.URL.revokeObjectURL(Ext.muxer.objectURL);
+      Ext.port.postMessage({
+        "command":          MessageCommands.REMUX,
+        "tabId":            Ext.tabId,
+        "frameId":          Ext.frameId,
+        "frameUUID":        FRAME_UUID,
+        "targetFrameUUID":  TOP_FRAME_UUID,
+        "capture":          capture
+      });
+      break;
+    }
+  }
+}
+
+function handleMuxerRemuxError() {
+  Ext.muxer.clear();
+}
+
+function handleMuxerQueue() {
+  const muxer = Ext.muxer;
+
+  if (muxer.muxing || !muxer.queue.length || !muxer.initialized) {
+    return;
+  }
+
+  const objectURL = muxer.queue.splice(0, 1)[0];
+  handleMuxerRemux(objectURL);
+}
+
 function canCaptureStream(canvas) {
   try {
     if (canvas.captureStream(0)) {
@@ -664,6 +843,10 @@ function showNotification(notification) {
     "frameUUID":    FRAME_UUID,
     "notification": notification
   });
+}
+
+function handlePageUnload() {
+  Ext.disable();
 }
 
 }());

@@ -4,9 +4,18 @@
 #
 # Create dev versions of extension with browser-specific hooks.
 
-SRC_FILES="background.js capture img lib LICENSE options README.md"
-PLATFORM_DIR="$PWD/platform/"
+SRC_FILES="background.js capture img lib LICENSE options README.md wasm/worker.js wasm/build/webm_muxer.js wasm/build/webm_muxer.wasm"
+PLATFORM_DIR="$PWD/platform"
 PLATFORMS_PATH="$PWD/platform/platforms.txt"
+
+printf "%s\n" "Building wasm"
+pushd "$PWD/wasm" &> /dev/null
+if ! make 1> /dev/null; then
+  printf "  > %s\n" "Building failed. Aborting"
+  exit 1
+fi
+popd &> /dev/null
+printf "\n"
 
 while read platform
 do
@@ -15,17 +24,24 @@ do
   printf "%s\n" "Generating $platform"
 
   printf "  > %s\n" "Creating $PLATFORM_DEV"
-  if [ ! -d "$PLATFORM_DEV" ]; then
+  if [ -d "$PLATFORM_DEV" ]; then
+    rm -r "$PLATFORM_DEV"
     mkdir -p "$PLATFORM_DEV"
-  else
-    printf "    >> %s\n" "already exists"
   fi
 
   printf "  > %s\n" "Copying files"
   for file in $SRC_FILES; do
     if [ -d "$PWD/$file" ]; then
+      dname=$(dirname "$PLATFORM_DEV/$file");
+      if [ ! -d "$dname" ]; then
+        mkdir -p "$dname"
+      fi
       rsync -a -u -r "$PWD/$file" "$PLATFORM_DEV/"
     else
+      dname=$(dirname "$PLATFORM_DEV/$file");
+      if [ ! -d "$dname" ]; then
+        mkdir -p "$dname"
+      fi
       rsync -a -u -r "$PWD/$file" "$PLATFORM_DEV/$file"
     fi
   done

@@ -40,6 +40,10 @@ const HTML_ROW_FILE_PATH = "/capture/capture-row.html";
 const HTML_DL_ROW_FILE_PATH = "/capture/download-row.html";
 const ICON_ADD_PATH = "/capture/img/icon_add_32.svg";
 const ICON_TIMER_PATH = "/capture/img/icon_timer_32.svg";
+const WORKER_PATH = "/wasm/worker.js";
+const WASM_PATH = "/wasm/build/webm_muxer.js";
+const WASM_BINARY_PATH = "/wasm/build/webm_muxer.wasm";
+const UTILS_JS_PATH = "/capture/utils.js";
 
 const CSS_STYLE_ID = "capture_list_container_css";
 const WRAPPER_ID = "capture_list_container";
@@ -64,6 +68,7 @@ const LIST_CANVASES_DL_BUTTON_ID = "list_canvases_dl_button";
 const VIEW_CAPTURES_CLOSE_ID = "view_captures_close";
 const VIEW_CAPTURES_CONTAINER_ID = "view_captures_container";
 const VIEW_CAPTURES_ROW_CONTAINER_ID = "view_captures_row_container";
+const PREVIEW_CAPTURES_VIDEO_ID = "preview_captures_video";
 
 const LIST_CANVASES_ROW_CLASS = "list_canvases_row";
 const CANVAS_CAPTURE_TOGGLE_CLASS = "canvas_capture_toggle";
@@ -88,6 +93,7 @@ const HIGHLIGHTER_HORIZONTAL_CLASS = "highlighter_horizontal";
 const HIGHLIGHTER_VERTICAL_CLASS = "highlighter_vertical";
 const HIGHLIGHTER_OVERLAY_CLASS = "highlighter_overlay";
 const CAPTURE_DL_ROW_CLASS = "view_captures_row";
+const CAPTURE_DL_ROW_SELECTED_CLASS = "view_captures_row_selected";
 const CAPTURE_DL_DATE_CLASS = "capture_dl_date";
 const CAPTURE_DL_SIZE_CLASS = "capture_dl_size";
 const CAPTURE_DL_DURATION_CLASS = "capture_dl_duration";
@@ -120,11 +126,35 @@ const Ext = Object.seal({
     [Utils.MAX_VIDEO_SIZE_KEY]: Utils.DEFAULT_MAX_VIDEO_SIZE,
     [Utils.FPS_KEY]:            Utils.DEFAULT_FPS,
     [Utils.BPS_KEY]:            Utils.DEFAULT_BPS,
-    [Utils.AUTO_OPEN_KEY]:      Utils.DEFAULT_AUTO_OPEN
+    [Utils.AUTO_OPEN_KEY]:      Utils.DEFAULT_AUTO_OPEN,
+    [Utils.REMUX_KEY]:          Utils.DEFAULT_REMUX
   }),
   "mediaRecorder": null,
   "displayed": false,
   "minimized": false,
+  "muxer": Object.seal({
+    "worker":       null,
+    "workerSrcURL": null,
+    "utilsSrcURL":  null,
+    "wasmSrcURL":   null,
+    "initialized":  false,
+    "objectURL":    null,
+    "muxing":       false,
+    "queue":       [],
+    "clear": function() {
+      this.objectURL = null;
+      this.muxing = false;
+    },
+    "disable": function() {
+      window.URL.revokeObjectURL(this.workerSrcURL);
+      window.URL.revokeObjectURL(this.utilsSrcURL);
+      window.URL.revokeObjectURL(this.wasmSrcURL);
+
+      for (const key of Object.keys(this)) {
+        this[key] = null;
+      }
+    }
+  }),
   "active": Object.seal({
     "capturing": false,
     "index": -1,
@@ -211,6 +241,7 @@ const Ext = Object.seal({
   },
   "disable": function() {
     this.freeCaptures();
+    this.muxer.disable();
 
     for (const key of Object.keys(this)) {
       this[key] = null;
@@ -302,6 +333,8 @@ function onMessage(msg) {
     handleMessageIframeAdded(msg);
   } else if (msg.command === MessageCommands.REGISTER) {
     handleMessageRegister(msg);
+  } else if (msg.command === MessageCommands.REMUX) {
+    handleMessageRemux(msg);
   } else if (msg.command === MessageCommands.UPDATE_CANVASES) {
     handleMessageUpdateCanvases(msg);
   } else if (msg.command === MessageCommands.UPDATE_SETTINGS) {
@@ -325,6 +358,48 @@ function handleMessageCaptureStop(msg) {
   if (msg.success) {
     const capture = msg.capture;
     Ext.captures.push(capture);
+
+    if (!msg.remuxing) {
+      if (capture.blob instanceof Blob) {
+        Ext.port.postMessage({
+          "command":          MessageCommands.REMOVE_CAPTURE,
+          "tabId":            Ext.tabId,
+          "frameUUID":        TOP_FRAME_UUID,
+          "targetFrameUUID":  capture.frameUUID,
+          "url":              capture.url
+        });
+        capture.url = window.URL.createObjectURL(capture.blob);
+        capture.frameUUID = TOP_FRAME_UUID;
+      } else {
+        /* This condition is met in chromium where remuxing is disabled and
+           the blob doesn't get transferred through the messaging API. Bring
+           the blob to top frame (for previewing, etc) by downloading it
+           and message frame to delete it's copy.
+
+           Note: Use XMLHttpRequest here as fetch in chromium won't allow
+           content scripts in extension to access objectURLs that
+           it created itself:
+
+           https://crbug.com/937576 */
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("GET", capture.url);
+        xhr.responseType = "blob";
+        xhr.addEventListener("load", function() {
+          Ext.port.postMessage({
+            "command":          MessageCommands.REMOVE_CAPTURE,
+            "tabId":            Ext.tabId,
+            "frameUUID":        TOP_FRAME_UUID,
+            "targetFrameUUID":  capture.frameUUID,
+            "url":              capture.url
+          });
+          capture.blob = xhr.response;
+          capture.url = window.URL.createObjectURL(capture.blob);
+          capture.frameUUID = TOP_FRAME_UUID;
+        });
+        xhr.send();
+      }
+    }
   } else {
     // error
   }
@@ -430,6 +505,67 @@ function handleMessageRegister(msg) {
   const frames = Array.from(document.querySelectorAll("iframe"));
   if (frames.length) {
     handleAddedIframes(frames);
+  }
+}
+
+function handleMessageRemux(msg) {
+  const cap = msg.capture;
+
+  for (let k = 0, n = Ext.captures.length; k < n; k += 1) {
+    const capture = Ext.captures[k];
+
+    if (cap.oldUrl === capture.url) {
+      capture.url = cap.url;
+      capture.size = cap.size;
+      capture.prettySize = cap.prettySize;
+
+      if (capture.blob instanceof Blob) {
+        Ext.port.postMessage({
+          "command":          MessageCommands.REMOVE_CAPTURE,
+          "tabId":            Ext.tabId,
+          "frameUUID":        TOP_FRAME_UUID,
+          "targetFrameUUID":  capture.frameUUID,
+          "url":              capture.url
+        });
+        capture.blob = cap.blob;
+        capture.url = window.URL.createObjectURL(capture.blob);
+        capture.frameUUID = TOP_FRAME_UUID;
+      } else {
+        /* This condition is met in chromium where the blob doesn't get
+           transferred through the messaging API. Bring the blob to top frame
+           (for previewing, etc) by downloading it and message frame to
+           delete it's copy.
+
+           Note: Use XMLHttpRequest here as fetch in chromium won't allow
+           content scripts in extension to access objectURLs that
+           it created itself:
+
+           https://crbug.com/937576 */
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("GET", capture.url);
+        xhr.responseType = "blob";
+        xhr.addEventListener("load", function() {
+          Ext.port.postMessage({
+            "command":          MessageCommands.REMOVE_CAPTURE,
+            "tabId":            Ext.tabId,
+            "frameUUID":        TOP_FRAME_UUID,
+            "targetFrameUUID":  capture.frameUUID,
+            "url":              capture.url
+          });
+          capture.blob = xhr.response;
+          capture.url = window.URL.createObjectURL(capture.blob);
+          capture.frameUUID = TOP_FRAME_UUID;
+        });
+        xhr.send();
+      }
+    }
+  }
+
+  const viewCapCont = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
+
+  if (!viewCapCont.classList.contains(HIDDEN_CLASS)) {
+    handleViewCapturesOpen();
   }
 }
 
@@ -1043,6 +1179,7 @@ function positionWrapper() {
   if (Ext.displayed) {
     positionUpdateTimer();
     positionRowTimerModify();
+    handleViewCapturesPosition();
   }
 }
 
@@ -1157,11 +1294,15 @@ function setupDisplay(html) {
   const captureMinimize = document.getElementById(CAPTURE_MINIMIZE_ID);
   captureMinimize.addEventListener("click", minimizeCapture, false);
 
+  const modifyTimerContainer = document.getElementById(MODIFY_TIMER_CONTAINER_ID);
   const modifyTimerSet = document.getElementById(MODIFY_TIMER_SET_ID);
   const modifyTimerClear = document.getElementById(MODIFY_TIMER_CLEAR_ID);
   const modifyTimerHours = document.getElementById(MODIFY_TIMER_HOURS_ID);
   const modifyTimerMinutes = document.getElementById(MODIFY_TIMER_MINUTES_ID);
   const modifyTimerSeconds = document.getElementById(MODIFY_TIMER_SECONDS_ID);
+  modifyTimerContainer.addEventListener("click", function(evt) {
+    evt.stopPropagation();
+  }, false);
   modifyTimerSet.addEventListener("click", handleRowSetTimer, false);
   modifyTimerClear.addEventListener("click", handleRowClearTimer, false);
   modifyTimerHours.addEventListener("focus", handleInputFocus, false);
@@ -1176,9 +1317,13 @@ function setupDisplay(html) {
   delaySkip.addEventListener("click", handleDelayEnd, false);
   delayCancel.addEventListener("click", handleCancelDelay, false);
 
+  const viewCapturesContainer = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
   const viewCapturesOpen = document.getElementById(LIST_CANVASES_DL_BUTTON_ID);
-  viewCapturesOpen.addEventListener("click", handleViewCapturesOpen, false);
   const viewCapturesClose = document.getElementById(VIEW_CAPTURES_CLOSE_ID);
+  viewCapturesContainer.addEventListener("click", function(evt) {
+    evt.stopPropagation();
+  }, false);
+  viewCapturesOpen.addEventListener("click", handleViewCapturesOpen, false);
   viewCapturesClose.addEventListener("click", handleViewCapturesClose, false);
 
   positionWrapper();
@@ -1982,13 +2127,24 @@ function createVideoURL(blob) {
   const ts = Math.trunc(Date.now() / MSEC_PER_SEC);
   Ext.captures.push({
     "url":        videoURL,
+    "blob":       blob,
     "startTS":    Ext.active.startTS,
     "endTS":      Date.now(),
     "size":       size,
     "prettySize": Utils.prettyFileSize(size),
     "name":       `capture-${ts}.${DEFAULT_MIME_TYPE}`,
-    "frameUUID":  TOP_FRAME_UUID
+    "frameUUID":  TOP_FRAME_UUID,
+    "canvas":     {
+      "width": Ext.active.canvas.width,
+      "height": Ext.active.canvas.height
+    }
   });
+
+  if (Ext.settings[Utils.REMUX_KEY]) {
+    handleSpawnMuxer();
+    Ext.muxer.queue.push(videoURL);
+    handleMuxerQueue();
+  }
 }
 
 function stopCapture() {
@@ -2050,20 +2206,13 @@ function handleViewCapturesOpen() {
 
   viewCapturesContainer.classList.remove(HIDDEN_CLASS);
 
-  setTimeout(function() {
-    const rect = viewCapturesContainer.getBoundingClientRect();
-    const left = Math.round((0.5 * window.innerWidth) - (0.5 * rect.width));
-    const top = Math.round((0.5 * window.innerHeight) - (0.5 * rect.height));
-    viewCapturesContainer.style.left = `${left}px`;
-    viewCapturesContainer.style.top = `${top}px`;
-  }, 0);
-
   const oldRows = Array.from(
     viewCapturesRowContainer.querySelectorAll(`.${CAPTURE_DL_ROW_CLASS}`)
   );
   oldRows.forEach((el) => el.remove());
 
   const docFrag = document.createDocumentFragment();
+  let firstRow = null;
 
   for (let k = 0, n = Ext.captures.length; k < n; k += 1) {
     const capture = Ext.captures[k];
@@ -2092,10 +2241,90 @@ function handleViewCapturesOpen() {
     downloadLink.href = capture.url;
     downloadLink.title = capture.prettySize;
 
+    row.addEventListener("click", handleViewCapturesRowSelect, false);
+    row.dataset.url = capture.url;
+    row.dataset.width = capture.canvas.width;
+    row.dataset.height = capture.canvas.height;
     docFrag.append(row);
+
+    if (!k) {
+      firstRow = row;
+    }
+  }
+
+  Utils.makeDelay(0).then(handleViewCapturesPosition);
+
+  if (firstRow) {
+    Utils.makeDelay(0).then(() => firstRow.click());
+  } else {
+    const video = document.getElementById(PREVIEW_CAPTURES_VIDEO_ID);
+    video.src = "";
   }
 
   viewCapturesRowContainer.append(docFrag);
+}
+
+function handleViewCapturesPosition() {
+  const viewCapturesContainer = document.getElementById(
+    VIEW_CAPTURES_CONTAINER_ID
+  );
+
+  if (viewCapturesContainer.classList.contains(HIDDEN_CLASS)) {
+    return;
+  }
+
+  const rect = viewCapturesContainer.getBoundingClientRect();
+  const left = Math.round((0.5 * window.innerWidth) - (0.5 * rect.width));
+  const top = Math.round((0.5 * window.innerHeight) - (0.5 * rect.height));
+  viewCapturesContainer.style.left = `${left}px`;
+  viewCapturesContainer.style.top = `${top}px`;
+}
+
+function handleViewCapturesRowSelect(e) {
+  let row = e.target;
+
+  while (row && !row.classList.contains(CAPTURE_DL_ROW_CLASS)) {
+    row = row.parentElement;
+  }
+
+  if (!row || row.classList.contains(CAPTURE_DL_ROW_SELECTED_CLASS)) {
+    return;
+  }
+
+  const viewCapturesRowContainer = document.getElementById(
+    VIEW_CAPTURES_ROW_CONTAINER_ID
+  );
+  const rows = viewCapturesRowContainer.querySelectorAll(
+    `.${CAPTURE_DL_ROW_CLASS}`
+  );
+
+  for (let k = 0, n = rows.length; k < n; k += 1) {
+    const ro = rows[k];
+    ro.classList.remove(CAPTURE_DL_ROW_SELECTED_CLASS);
+  }
+
+  row.classList.add(CAPTURE_DL_ROW_SELECTED_CLASS);
+  const video = document.getElementById(PREVIEW_CAPTURES_VIDEO_ID);
+  const viewCapturesContainer = document.getElementById(
+    VIEW_CAPTURES_CONTAINER_ID
+  );
+  const vidWidth = parseInt(row.dataset.width, 10);
+  const vidHeight = parseInt(row.dataset.height, 10);
+  const aspect = vidWidth / vidHeight;
+  video.style.width = "0px";
+  video.style.height = "0px";
+  Utils.makeDelay(0).then(function() {
+    handleViewCapturesPosition();
+
+    const rect = viewCapturesContainer.getBoundingClientRect();
+    const width = (rect.width - 64) + ((rect.width - 64) % 32);
+    const height = Math.round(width / aspect);
+    video.style.width = `${width}px`;
+    video.style.height = `${height}px`;
+    video.src = row.dataset.url;
+
+    setTimeout(handleViewCapturesPosition, 0);
+  });
 }
 
 function handleViewCapturesRemove(e) {
@@ -2130,6 +2359,155 @@ function handleViewCapturesClose() {
     VIEW_CAPTURES_CONTAINER_ID
   );
   viewCapturesContainer.classList.add(HIDDEN_CLASS);
+}
+
+function handleSpawnMuxer() {
+  /* Unfortunately chromium doesn't allow loading workers from extension
+     scripts. For now, spawn worker from objectURL and send objectURLs of
+     scripts to import to worker.
+     See https://crbug.com/357664 */
+  const muxer = Ext.muxer;
+
+  if (muxer.worker) {
+    return;
+  }
+
+  let wasmBinary = null;
+
+  fetch(browser.runtime.getURL(WORKER_PATH))
+  .then(function(response) {
+    if (response.ok) {
+      return response.blob();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(blob) {
+    muxer.workerSrcURL = window.URL.createObjectURL(blob);
+    muxer.worker = new Worker(muxer.workerSrcURL);
+    muxer.worker.addEventListener("message", handleMuxerMessage, false);
+
+    return fetch(browser.runtime.getURL(WASM_BINARY_PATH));
+  }).then(function(response) {
+    if (response.ok) {
+      return response.arrayBuffer();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(buffer) {
+    wasmBinary = buffer;
+    return fetch(browser.runtime.getURL(UTILS_JS_PATH));
+  }).then(function(response) {
+    if (response.ok) {
+      return response.blob();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(blob) {
+    muxer.utilsSrcURL = window.URL.createObjectURL(blob);
+    return fetch(browser.runtime.getURL(WASM_PATH));
+  }).then(function(response) {
+    if (response.ok) {
+      return response.blob();
+    }
+
+    throw Error(`Error fetching '${response.url}': ${response.status}`);
+  }).then(function(blob) {
+    muxer.wasmSrcURL = window.URL.createObjectURL(blob);
+    muxer.worker.postMessage({
+      "command":    "register",
+      "wasmBinary": wasmBinary,
+      "utilsSrc":   muxer.utilsSrcURL,
+      "wasmSrc":    muxer.wasmSrcURL
+    }, [wasmBinary]);
+  }).catch(function() {
+    Ext.muxer.clear();
+  });
+}
+
+function handleMuxerMessage(e) {
+  const msg = e.data;
+
+  if (msg.command === MessageCommands.REGISTER) {
+    Ext.muxer.initialized = true;
+
+    handleMuxerQueue();
+  } else if (msg.command === MessageCommands.REMUX) {
+    if (msg.success) {
+      handleMuxerRemuxSuccess(msg);
+    } else {
+      handleMuxerRemuxError(msg);
+    }
+
+    Ext.muxer.clear();
+    handleMuxerQueue();
+  }
+}
+
+function handleMuxerRemux(objectURL) {
+  const muxer = Ext.muxer;
+  const caps = Ext.captures;
+  const capture = caps.find((el) => el.url === objectURL);
+  const blob = (capture) ? capture.blob : null;
+
+  if (!blob) {
+    setTimeout(handleMuxerQueue, 0);
+    return;
+  }
+
+  muxer.objectURL = objectURL;
+  const reader = new FileReader();
+  reader.addEventListener("loadend", function() {
+    const buffer = reader.result;
+    muxer.worker.postMessage({
+      "command":        MessageCommands.REMUX,
+      "srcArrayBuffer": buffer,
+      "ts":             capture.startTS
+    }, [buffer]);
+    muxer.muxing = true;
+  }, false);
+  reader.addEventListener("error", function() {
+    muxer.clear();
+  }, false);
+  reader.readAsArrayBuffer(blob);
+}
+
+function handleMuxerRemuxSuccess(msg) {
+  const blob = new Blob([msg.result], {"type": MIME_TYPE_MAP[DEFAULT_MIME_TYPE]});
+  const url = window.URL.createObjectURL(blob);
+
+  for (let k = 0, n = Ext.captures.length; k < n; k += 1) {
+    const capture = Ext.captures[k];
+
+    if (capture.url === Ext.muxer.objectURL) {
+      capture.url = url;
+      capture.blob = blob;
+      capture.size = blob.size;
+      capture.prettySize = Utils.prettyFileSize(capture.size);
+      window.URL.revokeObjectURL(Ext.muxer.objectURL);
+      break;
+    }
+  }
+
+  const viewCapCont = document.getElementById(VIEW_CAPTURES_CONTAINER_ID);
+
+  if (!viewCapCont.classList.contains(HIDDEN_CLASS)) {
+    handleViewCapturesOpen();
+  }
+}
+
+function handleMuxerRemuxError() {
+  Ext.muxer.clear();
+}
+
+function handleMuxerQueue() {
+  const muxer = Ext.muxer;
+
+  if (muxer.muxing || !muxer.queue.length || !muxer.initialized) {
+    return;
+  }
+
+  const objectURL = muxer.queue.splice(0, 1)[0];
+  handleMuxerRemux(objectURL);
 }
 
 function handlePageUnload() {

@@ -36,6 +36,12 @@ Capture on Refresh checkbox next to the canvas. This requires the setting
 options page (this is the default). After reloading the page, the canvas
 will start to record immediately upon page load (subject to the delay setting).
 
+Captured videos are remuxed using libwebm compiled to WebAssembly so that they
+include a Cues section at the beginning of the file. This results in the
+video files having much greater usability: when played, videos have a duration,
+show progress and are seekable. This step is optional (although recommended)
+and can be turned off by a setting on the options page.
+
 Canvas Capture produces video files of canvas elements using the
 MediaRecorder, MediaStream and Blob APIs. All captured video is kept local:
 no data is sent over the network.
@@ -57,3 +63,6 @@ upon the DOM being constructed deterministically (where the canvases take the
 same place in the hierarchy when the page reloads). This restriction also
 applies to capturing a canvas on page reload. This works well for most sites,
 but cannot be guaranteed to work for all sites.
+
+Previewing captured videos may not work properly on some sites that have a
+restrictive Content Security Policy.

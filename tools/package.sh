@@ -19,7 +19,7 @@ EOF
 )
 EXT_VERSION=$(python3 -c "$PY_VERSION_CMD")
 PLATFORMS_PATH="$PWD/platform/platforms.txt"
-SRC_FILES="LICENSE README.md background.js manifest.json capture options lib img"
+SRC_FILES="LICENSE README.md background.js manifest.json capture options lib/webextension-polyfill img wasm/worker.js wasm/build/webm_muxer.js wasm/build/webm_muxer.wasm"
 
 while read platform; do
   PLAT_PATH="$PWD/platform/${platform}-dev"
@@ -30,6 +30,10 @@ while read platform; do
 
   rm -R "$TMP_DEST/"* > /dev/null 2>&1
   for file in $SRC_FILES; do
+    dname=$(dirname "$TMP_DEST/$file")
+    if [ ! -d "$dname" ]; then
+      mkdir -p "$dname"
+    fi
     cp -R "$PLAT_PATH/$file" "$TMP_DEST/$file"
   done
 
